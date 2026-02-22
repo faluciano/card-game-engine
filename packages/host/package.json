@@ -7,7 +7,9 @@
   "scripts": {
     "prebuild": "expo prebuild",
     "android": "expo run:android",
-    "start": "expo start"
+    "start": "expo start",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@card-engine/shared": "workspace:*",
@@ -22,6 +24,8 @@
   "devDependencies": {
     "@couch-kit/cli": "^0.2.3",
     "@react-native-tvos/config-tv": "*",
-    "typescript": "~5.9.2"
+    "@types/pako": "^2.0.3",
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.1"
   }
 }
