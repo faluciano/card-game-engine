@@ -15,7 +15,7 @@
   "dependencies": {
     "@card-engine/shared": "workspace:*",
     "@couch-kit/core": "^0.8.1",
-    "@couch-kit/host": "^1.7.1",
+    "@couch-kit/host": "^1.7.2",
     "expo": "~54.0.0",
     "expo-build-properties": "^1.0.10",
     "pako": "*",
