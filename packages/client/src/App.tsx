@@ -31,6 +31,7 @@ export function App(): React.JSX.Element {
   >({
     reducer: hostReducer,
     initialState,
+    debug: true,
   });
 
   // Not connected yet — show connecting/error screen

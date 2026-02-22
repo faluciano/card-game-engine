@@ -42,7 +42,7 @@ const subtitleStyle: CSSProperties = {
 
 const STATUS_TEXT: Record<ConnectingScreenProps["status"], string> = {
   connecting: "Connecting to TV...",
-  connected: "Connected",
+  connected: "Joining game...",
   disconnected: "Connection lost",
   error: "Connection error",
 };
