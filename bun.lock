@@ -10,8 +10,8 @@
       "version": "0.1.0",
       "dependencies": {
         "@card-engine/shared": "workspace:*",
-        "@couch-kit/client": "^0.8.1",
-        "@couch-kit/core": "^0.8.2",
+        "@couch-kit/client": "^0.8.3",
+        "@couch-kit/core": "^0.8.3",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
       },
@@ -28,8 +28,8 @@
       "version": "0.1.0",
       "dependencies": {
         "@card-engine/shared": "workspace:*",
-        "@couch-kit/core": "^0.8.2",
-        "@couch-kit/host": "^1.7.2",
+        "@couch-kit/core": "^0.8.3",
+        "@couch-kit/host": "^1.7.4",
         "buffer": "^6.0.3",
         "expo": "~54.0.0",
         "expo-build-properties": "^1.0.10",
@@ -265,11 +265,11 @@
 
     "@couch-kit/cli": ["@couch-kit/cli@0.3.1", "", { "dependencies": { "@couch-kit/core": "0.8.1", "commander": "^12.0.0" }, "bin": { "couch-kit": "dist/index.js" } }, "sha512-nedCf5T6/UXyjape7H7pQ/sHzTc7JlDiBTakvh6wL0Er+1d1BTspaZ683rPWhh5/U8PZWieCBvrwh+yreS/RkQ=="],
 
-    "@couch-kit/client": ["@couch-kit/client@0.8.1", "", { "dependencies": { "@couch-kit/core": "0.8.1" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-aAfYXHotSKFzRVgvzo9XLA4qafkdtaOyiscbsyYEOVticQk0HzfAnY3IJcyiPrhLZYmrdhdidqaaRVgIEj8X1A=="],
+    "@couch-kit/client": ["@couch-kit/client@0.8.3", "", { "dependencies": { "@couch-kit/core": "0.8.3" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-N4cxT9aCxo9h/8HJ7Ljjl3PXVRnfnKvhRJ6WDeJLa+YBtTRWJ/mt21FWKW2Fr0VjSAzryWc6cRTd7FuarYXciA=="],
 
-    "@couch-kit/core": ["@couch-kit/core@0.8.2", "", { "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-Hfg8BT+Y4JRzxWdUMLVgHm4xPQShvUs98mx7yAd6n7eYb/3N3aSTP/pyyY5I6BGWdJTbmvwVsOgXvi3skuJOcw=="],
+    "@couch-kit/core": ["@couch-kit/core@0.8.3", "", { "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-bBU30UArW/Ryx2mlpAjrHu+ZW7VFkjc1hlh5mIYlfnowe2m9XtjCGH+PRH1s/ZRMKS/ZB/ZbMVkvHQGqe9K2gA=="],
 
-    "@couch-kit/host": ["@couch-kit/host@1.7.2", "", { "dependencies": { "@couch-kit/core": "0.8.1", "buffer": "^6.0.3", "js-sha1": "^0.7.0", "react-native-nitro-http-server": "^1.5.4" }, "peerDependencies": { "expo": ">=51.0.0", "expo-file-system": ">=19.0.0", "expo-network": ">=7.0.0", "react": ">=18.2.0", "react-native": ">=0.72.0", "react-native-nitro-modules": ">=0.33.0" } }, "sha512-575l4jlFARz8RqqAnSiEHHK+1Vb7eBcYipBJaHgNjRYzpnUjsG+HqZrsmet6vBsnImNPf7Z8bfaU3lobOm81eA=="],
+    "@couch-kit/host": ["@couch-kit/host@1.7.4", "", { "dependencies": { "@couch-kit/core": "0.8.3", "buffer": "^6.0.3", "js-sha1": "^0.7.0", "react-native-nitro-http-server": "^1.5.4" }, "peerDependencies": { "expo": ">=51.0.0", "expo-file-system": ">=19.0.0", "expo-network": ">=7.0.0", "react": ">=18.2.0", "react-native": ">=0.72.0", "react-native-nitro-modules": ">=0.33.0" } }, "sha512-E1pKqGCQP2IZcVriAcOaTjXyxeK+KYXOrF0FlX2m+jCkHhHVTq/HhX2fIDw0v/g7Q6Rm6KgOntU0lHZobmW40g=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.12", "", { "os": "aix", "cpu": "ppc64" }, "sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA=="],
 
@@ -1400,10 +1400,6 @@
     "@card-engine/host/react": ["react@19.1.0", "", {}, "sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg=="],
 
     "@couch-kit/cli/@couch-kit/core": ["@couch-kit/core@0.8.1", "", { "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-+J/Z8V2x4ca3VoU5kQwA3bYS6cxBt6vVjlaiSA3uUYdE4wUPHCwYz6WYqi8M7tNgvowQ8gpZM7z2nx66nQcgPw=="],
-
-    "@couch-kit/client/@couch-kit/core": ["@couch-kit/core@0.8.1", "", { "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-+J/Z8V2x4ca3VoU5kQwA3bYS6cxBt6vVjlaiSA3uUYdE4wUPHCwYz6WYqi8M7tNgvowQ8gpZM7z2nx66nQcgPw=="],
-
-    "@couch-kit/host/@couch-kit/core": ["@couch-kit/core@0.8.1", "", { "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-+J/Z8V2x4ca3VoU5kQwA3bYS6cxBt6vVjlaiSA3uUYdE4wUPHCwYz6WYqi8M7tNgvowQ8gpZM7z2nx66nQcgPw=="],
 
     "@expo/cli/picomatch": ["picomatch@3.0.1", "", {}, "sha512-I3EurrIQMlRc9IaAZnqRR044Phh2DXY+55o7uJ0V+hYZAcQYSuFWsc9q5PvyDHUSCe1Qxn/iBz+78s86zWnGag=="],
 
