@@ -69,6 +69,27 @@ export function createPlayerView(
 
   const validActions = getValidActions(state, playerId);
 
+  // Remap engine-internal score keys (player:N, result:N) to PlayerId keys
+  // so client components can look up scores by player.id directly.
+  const remappedScores: Record<string, number> = {};
+  for (const [key, value] of Object.entries(state.scores)) {
+    const playerMatch = key.match(/^(?:player|result):(\d+)$/);
+    if (!playerMatch) {
+      // Non-player keys (e.g. "dealer") pass through unchanged
+      remappedScores[key] = value;
+      continue;
+    }
+    const index = Number(playerMatch[1]);
+    const matchedPlayer = state.players[index];
+    if (!matchedPlayer) continue;
+
+    if (key.startsWith("player:")) {
+      remappedScores[matchedPlayer.id] = value;
+    } else {
+      remappedScores[`result:${matchedPlayer.id}`] = value;
+    }
+  }
+
   return {
     sessionId: state.sessionId,
     status: state.status,
@@ -80,7 +101,7 @@ export function createPlayerView(
     validActions: validActions
       .filter((a) => a.enabled)
       .map((a) => a.actionName as CardGameAction["kind"]),
-    scores: state.scores,
+    scores: remappedScores,
     turnNumber: state.turnNumber,
   };
 }

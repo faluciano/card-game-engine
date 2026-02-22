@@ -21,7 +21,15 @@
           }
         }
       ],
-      ["@react-native-tvos/config-tv", { "isTV": true }]
-    ]
+      [
+        "@react-native-tvos/config-tv",
+        {
+          "isTV": true
+        }
+      ]
+    ],
+    "ios": {
+      "bundleIdentifier": "com.cardgameengine.host"
+    }
   }
 }

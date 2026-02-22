@@ -51,7 +51,7 @@ const emptyStyle: CSSProperties = {
  * "hand_0" -> "Hand", "discard_pile" -> "Discard Pile", "community" -> "Community"
  */
 function formatZoneName(zoneName: string): string {
-  const base = zoneName.replace(/_\d+$/, "");
+  const base = zoneName.replace(/:\d+$/, "");
   return base
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -67,7 +67,7 @@ export function HandViewer({
   const myIndex = players.findIndex((p) => p.id === myPlayerId);
 
   // Separate zones into personal hand and other visible zones
-  const handZoneName = `hand_${myIndex}`;
+  const handZoneName = `hand:${myIndex}`;
   const handZone = zones[handZoneName];
 
   // Other zones with cards (community cards, discard pile, etc.)

@@ -130,6 +130,13 @@ See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format
 
 **Phase 4 (Client Controller App)** is complete. The phone controller has 5 screens (Connecting, Waiting, Lobby, Playing, Result) and 4 components (CardMini, HandViewer, ActionBar, GameInfo) wired to CouchKit via `useGameClient` with the shared bridge layer. Production build: 64 modules, 245.89 kB JS (72.20 kB gzip).
 
+## Known Issues
+
+- **`all_players_done` sentinel always returns true** — after any declare action the engine immediately advances through all automatic phases. Affects games where multiple players must each complete an action before the round advances.
+- **Per-player zone visibility** — `isOwner` checks role membership, but since all human players share the `"player"` role, `isOwner` evaluates to true for every player viewing any player's hand zone. A player-index-based ownership check is needed.
+- **Host `typecheck` coverage** — the `typecheck` script only covers shared and client packages. The host package type-checks through Expo's build toolchain.
+- **Host TODO gaps** — QR code display, file import button wiring, and `expo-file-system` integration are stubbed but not yet functional on the host screens.
+
 ## License
 
 MIT
