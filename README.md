@@ -124,7 +124,9 @@ See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format
 
 **Phase 1 (Engine Core)** is complete. The shared package provides a fully tested, deterministic game engine capable of loading rulesets and running games to completion.
 
-Storage, host screens, and client UI components are stubbed and in progress for Phase 2 (Networking and UI).
+**Phase 2 (Storage & Import)** is complete. The host package has SQLite persistence (rulesets, sessions, action log) and file/URL importers with 79 unit tests.
+
+**Phase 3 (Host Screens & CouchKit Integration)** is complete. The host app has a bridge layer reconciling CouchKit with the card engine, three implemented screens (RulesetPicker, Lobby, GameTable), and an orchestrator hook for automatic game lifecycle management.
 
 ## License
 
