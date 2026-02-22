@@ -1,0 +1,6 @@
+{
+  "name": "card-game-engine",
+  "private": true,
+  "packageManager": "bun",
+  "workspaces": ["packages/*"]
+}

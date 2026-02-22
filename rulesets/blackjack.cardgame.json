@@ -1,0 +1,179 @@
+{
+  "meta": {
+    "name": "Blackjack",
+    "slug": "blackjack",
+    "version": "1.0.0",
+    "author": "card-engine",
+    "players": {
+      "min": 1,
+      "max": 6
+    }
+  },
+  "deck": {
+    "preset": "standard_52",
+    "copies": 2,
+    "cardValues": {
+      "A": { "kind": "dual", "low": 1, "high": 11 },
+      "2": { "kind": "fixed", "value": 2 },
+      "3": { "kind": "fixed", "value": 3 },
+      "4": { "kind": "fixed", "value": 4 },
+      "5": { "kind": "fixed", "value": 5 },
+      "6": { "kind": "fixed", "value": 6 },
+      "7": { "kind": "fixed", "value": 7 },
+      "8": { "kind": "fixed", "value": 8 },
+      "9": { "kind": "fixed", "value": 9 },
+      "10": { "kind": "fixed", "value": 10 },
+      "J": { "kind": "fixed", "value": 10 },
+      "Q": { "kind": "fixed", "value": 10 },
+      "K": { "kind": "fixed", "value": 10 }
+    }
+  },
+  "zones": [
+    {
+      "name": "draw_pile",
+      "visibility": { "kind": "hidden" },
+      "owners": []
+    },
+    {
+      "name": "hand",
+      "visibility": { "kind": "owner_only" },
+      "owners": ["player"]
+    },
+    {
+      "name": "dealer_hand",
+      "visibility": { "kind": "partial", "rule": "first_card_only" },
+      "owners": ["dealer"]
+    },
+    {
+      "name": "discard",
+      "visibility": { "kind": "public" },
+      "owners": []
+    }
+  ],
+  "roles": [
+    {
+      "name": "player",
+      "isHuman": true,
+      "count": "per_player"
+    },
+    {
+      "name": "dealer",
+      "isHuman": false,
+      "count": 1
+    }
+  ],
+  "phases": [
+    {
+      "name": "deal",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "player_turns", "when": "all_hands_dealt" }
+      ],
+      "automaticSequence": [
+        "shuffle(draw_pile)",
+        "deal(draw_pile, hand, 2)",
+        "deal(draw_pile, dealer_hand, 2)",
+        "set_face_up(dealer_hand, 0, true)"
+      ]
+    },
+    {
+      "name": "player_turns",
+      "kind": "turn_based",
+      "actions": [
+        {
+          "name": "hit",
+          "label": "Hit",
+          "condition": "hand_value(current_player.hand) < 21",
+          "effect": ["draw(draw_pile, current_player.hand, 1)"]
+        },
+        {
+          "name": "stand",
+          "label": "Stand",
+          "effect": ["end_turn()"]
+        },
+        {
+          "name": "double_down",
+          "label": "Double Down",
+          "condition": "card_count(current_player.hand) == 2",
+          "effect": [
+            "draw(draw_pile, current_player.hand, 1)",
+            "end_turn()"
+          ]
+        }
+      ],
+      "transitions": [
+        { "to": "dealer_turn", "when": "all_players_done" },
+        { "to": "scoring", "when": "hand_value(current_player.hand) > 21" }
+      ],
+      "turnOrder": "clockwise"
+    },
+    {
+      "name": "dealer_turn",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "scoring", "when": "hand_value(dealer_hand) >= 17" }
+      ],
+      "automaticSequence": [
+        "reveal_all(dealer_hand)",
+        "while(hand_value(dealer_hand) < 17, draw(draw_pile, dealer_hand, 1))"
+      ]
+    },
+    {
+      "name": "scoring",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "round_end", "when": "scores_calculated" }
+      ],
+      "automaticSequence": [
+        "calculate_scores()",
+        "determine_winners()"
+      ]
+    },
+    {
+      "name": "round_end",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "deal", "when": "continue_game" }
+      ],
+      "automaticSequence": [
+        "collect_all_to(discard)",
+        "reset_round()"
+      ]
+    }
+  ],
+  "scoring": {
+    "method": "sum_card_values(hand, prefer_high_under(21))",
+    "winCondition": "hand_value <= 21 && (hand_value > dealer_value || dealer_value > 21)",
+    "bustCondition": "hand_value > 21"
+  },
+  "visibility": [
+    {
+      "zone": "hand",
+      "visibility": { "kind": "owner_only" }
+    },
+    {
+      "zone": "dealer_hand",
+      "visibility": { "kind": "partial", "rule": "first_card_only" },
+      "phaseOverride": {
+        "phase": "dealer_turn",
+        "visibility": { "kind": "public" }
+      }
+    },
+    {
+      "zone": "draw_pile",
+      "visibility": { "kind": "hidden" }
+    },
+    {
+      "zone": "discard",
+      "visibility": { "kind": "public" }
+    }
+  ],
+  "ui": {
+    "layout": "semicircle",
+    "tableColor": "felt_green"
+  }
+}

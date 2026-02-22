@@ -1,0 +1,12 @@
+{
+  "name": "@card-engine/host",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@card-engine/shared": "workspace:*",
+    "pako": "^2.1.0",
+    "op-sqlite": "^11.0.0"
+  }
+}

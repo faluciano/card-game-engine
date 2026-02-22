@@ -1,0 +1,186 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://card-engine.dev/schemas/cardgame.v1.json",
+  "title": "Card Game Ruleset",
+  "description": "Schema for .cardgame.json files defining a card game's rules.",
+  "type": "object",
+  "required": ["meta", "deck", "zones", "roles", "phases", "scoring", "visibility", "ui"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["name", "slug", "version", "author", "players"],
+      "properties": {
+        "name": { "type": "string" },
+        "slug": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "author": { "type": "string" },
+        "players": {
+          "type": "object",
+          "required": ["min", "max"],
+          "properties": {
+            "min": { "type": "integer", "minimum": 1 },
+            "max": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "deck": {
+      "type": "object",
+      "required": ["preset", "copies", "cardValues"],
+      "properties": {
+        "preset": { "type": "string", "enum": ["standard_52", "standard_54", "uno_108"] },
+        "copies": { "type": "integer", "minimum": 1 },
+        "cardValues": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["kind", "value"],
+                "properties": {
+                  "kind": { "const": "fixed" },
+                  "value": { "type": "number" }
+                }
+              },
+              {
+                "type": "object",
+                "required": ["kind", "low", "high"],
+                "properties": {
+                  "kind": { "const": "dual" },
+                  "low": { "type": "number" },
+                  "high": { "type": "number" }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "zones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "visibility", "owners"],
+        "properties": {
+          "name": { "type": "string" },
+          "visibility": {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["public", "owner_only", "hidden", "partial"] },
+              "rule": { "type": "string" }
+            }
+          },
+          "owners": { "type": "array", "items": { "type": "string" } },
+          "maxCards": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "isHuman", "count"],
+        "properties": {
+          "name": { "type": "string" },
+          "isHuman": { "type": "boolean" },
+          "count": {
+            "oneOf": [
+              { "type": "integer", "minimum": 1 },
+              { "const": "per_player" }
+            ]
+          }
+        }
+      }
+    },
+    "phases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "kind", "actions", "transitions"],
+        "properties": {
+          "name": { "type": "string" },
+          "kind": { "type": "string", "enum": ["automatic", "turn_based", "all_players"] },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "label"],
+              "properties": {
+                "name": { "type": "string" },
+                "label": { "type": "string" },
+                "condition": { "type": "string" },
+                "effect": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "transitions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["to", "when"],
+              "properties": {
+                "to": { "type": "string" },
+                "when": { "type": "string" }
+              }
+            }
+          },
+          "automaticSequence": { "type": "array", "items": { "type": "string" } },
+          "turnOrder": { "type": "string", "enum": ["clockwise", "counterclockwise", "fixed"] }
+        }
+      }
+    },
+    "scoring": {
+      "type": "object",
+      "required": ["method", "winCondition"],
+      "properties": {
+        "method": { "type": "string" },
+        "winCondition": { "type": "string" },
+        "bustCondition": { "type": "string" }
+      }
+    },
+    "visibility": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["zone", "visibility"],
+        "properties": {
+          "zone": { "type": "string" },
+          "visibility": {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["public", "owner_only", "hidden", "partial"] },
+              "rule": { "type": "string" }
+            }
+          },
+          "phaseOverride": {
+            "type": "object",
+            "required": ["phase", "visibility"],
+            "properties": {
+              "phase": { "type": "string" },
+              "visibility": {
+                "type": "object",
+                "required": ["kind"],
+                "properties": {
+                  "kind": { "type": "string", "enum": ["public", "owner_only", "hidden", "partial"] },
+                  "rule": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "required": ["layout", "tableColor"],
+      "properties": {
+        "layout": { "type": "string", "enum": ["semicircle", "circle", "grid", "linear"] },
+        "tableColor": { "type": "string", "enum": ["felt_green", "wood", "dark", "custom"] },
+        "customColor": { "type": "string" }
+      }
+    }
+  }
+}
