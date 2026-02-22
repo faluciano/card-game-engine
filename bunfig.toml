@@ -1,5 +1,0 @@
-[install]
-peer = false
-
-[install.scopes]
-"@card-engine" = { token = "" }
