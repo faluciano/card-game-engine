@@ -4,7 +4,7 @@ Android TV host application for the card game engine. Runs as the authoritative 
 
 Players connect their phones by scanning a QR code displayed on the TV. The host loads a `.cardgame.json` ruleset, runs the engine's reducer for every action, and broadcasts filtered per-player state back to each connected client.
 
-> Most of the code in this package is currently stubbed. This README describes the intended architecture. Only `migrations.ts` contains real SQL schema definitions. Storage implementation is planned for Phase 2; screen implementation for Phase 3.
+> The storage and import layers are fully implemented with 79 unit tests. Screen components are currently stubbed — implementation is planned for Phase 3.
 
 ## Directory Structure
 
@@ -12,22 +12,29 @@ Players connect their phones by scanning a QR code displayed on the TV. The host
 packages/host/
 ├── android/                  Native Android TV project (Expo prebuild)
 ├── src/
+│   ├── __mocks__/
+│   │   ├── expo-file-system.ts  Test mock for expo-file-system
+│   │   └── op-sqlite.ts         Test mock for op-sqlite DB interface
 │   ├── import/
-│   │   ├── file-importer.ts  Import .cardgame.json from local file
-│   │   ├── url-importer.ts   Import .cardgame.json from HTTPS URL
+│   │   ├── file-importer.ts     Import .cardgame.json from local file
+│   │   ├── url-importer.ts      Import .cardgame.json from HTTPS URL
+│   │   ├── format-zod-issues.ts Human-readable Zod error formatting
+│   │   ├── *.test.ts            Unit tests (10 + 14 + 8 tests)
 │   │   └── index.ts
 │   ├── screens/
-│   │   ├── RulesetPicker.tsx  Game selection screen
-│   │   ├── Lobby.tsx          Player waiting room with QR code
-│   │   └── GameTable.tsx      Main TV display during gameplay
+│   │   ├── RulesetPicker.tsx    Game selection screen (stub)
+│   │   ├── Lobby.tsx            Player waiting room with QR code (stub)
+│   │   └── GameTable.tsx        Main TV display during gameplay (stub)
 │   ├── storage/
-│   │   ├── migrations.ts      SQLite schema (3 tables, versioned)
-│   │   ├── ruleset-store.ts   Ruleset CRUD with gzip compression
-│   │   ├── session-store.ts   Game state snapshot persistence
-│   │   ├── action-logger.ts   Append-only action log for replay
+│   │   ├── migrations.ts        SQLite schema (3 tables, versioned)
+│   │   ├── ruleset-store.ts     Ruleset CRUD with gzip compression
+│   │   ├── session-store.ts     Game state snapshot persistence
+│   │   ├── action-logger.ts     Append-only action log for replay
+│   │   ├── *.test.ts            Unit tests (15 + 12 + 11 + 9 tests)
 │   │   └── index.ts
-│   └── index.ts               Public API re-exports
-├── app.json                   Expo config (landscape, dark, new arch)
+│   └── index.ts                 Public API re-exports
+├── vitest.config.ts             Test config with native module aliases
+├── app.json                     Expo config (landscape, dark, new arch)
 ├── package.json
 └── tsconfig.json
 ```
@@ -172,20 +179,46 @@ Expo config in `app.json`:
 | Android package | `com.cardgameengine.host` |
 | Target SDK | 34 |
 
+## Testing
+
+Run storage and import tests:
+
+```sh
+# From packages/host/
+bun run test          # Run once
+bun run test:watch    # Watch mode
+```
+
+79 tests across 7 test files:
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| `migrations.test.ts` | 15 | Migration runner, meta table, multi-statement SQL |
+| `ruleset-store.test.ts` | 12 | CRUD, pako compression round-trip, guards |
+| `session-store.test.ts` | 11 | Snapshot save/load, cascade delete, upsert |
+| `action-logger.test.ts` | 9 | Append, query with version filter, count |
+| `file-importer.test.ts` | 10 | Extension guard, file read, JSON parse, validation |
+| `url-importer.test.ts` | 14 | HTTPS guard, size limits, fetch errors, validation |
+| `format-zod-issues.test.ts` | 8 | Path formatting, root issues, nested paths |
+
+Tests use constructor-injected mock DB instances (no `vi.mock` for storage) and real pako compression for round-trip verification.
+
 ## Current Status
 
 | Component | Status |
 |-----------|--------|
-| SQLite schema (`migrations.ts`) | Defined -- 3 tables with versioned migrations |
-| Migration runner (`runMigrations`) | Stub -- schema is defined but runner throws |
-| `RulesetStore` | Stub -- interface and methods defined, not implemented |
-| `SessionStore` | Stub -- interface and methods defined, not implemented |
-| `ActionLogger` | Stub -- interface and methods defined, not implemented |
-| `importFromFile` | Stub -- extension validation only |
-| `importFromUrl` | Stub -- HTTPS check only |
-| `RulesetPicker` | Stub -- placeholder JSX |
-| `Lobby` | Stub -- placeholder JSX |
-| `GameTable` | Stub -- placeholder JSX |
+| SQLite schema (`migrations.ts`) | ✅ Implemented — 3 tables with versioned migrations |
+| Migration runner (`runMigrations`) | ✅ Implemented — meta table tracking, multi-statement SQL splitting |
+| `RulesetStore` | ✅ Implemented — CRUD with pako gzip compression |
+| `SessionStore` | ✅ Implemented — snapshot upsert with transactional cascade delete |
+| `ActionLogger` | ✅ Implemented — append-only log with version filtering |
+| `importFromFile` | ✅ Implemented — expo-file-system read, Zod validation |
+| `importFromUrl` | ✅ Implemented — HTTPS-only, size limits, Zod validation |
+| `formatZodIssues` | ✅ Implemented — human-readable Zod error formatting |
+| Unit tests | ✅ 79 tests passing across 7 files |
+| `RulesetPicker` | Stub — placeholder JSX |
+| `Lobby` | Stub — placeholder JSX |
+| `GameTable` | Stub — placeholder JSX |
 | CouchKit integration | Not yet wired |
 
-Phase 2 will implement the storage layer (op-sqlite + pako compression). Phase 3 will implement screens and CouchKit integration.
+Phase 3 will implement screens and CouchKit integration.
