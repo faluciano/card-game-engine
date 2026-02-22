@@ -4,16 +4,30 @@
 // players, discriminated-union status). Handles screen navigation,
 // game lifecycle, and delegates in-game actions to the engine reducer.
 
-import { createGameReducer } from "@couch-kit/core";
 import { createReducer, createInitialState } from "../engine/index.js";
 import type {
   CardGameAction,
   CardGameRuleset,
+  GameReducer,
   Player,
   PlayerId,
   GameSessionId,
 } from "../types/index.js";
 import type { HostAction, HostGameState, HostScreen } from "./host-state.js";
+
+// ─── Lazy Reducer Cache ────────────────────────────────────────────
+
+// Module-level cache: ruleset → reducer. WeakMap allows GC when ruleset is dropped.
+const reducerCache = new WeakMap<CardGameRuleset, GameReducer>();
+
+function getOrCreateReducer(ruleset: CardGameRuleset): GameReducer {
+  let reducer = reducerCache.get(ruleset);
+  if (!reducer) {
+    reducer = createReducer(ruleset);
+    reducerCache.set(ruleset, reducer);
+  }
+  return reducer;
+}
 
 // ─── Initial State Factory ─────────────────────────────────────────
 
@@ -76,8 +90,8 @@ export function hostReducerImpl(state: HostGameState, action: HostAction): HostG
   }
 }
 
-/** Wraps with CouchKit's internal-action handling (__PLAYER_JOINED__, etc.). */
-export const hostReducer = createGameReducer(hostReducerImpl);
+/** Raw reducer — CouchKit's GameHostProvider wraps it internally. */
+export const hostReducer = hostReducerImpl;
 
 // ─── Action Handlers ───────────────────────────────────────────────
 
@@ -85,8 +99,7 @@ function handleSelectRuleset(
   state: HostGameState,
   ruleset: CardGameRuleset,
 ): HostGameState {
-  const engineReducer = createReducer(ruleset);
-  const screen: HostScreen = { tag: "lobby", ruleset, engineReducer };
+  const screen: HostScreen = { tag: "lobby", ruleset };
 
   return {
     ...state,
@@ -111,7 +124,7 @@ function handleStartGame(state: HostGameState, seed?: number): HostGameState {
   // Guard: must be in lobby with a ruleset selected
   if (state.screen.tag !== "lobby") return state;
 
-  const { ruleset, engineReducer } = state.screen;
+  const { ruleset } = state.screen;
 
   // Map CouchKit's Record<string, IPlayer> → engine's Player[]
   const enginePlayers: Player[] = Object.entries(state.players).map(
@@ -129,7 +142,7 @@ function handleStartGame(state: HostGameState, seed?: number): HostGameState {
   const sessionId = crypto.randomUUID() as GameSessionId;
   const engineState = createInitialState(ruleset, sessionId, enginePlayers, seed);
 
-  const screen: HostScreen = { tag: "game_table", ruleset, engineReducer };
+  const screen: HostScreen = { tag: "game_table", ruleset };
 
   return {
     ...state,
@@ -147,7 +160,7 @@ function handleGameAction(
   if (state.screen.tag !== "game_table") return state;
   if (state.engineState === null) return state;
 
-  const { engineReducer } = state.screen;
+  const engineReducer = getOrCreateReducer(state.screen.ruleset);
   const engineState = engineReducer(state.engineState, action);
 
   return {
@@ -162,7 +175,7 @@ function handleResetRound(state: HostGameState): HostGameState {
   if (state.screen.tag !== "game_table") return state;
   if (state.engineState === null) return state;
 
-  const { engineReducer } = state.screen;
+  const engineReducer = getOrCreateReducer(state.screen.ruleset);
   const engineState = engineReducer(state.engineState, { kind: "reset_round" });
 
   return {
@@ -177,7 +190,7 @@ function handleAdvancePhase(state: HostGameState): HostGameState {
   if (state.screen.tag !== "game_table") return state;
   if (state.engineState === null) return state;
 
-  const { engineReducer } = state.screen;
+  const engineReducer = getOrCreateReducer(state.screen.ruleset);
   const engineState = engineReducer(state.engineState, { kind: "advance_phase" });
 
   return {

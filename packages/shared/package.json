@@ -10,7 +10,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@couch-kit/core": "^0.5.0",
+    "@couch-kit/core": "^0.8.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

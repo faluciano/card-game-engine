@@ -28,14 +28,17 @@
       "version": "0.1.0",
       "dependencies": {
         "@card-engine/shared": "workspace:*",
-        "@couch-kit/core": "^0.5.0",
+        "@couch-kit/core": "^0.8.0",
         "@couch-kit/host": "^1.3.0",
         "@op-engineering/op-sqlite": "*",
         "expo": "~54.0.0",
         "expo-build-properties": "^1.0.10",
+        "expo-file-system": "~19.0.0",
+        "expo-network": "~8.0.0",
         "pako": "*",
         "react": "^18.3.1",
         "react-native": "npm:react-native-tvos@0.81.0-0",
+        "react-native-nitro-modules": "^0.33.0",
         "react-native-qrcode-skia": "^0.3.1",
       },
       "devDependencies": {
@@ -50,7 +53,7 @@
       "name": "@card-engine/shared",
       "version": "0.1.0",
       "dependencies": {
-        "@couch-kit/core": "^0.5.0",
+        "@couch-kit/core": "^0.8.0",
         "zod": "^3.23.0",
       },
       "devDependencies": {
@@ -1379,6 +1382,10 @@
     "@babel/highlight/chalk": ["chalk@2.4.2", "", { "dependencies": { "ansi-styles": "^3.2.1", "escape-string-regexp": "^1.0.5", "supports-color": "^5.3.0" } }, "sha512-Mti+f9lpJNcwF4tWV8/OrTTtF1gZi+f8FqlyAdouralcFWFQWF2+NgCHShjkCb+IFBLq9buZwE1xckQU4peSuQ=="],
 
     "@babel/plugin-transform-runtime/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
+
+    "@card-engine/host/@couch-kit/core": ["@couch-kit/core@0.8.0", "", { "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-vyalQfvDJu8oVQKH7DQU2tbdorb03MPc3olAk7dWnYgT3GeYa09i07UJt49vFFtHjtYaj++oNOo8wYjiae/BBg=="],
+
+    "@card-engine/shared/@couch-kit/core": ["@couch-kit/core@0.8.0", "", { "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-vyalQfvDJu8oVQKH7DQU2tbdorb03MPc3olAk7dWnYgT3GeYa09i07UJt49vFFtHjtYaj++oNOo8wYjiae/BBg=="],
 
     "@couch-kit/cli/@couch-kit/core": ["@couch-kit/core@0.7.0", "", { "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-U+zfTGNyKjS5YStQZKzqz+N/HsuBgS81WWO0YTeysmhtWqSi9wPKUw+qkAECoBn5nbAUpa4lXbcFALs0hziAzA=="],
 

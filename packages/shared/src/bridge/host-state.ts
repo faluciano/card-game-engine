@@ -9,7 +9,6 @@ import type {
   CardGameAction,
   CardGameRuleset,
   CardGameState,
-  GameReducer,
 } from "../types/index.js";
 
 // ─── Screen Navigation ─────────────────────────────────────────────
@@ -23,12 +22,10 @@ export type HostScreen =
   | {
       readonly tag: "lobby";
       readonly ruleset: CardGameRuleset;
-      readonly engineReducer: GameReducer;
     }
   | {
       readonly tag: "game_table";
       readonly ruleset: CardGameRuleset;
-      readonly engineReducer: GameReducer;
     };
 
 // ─── Host Game State ───────────────────────────────────────────────
