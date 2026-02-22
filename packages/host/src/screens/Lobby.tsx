@@ -15,8 +15,7 @@ import { useGameHost } from "@couch-kit/host";
 import type { IPlayer } from "@couch-kit/core";
 import type { HostAction, HostGameState } from "../types/host-state";
 
-// TODO: Install react-native-qrcode-skia and replace QR placeholder
-// import { QRCode } from "react-native-qrcode-skia";
+import QRCode from "react-native-qrcode-svg";
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -61,7 +60,7 @@ export function Lobby(): React.JSX.Element {
     <View style={styles.container}>
       {/* Left panel: QR code + connection info */}
       <View style={styles.leftPanel}>
-        <QRPlaceholder url={serverUrl} />
+        <QRDisplay url={serverUrl} />
         <Text style={styles.gameName}>{ruleset.meta.name}</Text>
         <Text style={styles.connectionHint}>
           Scan to join on your phone
@@ -105,19 +104,29 @@ export function Lobby(): React.JSX.Element {
   );
 }
 
-// ─── QR Placeholder ────────────────────────────────────────────────
+// ─── QR Display ────────────────────────────────────────────────────
 
-function QRPlaceholder({
+function QRDisplay({
   url,
 }: {
   readonly url: string | null;
 }): React.JSX.Element {
-  // TODO: Replace with <QRCode value={url} size={220} /> from react-native-qrcode-skia
+  if (!url) {
+    return (
+      <View style={styles.qrBox}>
+        <Text style={styles.qrText}>Starting server…</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.qrBox}>
-      <Text style={styles.qrText}>
-        {url ? `QR: ${url}` : "Starting server…"}
-      </Text>
+      <QRCode
+        value={url}
+        size={200}
+        color="black"
+        backgroundColor="white"
+      />
     </View>
   );
 }
