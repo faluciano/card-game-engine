@@ -140,7 +140,7 @@
         { "to": "deal", "when": "continue_game" }
       ],
       "automaticSequence": [
-        "collect_all_to(discard)",
+        "collect_all_to(draw_pile)",
         "reset_round()"
       ]
     }

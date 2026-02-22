@@ -2,12 +2,26 @@
   "name": "@card-engine/client",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@card-engine/shared": "workspace:*",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "@couch-kit/client": "^0.6.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.5.2",
+    "typescript": "~5.9.2",
     "vite": "^6.0.0"
   }
 }

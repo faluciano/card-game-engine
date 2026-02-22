@@ -5,9 +5,16 @@
 
 import type {
   CardGameState,
+  PhaseAction,
   PhaseDefinition,
-  PhaseTransition,
 } from "../types/index.js";
+import {
+  evaluateCondition,
+  evaluateExpression,
+  ExpressionError,
+  type EvalContext,
+} from "./expression-evaluator.js";
+import type { MutableEvalContext, EffectDescription } from "./builtins.js";
 
 /** The result of evaluating a phase transition. */
 export type TransitionResult =
@@ -44,14 +51,93 @@ export class PhaseMachine {
   /**
    * Evaluates all transitions for the current phase against game state.
    * Returns the first matching transition, or "stay" if none match.
+   *
+   * Transitions are evaluated in declaration order — the first `when`
+   * condition that evaluates to `true` wins.
    */
   evaluateTransitions(state: CardGameState): TransitionResult {
     const phase = this.getPhase(state.currentPhase);
+    const context: EvalContext = { state };
 
-    // TODO: Evaluate each transition's `when` expression against state
-    // TODO: Return first matching transition
-    // For now, stay in current phase
+    for (const transition of phase.transitions) {
+      // Validate that the target phase exists before evaluating the condition.
+      // Fail fast: a misconfigured ruleset should be caught immediately.
+      if (!this.phasesByName.has(transition.to)) {
+        throw new Error(
+          `Phase "${state.currentPhase}" has a transition to unknown phase: "${transition.to}"`
+        );
+      }
+
+      try {
+        const conditionMet = evaluateCondition(transition.when, context);
+        if (conditionMet) {
+          return { kind: "advance", nextPhase: transition.to };
+        }
+      } catch (error) {
+        // ExpressionErrors from unresolvable conditions mean the condition
+        // isn't met — log a warning and continue to the next transition.
+        if (error instanceof ExpressionError) {
+          console.warn(
+            `Phase "${state.currentPhase}": transition condition "${transition.when}" ` +
+              `failed to evaluate: ${error.message}. Treating as not met.`
+          );
+          continue;
+        }
+        // Re-throw non-expression errors (programming bugs, etc.)
+        throw error;
+      }
+    }
+
     return { kind: "stay" };
+  }
+
+  /**
+   * Executes an automatic phase's `automaticSequence` expressions.
+   * Returns the collected effect descriptions without mutating state.
+   *
+   * @throws {Error} if the phase is not of kind "automatic".
+   */
+  executeAutomaticPhase(state: CardGameState): EffectDescription[] {
+    const phase = this.getPhase(state.currentPhase);
+
+    if (phase.kind !== "automatic") {
+      throw new Error(
+        `Cannot execute automatic sequence on "${phase.name}": phase kind is "${phase.kind}", expected "automatic"`
+      );
+    }
+
+    if (!phase.automaticSequence || phase.automaticSequence.length === 0) {
+      return [];
+    }
+
+    const context: MutableEvalContext = {
+      state,
+      effects: [],
+    };
+
+    for (const expression of phase.automaticSequence) {
+      evaluateExpression(expression, context);
+    }
+
+    return context.effects;
+  }
+
+  /**
+   * Returns the allowed actions for the given phase.
+   * Used by the action validator to check if an action is legal.
+   */
+  getValidActionsForPhase(phaseName: string): readonly PhaseAction[] {
+    const phase = this.getPhase(phaseName);
+    return phase.actions;
+  }
+
+  /**
+   * Returns whether the named phase has kind "automatic".
+   * Used by the interpreter to decide whether to immediately execute the phase.
+   */
+  isAutomaticPhase(phaseName: string): boolean {
+    const phase = this.getPhase(phaseName);
+    return phase.kind === "automatic";
   }
 
   /** Returns all phase names in definition order. */

@@ -5,13 +5,32 @@
 
 import type {
   Card,
+  CardGameAction,
   CardGameState,
   FilteredZoneState,
   PlayerId,
   PlayerView,
+  VisibilityRule,
   ZoneVisibility,
 } from "../types/index.js";
 import { getValidActions } from "./action-validator.js";
+
+/**
+ * Resolves the effective visibility for a zone, accounting for
+ * phase-based overrides defined in the ruleset's visibility rules.
+ */
+function getEffectiveVisibility(
+  zoneName: string,
+  defaultVisibility: ZoneVisibility,
+  visibilityRules: readonly VisibilityRule[],
+  currentPhase: string
+): ZoneVisibility {
+  const rule = visibilityRules.find((r) => r.zone === zoneName);
+  if (rule?.phaseOverride && rule.phaseOverride.phase === currentPhase) {
+    return rule.phaseOverride.visibility;
+  }
+  return defaultVisibility;
+}
 
 /**
  * Creates a player-specific view of the game state.
@@ -29,12 +48,20 @@ export function createPlayerView(
 
   const player = state.players[playerIndex]!;
   const filteredZones: Record<string, FilteredZoneState> = {};
+  const visibilityRules = state.ruleset.visibility;
 
   for (const [zoneName, zoneState] of Object.entries(state.zones)) {
+    const effectiveVisibility = getEffectiveVisibility(
+      zoneName,
+      zoneState.definition.visibility,
+      visibilityRules,
+      state.currentPhase
+    );
+
     filteredZones[zoneName] = filterZone(
       zoneName,
       zoneState.cards,
-      zoneState.definition.visibility,
+      effectiveVisibility,
       player.role,
       zoneState.definition.owners
     );
@@ -52,7 +79,7 @@ export function createPlayerView(
     myPlayerId: playerId,
     validActions: validActions
       .filter((a) => a.enabled)
-      .map((a) => a.kind),
+      .map((a) => a.actionName as CardGameAction["kind"]),
     scores: state.scores,
     turnNumber: state.turnNumber,
   };
@@ -84,7 +111,35 @@ function filterZone(
       return { name, cards: cards.map(() => null), cardCount: cards.length };
 
     case "partial":
-      // TODO: Evaluate partial visibility rule expression
-      return { name, cards: cards.map(() => null), cardCount: cards.length };
+      return {
+        name,
+        cards: applyPartialRule(cards, visibility.rule),
+        cardCount: cards.length,
+      };
+  }
+}
+
+/**
+ * Applies a partial visibility rule to a card array.
+ * Returns cards with hidden positions replaced by null.
+ * Unknown rules default to fully hidden (conservative).
+ */
+function applyPartialRule(
+  cards: readonly Card[],
+  rule: string
+): readonly (Card | null)[] {
+  switch (rule) {
+    case "first_card_only":
+      return cards.map((card, i) => (i === 0 ? card : null));
+
+    case "last_card_only":
+      return cards.map((card, i) => (i === cards.length - 1 ? card : null));
+
+    case "face_up_only":
+      return cards.map((card) => (card.faceUp ? card : null));
+
+    default:
+      // Unknown rule — hide everything as a conservative default
+      return cards.map(() => null);
   }
 }

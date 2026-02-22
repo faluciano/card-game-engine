@@ -1,6 +1,14 @@
 {
   "name": "card-game-engine",
   "private": true,
-  "packageManager": "bun",
-  "workspaces": ["packages/*"]
+  "packageManager": "bun@1.2.19",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev:client": "cd packages/client && bun run dev",
+    "build:client": "cd packages/client && bun run build",
+    "bundle:client": "cd packages/host && bunx couch-kit bundle --source ../client --output ./android/app/src/main/assets/www --manifest ./src/www-manifest.json",
+    "build:android": "bun run bundle:client && cd packages/host && npx expo run:android",
+    "typecheck": "cd packages/shared && bunx tsc && cd ../client && bunx tsc --noEmit",
+    "build": "bun run typecheck && bun run build:client && bun run bundle:client"
+  }
 }
