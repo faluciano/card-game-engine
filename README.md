@@ -12,7 +12,7 @@ Card Game Engine lets you define the rules of any card game — blackjack, poker
    |   (Host)         |                               |   (Client)       |
    |                  |   game state, player views     |                  |
    |  Expo + RN-tvOS  | ----------------------------> |  Vite + React    |
-   |  op-sqlite       |                               |                  |
+   |  expo-file-system |                               |                  |
    |                  |   player actions               |                  |
    |  Game Engine     | <---------------------------- |  Controller UI   |
    +------------------+                               +------------------+
@@ -42,7 +42,7 @@ card-game-engine/
 │   ├── shared/        @card-engine/shared   — game engine core (types, expression
 │   │                                          evaluator, interpreter, PRNG)
 │   ├── host/          @card-engine/host     — Android TV app (Expo + CouchKit host
-│   │                                          + op-sqlite storage)
+│   │                                          + expo-file-system storage)
 │   └── client/        @card-engine/client   — phone controller (Vite + React +
 │                                              CouchKit client)
 ├── rulesets/          .cardgame.json rule files
@@ -53,7 +53,7 @@ card-game-engine/
 | Package | Runtime | Key Dependencies |
 |---------|---------|------------------|
 | `shared` | Pure TypeScript, zero framework deps | Zod |
-| `host` | Expo + react-native-tvos | CouchKit host, op-sqlite |
+| `host` | Expo + React Native | CouchKit host, expo-file-system |
 | `client` | Vite + React 18 | CouchKit client |
 
 ## Getting Started
@@ -122,20 +122,23 @@ See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format
 
 ## Project Status
 
-**Phase 1 (Engine Core)** is complete. The shared package provides a fully tested, deterministic game engine capable of loading rulesets and running games to completion.
+All four implementation phases are **complete** with **498 passing tests** across 15 test files.
 
-**Phase 2 (Storage & Import)** is complete. The host package has SQLite persistence (rulesets, sessions, action log) and file/URL importers with 79 unit tests.
+| Phase | Status | Tests |
+|-------|--------|-------|
+| Phase 1 — Engine Core | ✅ Complete | 419 |
+| Phase 1.5 — Documentation | ✅ Complete | — |
+| Phase 2 — Storage & Import | ✅ Complete | 79 |
+| Phase 3 — Host Screens & CouchKit Integration | ✅ Complete | — |
+| Phase 4 — Client Controller App | ✅ Complete | — |
 
-**Phase 3 (Host Screens & CouchKit Integration)** is complete. The host app has a bridge layer reconciling CouchKit with the card engine, three implemented screens (RulesetPicker, Lobby, GameTable), and an orchestrator hook for automatic game lifecycle management.
-
-**Phase 4 (Client Controller App)** is complete. The phone controller has 5 screens (Connecting, Waiting, Lobby, Playing, Result) and 4 components (CardMini, HandViewer, ActionBar, GameInfo) wired to CouchKit via `useGameClient` with the shared bridge layer. Production build: 64 modules, 245.89 kB JS (72.20 kB gzip).
+The app builds and deploys to Android TV via `bun run build:android`. The host runs an HTTP+WebSocket server via CouchKit; phones connect by scanning a QR code displayed on the TV.
 
 ## Known Issues
 
 - **`all_players_done` sentinel always returns true** — after any declare action the engine immediately advances through all automatic phases. Affects games where multiple players must each complete an action before the round advances.
 - **Per-player zone visibility** — `isOwner` checks role membership, but since all human players share the `"player"` role, `isOwner` evaluates to true for every player viewing any player's hand zone. A player-index-based ownership check is needed.
-- **Host `typecheck` coverage** — the `typecheck` script only covers shared and client packages. The host package type-checks through Expo's build toolchain.
-- **Host TODO gaps** — QR code display, file import button wiring, and `expo-file-system` integration are stubbed but not yet functional on the host screens.
+- **JDK version after prebuild** — `expo prebuild --clean` regenerates `gradle.properties`, removing the `org.gradle.java.home` override. Must re-add JDK 17 path and `local.properties` with `sdk.dir` after each prebuild.
 
 ## License
 
