@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { safeParseRuleset } from "@card-engine/shared";
-import { importFromUrl } from "./url-importer.js";
+import { importFromUrl } from "./url-importer";
 
 // ══════════════════════════════════════════════════════════════════════
 // Mocks

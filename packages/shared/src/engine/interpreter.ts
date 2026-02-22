@@ -14,22 +14,22 @@ import type {
   PlayerId,
   ZoneDefinition,
   ZoneState,
-} from "../types/index.js";
-import { parseRuleset } from "../schema/validation.js";
-import { getPresetDeck } from "../deck/presets.js";
-import { PhaseMachine } from "./phase-machine.js";
+} from "../types/index";
+import { parseRuleset } from "../schema/validation";
+import { getPresetDeck } from "../deck/presets";
+import { PhaseMachine } from "./phase-machine";
 import {
   registerAllBuiltins,
   type EffectDescription,
   type MutableEvalContext,
   computeHandValue,
-} from "./builtins.js";
-import { evaluateCondition, evaluateExpression } from "./expression-evaluator.js";
+} from "./builtins";
+import { evaluateCondition, evaluateExpression } from "./expression-evaluator";
 import {
   validateAction,
   executePhaseAction,
-} from "./action-validator.js";
-import { createRng, type SeededRng } from "./prng.js";
+} from "./action-validator";
+import { createRng, type SeededRng } from "./prng";
 
 // ─── loadRuleset ───────────────────────────────────────────────────
 

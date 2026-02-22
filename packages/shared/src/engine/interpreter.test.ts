@@ -4,9 +4,9 @@ import {
   createInitialState,
   createReducer,
   RulesetParseError,
-} from "./interpreter.js";
-import { clearBuiltins } from "./expression-evaluator.js";
-import { registerAllBuiltins } from "./builtins.js";
+} from "./interpreter";
+import { clearBuiltins } from "./expression-evaluator";
+import { registerAllBuiltins } from "./builtins";
 import type {
   CardGameRuleset,
   CardGameState,
@@ -16,7 +16,7 @@ import type {
   PlayerId,
   CardValue,
   PhaseDefinition,
-} from "../types/index.js";
+} from "../types/index";
 
 // ─── Fixtures ──────────────────────────────────────────────────────
 

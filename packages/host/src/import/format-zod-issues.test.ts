@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatZodIssues } from "./format-zod-issues.js";
+import { formatZodIssues } from "./format-zod-issues";
 
 // ══════════════════════════════════════════════════════════════════════
 // Factories

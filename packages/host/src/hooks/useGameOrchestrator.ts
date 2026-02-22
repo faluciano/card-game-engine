@@ -4,7 +4,7 @@
 // Runs on the TV host only.
 
 import { useEffect, useRef } from "react";
-import type { HostAction, HostGameState } from "../types/host-state.js";
+import type { HostAction, HostGameState } from "../types/host-state";
 
 const RESULTS_DISPLAY_MS = 5_000;
 

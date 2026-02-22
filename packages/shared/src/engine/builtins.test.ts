@@ -4,7 +4,7 @@ import {
   computeHandValue,
   type EffectDescription,
   type MutableEvalContext,
-} from "./builtins.js";
+} from "./builtins";
 import {
   evaluateExpression,
   evaluateCondition,
@@ -13,7 +13,7 @@ import {
   ExpressionError,
   type EvalContext,
   type EvalResult,
-} from "./expression-evaluator.js";
+} from "./expression-evaluator";
 import type {
   Card,
   CardInstanceId,
@@ -24,7 +24,7 @@ import type {
   CardGameRuleset,
   GameSessionId,
   PlayerId,
-} from "../types/index.js";
+} from "../types/index";
 
 // ─── Test Helpers ──────────────────────────────────────────────────
 

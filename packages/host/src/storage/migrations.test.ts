@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MIGRATIONS, runMigrations } from "./migrations.js";
+import { MIGRATIONS, runMigrations } from "./migrations";
 
 // ══════════════════════════════════════════════════════════════════════
 // Mock DB Factory

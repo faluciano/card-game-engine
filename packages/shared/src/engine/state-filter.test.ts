@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createPlayerView } from "./state-filter.js";
+import { createPlayerView } from "./state-filter";
 import type {
   Card,
   CardGameState,
@@ -7,7 +7,7 @@ import type {
   GameSessionId,
   PlayerId,
   ZoneVisibility,
-} from "../types/index.js";
+} from "../types/index";
 
 // ─── Test Helpers ──────────────────────────────────────────────────
 

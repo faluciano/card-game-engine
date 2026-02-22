@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SeededRng, createRng } from "./prng.js";
+import { SeededRng, createRng } from "./prng";
 
 // ─── Tests ─────────────────────────────────────────────────────────
 

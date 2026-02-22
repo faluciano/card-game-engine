@@ -18,8 +18,8 @@ import type {
   Player,
   ZoneState,
 } from "@card-engine/shared";
-import type { HostAction, HostGameState } from "../types/host-state.js";
-import { useGameOrchestrator } from "../hooks/useGameOrchestrator.js";
+import type { HostAction, HostGameState } from "../types/host-state";
+import { useGameOrchestrator } from "../hooks/useGameOrchestrator";
 
 // ─── Constants ─────────────────────────────────────────────────────
 

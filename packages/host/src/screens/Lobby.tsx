@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useGameHost } from "@couch-kit/host";
 import type { IPlayer } from "@couch-kit/core";
-import type { HostAction, HostGameState } from "../types/host-state.js";
+import type { HostAction, HostGameState } from "../types/host-state";
 
 // TODO: Install react-native-qrcode-skia and replace QR placeholder
 // import { QRCode } from "react-native-qrcode-skia";

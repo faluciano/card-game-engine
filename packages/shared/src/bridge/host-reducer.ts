@@ -4,7 +4,7 @@
 // players, discriminated-union status). Handles screen navigation,
 // game lifecycle, and delegates in-game actions to the engine reducer.
 
-import { createReducer, createInitialState } from "../engine/index.js";
+import { createReducer, createInitialState } from "../engine/index";
 import type {
   CardGameAction,
   CardGameRuleset,
@@ -12,8 +12,8 @@ import type {
   Player,
   PlayerId,
   GameSessionId,
-} from "../types/index.js";
-import type { HostAction, HostGameState, HostScreen } from "./host-state.js";
+} from "../types/index";
+import type { HostAction, HostGameState, HostScreen } from "./host-state";
 
 // ─── Lazy Reducer Cache ────────────────────────────────────────────
 

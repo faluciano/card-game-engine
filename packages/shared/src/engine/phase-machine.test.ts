@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { PhaseMachine, type TransitionResult } from "./phase-machine.js";
-import { registerAllBuiltins, type EffectDescription } from "./builtins.js";
+import { PhaseMachine, type TransitionResult } from "./phase-machine";
+import { registerAllBuiltins, type EffectDescription } from "./builtins";
 import {
   clearBuiltins,
   evaluateExpression,
   ExpressionError,
   type EvalContext,
-} from "./expression-evaluator.js";
+} from "./expression-evaluator";
 import type {
   Card,
   CardInstanceId,
@@ -19,7 +19,7 @@ import type {
   PlayerId,
   ZoneDefinition,
   ZoneState,
-} from "../types/index.js";
+} from "../types/index";
 
 // ─── Test Helpers ──────────────────────────────────────────────────
 

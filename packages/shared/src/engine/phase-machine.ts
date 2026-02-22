@@ -7,14 +7,14 @@ import type {
   CardGameState,
   PhaseAction,
   PhaseDefinition,
-} from "../types/index.js";
+} from "../types/index";
 import {
   evaluateCondition,
   evaluateExpression,
   ExpressionError,
   type EvalContext,
-} from "./expression-evaluator.js";
-import type { MutableEvalContext, EffectDescription } from "./builtins.js";
+} from "./expression-evaluator";
+import type { MutableEvalContext, EffectDescription } from "./builtins";
 
 /** The result of evaluating a phase transition. */
 export type TransitionResult =

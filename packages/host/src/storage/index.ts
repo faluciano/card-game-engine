@@ -1,7 +1,7 @@
-export { RulesetStore } from "./ruleset-store.js";
-export type { StoredRuleset } from "./ruleset-store.js";
-export { SessionStore } from "./session-store.js";
-export type { StoredSession } from "./session-store.js";
-export { ActionLogger } from "./action-logger.js";
-export { runMigrations, MIGRATIONS } from "./migrations.js";
-export type { Migration } from "./migrations.js";
+export { RulesetStore } from "./ruleset-store";
+export type { StoredRuleset } from "./ruleset-store";
+export { SessionStore } from "./session-store";
+export type { StoredSession } from "./session-store";
+export { ActionLogger } from "./action-logger";
+export { runMigrations, MIGRATIONS } from "./migrations";
+export type { Migration } from "./migrations";

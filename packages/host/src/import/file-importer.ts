@@ -7,7 +7,7 @@ import * as FileSystem from "expo-file-system";
 import type { CardGameRuleset } from "@card-engine/shared";
 import { safeParseRuleset } from "@card-engine/shared";
 
-import { formatZodIssues } from "./format-zod-issues.js";
+import { formatZodIssues } from "./format-zod-issues";
 
 /** Result of a file import attempt. Discriminated union. */
 export type FileImportResult =

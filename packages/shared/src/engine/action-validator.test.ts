@@ -5,10 +5,10 @@ import {
   executePhaseAction,
   type ValidAction,
   type ActionValidationResult,
-} from "./action-validator.js";
-import { PhaseMachine } from "./phase-machine.js";
-import { registerAllBuiltins } from "./builtins.js";
-import { clearBuiltins } from "./expression-evaluator.js";
+} from "./action-validator";
+import { PhaseMachine } from "./phase-machine";
+import { registerAllBuiltins } from "./builtins";
+import { clearBuiltins } from "./expression-evaluator";
 import type {
   Card,
   CardInstanceId,
@@ -22,7 +22,7 @@ import type {
   PlayerId,
   ZoneDefinition,
   ZoneState,
-} from "../types/index.js";
+} from "../types/index";
 
 // ─── Test Helpers ──────────────────────────────────────────────────
 

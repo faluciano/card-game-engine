@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ActionLogger } from "./action-logger.js";
+import { ActionLogger } from "./action-logger";
 import type {
   CardGameAction,
   GameSessionId,

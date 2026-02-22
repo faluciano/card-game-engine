@@ -4,7 +4,7 @@
 import type { CardGameRuleset } from "@card-engine/shared";
 import { safeParseRuleset } from "@card-engine/shared";
 
-import { formatZodIssues } from "./format-zod-issues.js";
+import { formatZodIssues } from "./format-zod-issues";
 
 /** Default maximum response size: 1 MB. */
 const DEFAULT_MAX_SIZE_BYTES = 1_048_576;

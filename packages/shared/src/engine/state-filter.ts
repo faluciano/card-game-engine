@@ -12,8 +12,8 @@ import type {
   PlayerView,
   VisibilityRule,
   ZoneVisibility,
-} from "../types/index.js";
-import { getValidActions } from "./action-validator.js";
+} from "../types/index";
+import { getValidActions } from "./action-validator";
 
 /**
  * Resolves the effective visibility for a zone, accounting for

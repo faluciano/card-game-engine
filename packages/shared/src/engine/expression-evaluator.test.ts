@@ -11,12 +11,12 @@ import {
   type EvalResult,
   type ASTNode,
   type Token,
-} from "./expression-evaluator.js";
+} from "./expression-evaluator";
 import type {
   CardGameState,
   GameSessionId,
   PlayerId,
-} from "../types/index.js";
+} from "../types/index";
 
 // ─── Test Helpers ──────────────────────────────────────────────────
 

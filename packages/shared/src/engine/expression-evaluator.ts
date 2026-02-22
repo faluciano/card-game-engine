@@ -3,7 +3,7 @@
 // Expressions are strings like "hand_value > 21" or "card_count(hand) == 0".
 // NO eval() or Function() — we parse a restricted grammar.
 
-import type { CardGameState, Expression } from "../types/index.js";
+import type { CardGameState, Expression } from "../types/index";
 
 // ─── AST Node Types ────────────────────────────────────────────────
 // Discriminated union on `kind` field.

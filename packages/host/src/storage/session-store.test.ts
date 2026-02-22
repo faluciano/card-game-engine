@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { SessionStore } from "./session-store.js";
-import type { StoredSession } from "./session-store.js";
+import { SessionStore } from "./session-store";
+import type { StoredSession } from "./session-store";
 import type {
   CardGameState,
   CardGameRuleset,

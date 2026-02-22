@@ -6,6 +6,7 @@
     "orientation": "landscape",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "platforms": ["android"],
     "android": {
       "package": "com.cardgameengine.host",
       "screenOrientation": "landscape"
@@ -20,16 +21,7 @@
             "buildToolsVersion": "34.0.0"
           }
         }
-      ],
-      [
-        "@react-native-tvos/config-tv",
-        {
-          "isTV": true
-        }
       ]
-    ],
-    "ios": {
-      "bundleIdentifier": "com.cardgameengine.host"
-    }
+    ]
   }
 }

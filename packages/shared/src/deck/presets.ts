@@ -3,7 +3,7 @@
 // Each preset produces an array of Card objects (without instance IDs —
 // those are assigned when the deck is instantiated into a game).
 
-import type { Rank, Suit, StandardSuit, StandardRank, CardInstanceId, Card } from "../types/index.js";
+import type { Rank, Suit, StandardSuit, StandardRank, CardInstanceId, Card } from "../types/index";
 
 /** A card template before it gets a unique instance ID. */
 interface CardTemplate {

@@ -9,8 +9,8 @@ import {
   type EvalResult,
   type EvalContext,
   ExpressionError,
-} from "./expression-evaluator.js";
-import type { CardGameState, Card, CardValue, ZoneState } from "../types/index.js";
+} from "./expression-evaluator";
+import type { CardGameState, Card, CardValue, ZoneState } from "../types/index";
 
 // ─── Effect Types ──────────────────────────────────────────────────
 

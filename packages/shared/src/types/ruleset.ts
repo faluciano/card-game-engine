@@ -3,7 +3,7 @@
 // A .cardgame.json file is parsed into this type.
 // Every section is readonly to enforce immutability after parse.
 
-import type { CardValue, Rank, Suit, ZoneVisibility } from "./card.js";
+import type { CardValue, Rank, Suit, ZoneVisibility } from "./card";
 
 // ─── Meta ──────────────────────────────────────────────────────────
 

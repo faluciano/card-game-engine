@@ -9,7 +9,7 @@ import type {
   CardGameAction,
   CardGameRuleset,
   CardGameState,
-} from "../types/index.js";
+} from "../types/index";
 
 // ─── Screen Navigation ─────────────────────────────────────────────
 

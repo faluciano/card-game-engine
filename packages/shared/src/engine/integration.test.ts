@@ -21,10 +21,10 @@ import {
   loadRuleset,
   createInitialState,
   createReducer,
-} from "./interpreter.js";
-import { createPlayerView } from "./state-filter.js";
-import { clearBuiltins } from "./expression-evaluator.js";
-import { registerAllBuiltins } from "./builtins.js";
+} from "./interpreter";
+import { createPlayerView } from "./state-filter";
+import { clearBuiltins } from "./expression-evaluator";
+import { registerAllBuiltins } from "./builtins";
 import type {
   PlayerId,
   GameSessionId,
@@ -33,7 +33,7 @@ import type {
   GameReducer,
   CardGameRuleset,
   CardValue,
-} from "../types/index.js";
+} from "../types/index";
 
 // ─── Branded Type Helpers ──────────────────────────────────────────
 

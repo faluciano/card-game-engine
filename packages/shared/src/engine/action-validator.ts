@@ -7,15 +7,15 @@ import type {
   CardGameState,
   PlayerId,
   PhaseAction,
-} from "../types/index.js";
+} from "../types/index";
 import {
   evaluateCondition,
   evaluateExpression,
   ExpressionError,
   type EvalContext,
-} from "./expression-evaluator.js";
-import { PhaseMachine } from "./phase-machine.js";
-import type { MutableEvalContext, EffectDescription } from "./builtins.js";
+} from "./expression-evaluator";
+import { PhaseMachine } from "./phase-machine";
+import type { MutableEvalContext, EffectDescription } from "./builtins";
 
 /**
  * A valid action descriptor: the phase action name plus display info.

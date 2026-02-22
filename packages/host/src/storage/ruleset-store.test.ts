@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { RulesetStore } from "./ruleset-store.js";
-import type { StoredRuleset } from "./ruleset-store.js";
+import { RulesetStore } from "./ruleset-store";
+import type { StoredRuleset } from "./ruleset-store";
 import type { CardGameRuleset } from "@card-engine/shared";
 import pako from "pako";
 

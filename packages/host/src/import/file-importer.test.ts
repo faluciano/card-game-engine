@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as FileSystem from "expo-file-system";
 import { safeParseRuleset } from "@card-engine/shared";
-import { importFromFile } from "./file-importer.js";
+import { importFromFile } from "./file-importer";
 
 // ══════════════════════════════════════════════════════════════════════
 // Mocks

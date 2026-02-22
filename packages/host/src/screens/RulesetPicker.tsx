@@ -14,7 +14,7 @@ import {
 import { useGameHost } from "@couch-kit/host";
 import { loadRuleset } from "@card-engine/shared";
 import type { CardGameRuleset } from "@card-engine/shared";
-import type { HostAction, HostGameState } from "../types/host-state.js";
+import type { HostAction, HostGameState } from "../types/host-state";
 import blackjackJson from "../../../../rulesets/blackjack.cardgame.json";
 
 // ─── Built-in Rulesets ─────────────────────────────────────────────

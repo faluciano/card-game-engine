@@ -2,7 +2,7 @@
   "name": "@card-engine/host",
   "version": "0.1.0",
   "private": true,
-  "main": "src/App.tsx",
+  "main": "index.js",
   "types": "src/index.ts",
   "scripts": {
     "prebuild": "expo prebuild",
@@ -16,21 +16,26 @@
     "@card-engine/shared": "workspace:*",
     "@couch-kit/core": "^0.8.0",
     "@couch-kit/host": "^1.3.0",
-    "@op-engineering/op-sqlite": "*",
     "expo": "~54.0.0",
     "expo-build-properties": "^1.0.10",
     "pako": "*",
-    "react": "^18.3.1",
-    "react-native": "npm:react-native-tvos@0.81.0-0",
-    "expo-file-system": "~19.0.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "expo-file-system": "~18.0.0",
     "expo-network": "~8.0.0",
     "react-native-nitro-modules": "^0.33.0",
-    "react-native-qrcode-skia": "^0.3.1"
+    "react-native-nitro-http-server": "^1.5.4",
+    "react-native-qrcode-skia": "^0.3.1",
+    "buffer": "^6.0.3",
+    "js-sha1": "^0.7.0",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@expo/metro-config": "~54.0.0",
     "@couch-kit/cli": "^0.2.3",
-    "@react-native-tvos/config-tv": "*",
     "@types/pako": "^2.0.3",
+    "@types/react": "~19.1.10",
+    "babel-preset-expo": "^54.0.10",
     "typescript": "~5.9.2",
     "vitest": "^3.2.1"
   }

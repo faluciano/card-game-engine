@@ -2,8 +2,8 @@
 // Runtime state of a game in progress, plus the actions that mutate it.
 // State is always immutable — the reducer returns a new state.
 
-import type { Card, CardInstanceId, ZoneState } from "./card.js";
-import type { CardGameRuleset, PhaseKind } from "./ruleset.js";
+import type { Card, CardInstanceId, ZoneState } from "./card";
+import type { CardGameRuleset, PhaseKind } from "./ruleset";
 
 // ─── Player ────────────────────────────────────────────────────────
 
