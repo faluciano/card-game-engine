@@ -6,3 +6,4 @@ export * from "./types/index.js";
 export * from "./engine/index.js";
 export * from "./deck/index.js";
 export * from "./schema/index.js";
+export * from "./bridge/index.js";

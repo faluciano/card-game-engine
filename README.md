@@ -21,7 +21,7 @@ Card Game Engine lets you define the rules of any card game — blackjack, poker
    .cardgame.json ruleset
 ```
 
-The TV runs the authoritative game engine: it loads the ruleset, advances the FSM, evaluates expressions, and filters state per player. Phones receive only their own view of the game and send actions back to the host. All networking is handled by [CouchKit](https://github.com/nicholasgasior/couch-kit) over local WiFi with no internet required.
+The TV runs the authoritative game engine: it loads the ruleset, advances the FSM, evaluates expressions, and filters state per player. Phones receive only their own view of the game and send actions back to the host. All networking is handled by [CouchKit](https://github.com/faluciano/react-native-couch-kit) over local WiFi with no internet required.
 
 ## Features
 
@@ -82,14 +82,14 @@ bun run dev:client
 
 ### Testing
 
-Tests live in the shared engine package and use Vitest:
+Tests live in the shared and host packages and use Vitest:
 
 ```sh
 cd packages/shared
 bunx vitest run
 ```
 
-419 tests across 8 test files cover the engine core (expression evaluator, interpreter, PRNG, schema validation, player views, and game phases).
+498 tests across 15 test files cover the engine core (expression evaluator, interpreter, PRNG, schema validation, player views, game phases, host bridge) and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
 
 ### Build and Deploy
 
@@ -127,6 +127,8 @@ See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format
 **Phase 2 (Storage & Import)** is complete. The host package has SQLite persistence (rulesets, sessions, action log) and file/URL importers with 79 unit tests.
 
 **Phase 3 (Host Screens & CouchKit Integration)** is complete. The host app has a bridge layer reconciling CouchKit with the card engine, three implemented screens (RulesetPicker, Lobby, GameTable), and an orchestrator hook for automatic game lifecycle management.
+
+**Phase 4 (Client Controller App)** is complete. The phone controller has 5 screens (Connecting, Waiting, Lobby, Playing, Result) and 4 components (CardMini, HandViewer, ActionBar, GameInfo) wired to CouchKit via `useGameClient` with the shared bridge layer. Production build: 64 modules, 245.89 kB JS (72.20 kB gzip).
 
 ## License
 

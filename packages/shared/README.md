@@ -190,6 +190,38 @@ standard54(): readonly CardTemplate[]   // 52 + 2 jokers
 uno108(): readonly CardTemplate[]       // 4 colors x 25 + 8 wilds
 ```
 
+### Host Bridge Layer
+
+The bridge layer reconciles CouchKit's `IGameState` world (Record-based players, string status) with the card engine's `CardGameState` world (array-based players, discriminated-union status). It lives in shared so both host and client packages can import it.
+
+```typescript
+import {
+  hostReducer,
+  createHostInitialState,
+  hostReducerImpl,
+  deriveStatus,
+  type HostGameState,
+  type HostAction,
+  type HostScreen,
+} from "@card-engine/shared";
+
+// Create initial state for CouchKit's GameHostProvider or useGameClient.
+createHostInitialState(): HostGameState
+
+// CouchKit-wrapped reducer (handles __HYDRATE__, __PLAYER_JOINED__, etc.)
+hostReducer: GameReducer<HostGameState, HostAction | InternalAction>
+
+// Inner reducer without CouchKit wrapping (for testing).
+hostReducerImpl(state: HostGameState, action: HostAction): HostGameState
+
+// Derive a flat status string from screen + engine state.
+deriveStatus(screen: HostScreen, engineState: CardGameState | null): string
+```
+
+`HostAction` is a discriminated union of 6 variants: `SELECT_RULESET`, `BACK_TO_PICKER`, `START_GAME`, `GAME_ACTION`, `RESET_ROUND`, `ADVANCE_PHASE`.
+
+`HostScreen` is a discriminated union on `tag`: `"ruleset_picker"`, `"lobby"`, `"game_table"`.
+
 ## Expression Language
 
 The engine uses a safe expression DSL for conditions, effects, and automatic sequences in rulesets. Expressions are strings like `"hand_value(current_player.hand) > 21"` or `"card_count(draw_pile) == 0"`.
