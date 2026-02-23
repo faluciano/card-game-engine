@@ -167,6 +167,7 @@ function makeBlackjackRuleset(): CardGameRuleset {
       winCondition: "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
       bustCondition: "my_score > 21",
       tieCondition: "my_score == dealer_score && my_score <= 21",
+      autoEndTurnCondition: "hand_value(current_player.hand, 21) >= 21",
     },
     visibility: [],
     ui: { layout: "semicircle", tableColor: "felt_green" },

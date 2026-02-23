@@ -22,7 +22,6 @@ import {
   registerAllBuiltins,
   type EffectDescription,
   type MutableEvalContext,
-  computeHandValue,
 } from "./builtins";
 import { evaluateCondition, evaluateExpression, type EvalContext, type EvalResult } from "./expression-evaluator";
 import {
@@ -296,44 +295,19 @@ function handleDeclare(
 
   let newState = applyEffects(state, effects, rng);
 
-  // ── Auto-end turn on bust ──────────────────────────────────────
-  // If the player's hand exceeds the bust threshold after a non-turn-ending
-  // action (like "hit"), automatically end their turn. This prevents the
-  // player from being stuck with only "stand" available after busting,
-  // and in multiplayer allows other players to continue their turns.
-  if (!effects.some((e) => e.kind === "end_turn")) {
-    const bustThreshold = 21;
-    const playerZoneName = `hand:${playerIndex}`;
-    const zone = newState.zones[playerZoneName];
-    if (zone && zone.cards.length > 0) {
-      const handValue = computeHandValue(
-        zone.cards,
-        newState.ruleset.deck.cardValues,
-        bustThreshold
-      );
-      if (handValue > bustThreshold) {
-        newState = applyEndTurnEffect(newState);
-      }
-    }
-  }
-
-  // ── Auto-stand at 21 (blackjack) ──────────────────────────────
-  // If the player's hand is exactly 21 and they didn't already end
-  // their turn, automatically end it — there's no beneficial action
-  // at 21, and forcing a manual "Stand" is poor UX.
-  if (!effects.some((e) => e.kind === "end_turn") && newState.currentPlayerIndex === state.currentPlayerIndex) {
-    const standThreshold = 21;
-    const playerZoneName = `hand:${state.players.findIndex((p) => p.id === action.playerId)}`;
-    const zone = newState.zones[playerZoneName];
-    if (zone && zone.cards.length > 0) {
-      const handValue = computeHandValue(
-        zone.cards,
-        newState.ruleset.deck.cardValues,
-        standThreshold
-      );
-      if (handValue === standThreshold) {
-        newState = applyEndTurnEffect(newState);
-      }
+  // ── Auto-end turn via expression ───────────────────────────────
+  // If the ruleset defines autoEndTurnCondition and the action didn't
+  // already end the turn, evaluate the condition for the current player.
+  // Examples: "hand_value(current_player.hand, 21) >= 21" (blackjack)
+  const { autoEndTurnCondition } = newState.ruleset.scoring;
+  if (
+    autoEndTurnCondition &&
+    !effects.some((e) => e.kind === "end_turn") &&
+    newState.currentPlayerIndex === state.currentPlayerIndex
+  ) {
+    const ctx: EvalContext = { state: newState, playerIndex };
+    if (evaluateCondition(autoEndTurnCondition, ctx)) {
+      newState = applyEndTurnEffect(newState);
     }
   }
 
