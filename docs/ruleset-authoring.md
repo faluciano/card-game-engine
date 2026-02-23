@@ -460,7 +460,14 @@ for player 1, and so on.
 | Function | Returns | Description |
 |---|---|---|
 | `hand_value(zone)` | number | Computes the optimal hand value for cards in the zone, handling dual-value cards (Aces). Uses a target of 21. |
+| `hand_value(zone, target)` | number | Same as above but uses a custom target value instead of 21. |
 | `card_count(zone)` | number | Returns the number of cards in a zone. |
+| `card_rank(zone, index)` | number | Returns the numeric rank value of the card at `index` in `zone`. For dual-value cards, returns the `high` value. |
+| `card_suit(zone, index)` | string | Returns the suit string of the card at `index` in `zone`. |
+| `card_rank_name(zone, index)` | string | Returns the rank string (e.g., `"A"`, `"K"`, `"7"`) of the card at `index` in `zone`. |
+| `count_rank(zone, rank)` | number | Counts how many cards in `zone` have the given rank string. |
+| `top_card_rank(zone)` | number | Returns the numeric rank value of the first (top) card in `zone`. Shorthand for `card_rank(zone, 0)`. |
+| `max_card_rank(zone)` | number | Returns the highest numeric rank value among all cards in `zone`. Returns 0 for empty zones. |
 | `sum_card_values(zone, strategy)` | number | Computes card values with a strategy (use with `prefer_high_under`). |
 | `prefer_high_under(target)` | number | Returns a strategy descriptor for `sum_card_values`. |
 | `all_players_done()` | boolean | True when all players have completed their turns. |
@@ -475,11 +482,14 @@ for player 1, and so on.
 | `shuffle(zone)` | Shuffles all cards in the zone using the seeded PRNG. |
 | `deal(from, to, count)` | Deals `count` cards from `from` to each per-player zone matching `to`. |
 | `draw(from, to, count)` | Draws `count` cards from `from` into `to` for the current player. |
+| `move_top(from, to, count)` | Moves the top `count` cards from `from` zone to `to` zone. Works on any two arbitrary zones (not player-scoped like `draw`). |
+| `move_all(from, to)` | Moves all cards from `from` zone to `to` zone. Cards retain their face-up state. |
+| `flip_top(zone, count)` | Sets the top `count` cards in `zone` to face-up. |
 | `set_face_up(zone, index, bool)` | Sets the face-up state of a specific card in a zone. |
 | `reveal_all(zone)` | Sets all cards in a zone to face-up. |
 | `end_turn()` | Advances to the next player. |
-| `calculate_scores()` | Computes scores for all players using the ruleset's card values. |
-| `determine_winners()` | Compares player scores to the dealer score and records results. |
+| `calculate_scores()` | Computes scores for all players using the ruleset's scoring expressions. |
+| `determine_winners()` | Evaluates bust/win/tie conditions per player and records results. |
 | `collect_all_to(zone)` | Gathers all cards from all zones into the target zone. |
 | `reset_round()` | Resets the round: clears scores, resets player index, increments turn. |
 
