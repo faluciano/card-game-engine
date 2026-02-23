@@ -1,7 +1,7 @@
 // ─── Ruleset Picker Screen ─────────────────────────────────────────
 // Displays available rulesets and allows the user to select one.
 // Built-in rulesets are loaded at build time; user-imported rulesets
-// will be wired through RulesetStore in a future integration pass.
+// are persisted via FileRulesetStore and managed through useRulesetStore.
 
 import React, { useMemo, useState, useCallback } from "react";
 import {
@@ -15,6 +15,8 @@ import { useGameHost } from "@couch-kit/host";
 import { loadRuleset } from "@card-engine/shared";
 import type { CardGameRuleset } from "@card-engine/shared";
 import type { HostAction, HostGameState } from "../types/host-state";
+import { useRulesetStore } from "../hooks/useRulesetStore";
+import { ImportModal } from "../components/ImportModal";
 import blackjackJson from "../../../../rulesets/blackjack.cardgame.json";
 
 // ─── Built-in Rulesets ─────────────────────────────────────────────
@@ -38,9 +40,8 @@ interface RulesetItem {
 
 export function RulesetPicker(): React.JSX.Element {
   const { dispatch } = useGameHost<HostGameState, HostAction>();
-
-  // User-imported rulesets — placeholder for future RulesetStore integration
-  const [importedRulesets] = useState<readonly CardGameRuleset[]>([]);
+  const { rulesets: storedRulesets, isLoading, importFromUrl, deleteRuleset } = useRulesetStore();
+  const [modalVisible, setModalVisible] = useState(false);
 
   const rulesetItems: readonly RulesetItem[] = useMemo(() => {
     const builtIn: RulesetItem[] = BUILT_IN_RULESETS.map(
@@ -49,14 +50,14 @@ export function RulesetPicker(): React.JSX.Element {
         source: "built_in" as const,
       }),
     );
-    const imported: RulesetItem[] = importedRulesets.map(
-      (rs: CardGameRuleset): RulesetItem => ({
-        ruleset: rs,
+    const imported: RulesetItem[] = storedRulesets.map(
+      (stored): RulesetItem => ({
+        ruleset: stored.ruleset,
         source: "imported" as const,
       }),
     );
     return [...builtIn, ...imported];
-  }, [importedRulesets]);
+  }, [storedRulesets]);
 
   const handleSelect = useCallback(
     (ruleset: CardGameRuleset) => {
@@ -69,19 +70,39 @@ export function RulesetPicker(): React.JSX.Element {
     <View style={styles.container}>
       <Text style={styles.title}>CHOOSE A GAME</Text>
 
-      <ScrollView contentContainerStyle={styles.listContent}>
-        <View style={styles.grid}>
-          {rulesetItems.map((item, index) => (
-            <RulesetCard
-              key={item.ruleset.meta.slug}
-              item={item}
-              onSelect={handleSelect}
-              isFirst={index === 0}
-            />
-          ))}
-        </View>
-        <ImportPlaceholder />
-      </ScrollView>
+      {isLoading ? (
+        <Text style={styles.loadingText}>Loading rulesets...</Text>
+      ) : (
+        <ScrollView contentContainerStyle={styles.listContent}>
+          <View style={styles.grid}>
+            {rulesetItems.map((item, index) => (
+              <RulesetCard
+                key={item.ruleset.meta.slug}
+                item={item}
+                onSelect={handleSelect}
+                isFirst={index === 0}
+                onDelete={
+                  item.source === "imported"
+                    ? () => {
+                        const stored = storedRulesets.find(
+                          (s) => s.ruleset.meta.slug === item.ruleset.meta.slug,
+                        );
+                        if (stored) deleteRuleset(stored.id);
+                      }
+                    : undefined
+                }
+              />
+            ))}
+          </View>
+          <ImportPlaceholder onPress={() => setModalVisible(true)} />
+        </ScrollView>
+      )}
+
+      <ImportModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onImport={importFromUrl}
+      />
     </View>
   );
 }
@@ -92,12 +113,15 @@ function RulesetCard({
   item,
   onSelect,
   isFirst,
+  onDelete,
 }: {
   readonly item: RulesetItem;
   readonly onSelect: (ruleset: CardGameRuleset) => void;
   readonly isFirst: boolean;
+  readonly onDelete?: () => void;
 }): React.JSX.Element {
   const [focused, setFocused] = useState(false);
+  const [deleteFocused, setDeleteFocused] = useState(false);
   const { meta } = item.ruleset;
 
   const playerRange =
@@ -120,13 +144,30 @@ function RulesetCard({
       {item.source === "built_in" && (
         <Text style={styles.badge}>BUILT-IN</Text>
       )}
+      {onDelete != null && (
+        <Pressable
+          style={[
+            styles.deleteButton,
+            deleteFocused && styles.deleteButtonFocused,
+          ]}
+          onFocus={() => setDeleteFocused(true)}
+          onBlur={() => setDeleteFocused(false)}
+          onPress={onDelete}
+        >
+          <Text style={styles.deleteLabel}>DELETE</Text>
+        </Pressable>
+      )}
     </Pressable>
   );
 }
 
 // ─── Import Placeholder ────────────────────────────────────────────
 
-function ImportPlaceholder(): React.JSX.Element {
+function ImportPlaceholder({
+  onPress,
+}: {
+  readonly onPress: () => void;
+}): React.JSX.Element {
   const [focused, setFocused] = useState(false);
 
   return (
@@ -134,9 +175,7 @@ function ImportPlaceholder(): React.JSX.Element {
       style={[styles.importButton, focused && styles.importButtonFocused]}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
-      onPress={() => {
-        // TODO: Wire to FileImporter / URLImporter when storage integration is ready
-      }}
+      onPress={onPress}
     >
       <Text style={styles.importIcon}>+</Text>
       <Text style={styles.importLabel}>Import Ruleset</Text>
@@ -205,6 +244,30 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 12,
     letterSpacing: 1,
+  },
+  deleteButton: {
+    marginTop: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignSelf: "flex-start",
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  deleteButtonFocused: {
+    borderColor: "#ff5252",
+  },
+  deleteLabel: {
+    color: "#ff5252",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  loadingText: {
+    color: "#b0b0b0",
+    fontSize: 28,
+    textAlign: "center",
+    marginTop: 64,
   },
   importButton: {
     flexDirection: "row",
