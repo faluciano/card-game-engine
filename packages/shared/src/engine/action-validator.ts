@@ -16,6 +16,7 @@ import {
 } from "./expression-evaluator";
 import { PhaseMachine } from "./phase-machine";
 import type { MutableEvalContext, EffectDescription } from "./builtins";
+import { registerAllBuiltins } from "./builtins";
 
 /**
  * A valid action descriptor: the phase action name plus display info.
@@ -43,6 +44,10 @@ export function getValidActions(
   playerId: PlayerId,
   phaseMachine?: PhaseMachine
 ): readonly ValidAction[] {
+  // Ensure builtins are registered (idempotent) — needed when called
+  // outside the reducer (e.g., from client-side getValidActions)
+  registerAllBuiltins();
+
   // Guard: game must be in progress
   if (state.status.kind !== "in_progress") {
     return [];
@@ -87,7 +92,10 @@ export function getValidActions(
         enabled = evaluateCondition(action.condition, ctx);
       } catch (error) {
         if (error instanceof ExpressionError) {
-          // Condition can't be evaluated — treat as disabled
+          // Log the error for debuggability — never silently swallow
+          console.warn(
+            `[ActionValidator] Condition "${action.condition}" failed for action "${action.name}": ${error.message}`
+          );
           enabled = false;
         } else {
           throw error;

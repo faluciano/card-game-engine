@@ -133,6 +133,7 @@ function makeGameState(
     turnNumber: 1,
     scores: {},
     actionLog: [],
+    turnsTakenThisPhase: 0,
     version: 1,
     ...overrides,
   };
@@ -333,11 +334,20 @@ describe("builtins", () => {
   // ── Sentinel Builtins ──
 
   describe("sentinel builtins", () => {
-    it("all_players_done returns true", () => {
-      const state = makeGameState({});
+    it("all_players_done returns true when all turns taken", () => {
+      // 2 human players → need turnsTakenThisPhase >= 2
+      const state = makeGameState({}, { turnsTakenThisPhase: 2 });
       const ctx = makeEvalContext(state);
       const result = evaluateExpression("all_players_done()", ctx);
       expect(result).toEqual({ kind: "boolean", value: true });
+    });
+
+    it("all_players_done returns false when not all turns taken", () => {
+      // 2 human players → turnsTakenThisPhase 0 means no turns taken
+      const state = makeGameState({}, { turnsTakenThisPhase: 0 });
+      const ctx = makeEvalContext(state);
+      const result = evaluateExpression("all_players_done()", ctx);
+      expect(result).toEqual({ kind: "boolean", value: false });
     });
 
     it("all_hands_dealt returns true", () => {

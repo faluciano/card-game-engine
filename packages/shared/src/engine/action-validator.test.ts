@@ -207,6 +207,7 @@ function makeGameState(
     turnNumber: 1,
     scores: {},
     actionLog: [],
+    turnsTakenThisPhase: 0,
     version: 1,
     ...overrides,
   };

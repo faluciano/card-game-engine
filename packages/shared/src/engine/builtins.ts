@@ -214,16 +214,25 @@ const cardCountBuiltin: BuiltinFunction = (args, context) => {
 };
 
 /**
- * all_players_done() — Sentinel: returns true.
- * Will be properly wired when phase machine tracks per-player turn completion.
+ * all_players_done() — Checks whether all human players have ended their
+ * turns this phase by comparing `turnsTakenThisPhase` against the number
+ * of human players.  `turnsTakenThisPhase` is incremented by the
+ * `end_turn` effect and reset when the phase changes.
  */
-const allPlayersDoneBuiltin: BuiltinFunction = (args, _context) => {
+const allPlayersDoneBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
       `all_players_done() takes no arguments, got ${args.length}`
     );
   }
-  return { kind: "boolean", value: true };
+  const { state } = context;
+  const humanPlayerCount = state.players.filter(
+    (p) => p.role !== "dealer"
+  ).length;
+  return {
+    kind: "boolean",
+    value: state.turnsTakenThisPhase >= humanPlayerCount,
+  };
 };
 
 /**

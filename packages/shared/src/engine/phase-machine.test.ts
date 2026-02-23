@@ -144,6 +144,7 @@ function makeGameState(
     turnNumber: 1,
     scores: {},
     actionLog: [],
+    turnsTakenThisPhase: 0,
     version: 1,
     ...overrides,
   };
@@ -286,8 +287,8 @@ describe("PhaseMachine", () => {
         nextPhase: "player_turns",
       });
 
-      // player_turns → scoring
-      state = makeGameState({}, { currentPhase: "player_turns" });
+      // player_turns → scoring (requires all players done)
+      state = makeGameState({}, { currentPhase: "player_turns", turnsTakenThisPhase: 2 });
       expect(machine.evaluateTransitions(state)).toEqual({
         kind: "advance",
         nextPhase: "scoring",
@@ -511,7 +512,8 @@ describe("PhaseMachine", () => {
     });
 
     it("resolves all four blackjack sentinels as bare identifiers", () => {
-      const state = makeGameState({});
+      // Use turnsTakenThisPhase >= humanPlayerCount so all_players_done returns true
+      const state = makeGameState({}, { turnsTakenThisPhase: 2 });
       const ctx: EvalContext = { state };
 
       for (const sentinel of [
@@ -791,7 +793,7 @@ describe("PhaseMachine", () => {
       expect(actions.length).toBe(2);
 
       // After all players done, transition to scoring
-      const ptState = makeGameState({}, { currentPhase: "player_turns" });
+      const ptState = makeGameState({}, { currentPhase: "player_turns", turnsTakenThisPhase: 2 });
       const afterPT = machine.evaluateTransitions(ptState);
       expect(afterPT).toEqual({ kind: "advance", nextPhase: "scoring" });
 

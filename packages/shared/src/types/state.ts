@@ -51,6 +51,8 @@ export interface CardGameState {
   readonly turnNumber: number;
   readonly scores: Readonly<Record<string, number>>;
   readonly actionLog: readonly ResolvedAction[];
+  /** Tracks how many end_turn effects have been applied in the current phase. */
+  readonly turnsTakenThisPhase: number;
   /** Monotonically increasing version for optimistic concurrency. */
   readonly version: number;
 }

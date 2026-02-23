@@ -329,24 +329,36 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
       expect(dealerCards[1]!.faceUp).toBe(false);
     });
 
-    it("completes entire round and starts new round after player 0 stands", () => {
+    it("completes entire round and starts new round after all players stand", () => {
       const { state, reducer, players } = startGame(ruleset, 2);
 
-      // all_players_done always returns true, so after any declare action
-      // the game auto-advances: dealer_turn → scoring → round_end → deal → player_turns
-      const afterStand = reducer(state, {
+      // With the all_players_done fix, ALL players must end their turn
+      // before the game auto-advances through dealer_turn → scoring → round_end → deal → player_turns
+      let current = reducer(state, {
         kind: "declare",
         playerId: players[0]!.id,
         declaration: "stand",
       });
 
-      expect(afterStand.status.kind).toBe("in_progress");
-      expect(afterStand.currentPhase).toBe("player_turns");
-      expect(afterStand.turnNumber).toBeGreaterThan(state.turnNumber);
+      // After player 0 stands, it's player 1's turn (round NOT complete yet)
+      expect(current.currentPhase).toBe("player_turns");
+      expect(current.turnNumber).toBe(state.turnNumber);
+      expect(current.currentPlayerIndex).toBe(1);
+
+      current = reducer(current, {
+        kind: "declare",
+        playerId: players[1]!.id,
+        declaration: "stand",
+      });
+
+      // Now all players are done → round auto-completes
+      expect(current.status.kind).toBe("in_progress");
+      expect(current.currentPhase).toBe("player_turns");
+      expect(current.turnNumber).toBeGreaterThan(state.turnNumber);
       // New round: freshly dealt hands
-      expect(afterStand.zones["hand:0"]!.cards).toHaveLength(2);
-      expect(afterStand.zones["hand:1"]!.cards).toHaveLength(2);
-      expect(afterStand.zones["dealer_hand"]!.cards).toHaveLength(2);
+      expect(current.zones["hand:0"]!.cards).toHaveLength(2);
+      expect(current.zones["hand:1"]!.cards).toHaveLength(2);
+      expect(current.zones["dealer_hand"]!.cards).toHaveLength(2);
     });
   });
 
@@ -355,7 +367,7 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
   // ══════════════════════════════════════════════════════════════════
 
   describe("full round via hit", () => {
-    it("draws a card, then auto-completes the round", () => {
+    it("draws a card and stays in player_turns (no end_turn)", () => {
       const { state, reducer, players } = startGame(ruleset, 2);
 
       const afterHit = reducer(state, {
@@ -364,11 +376,43 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
         declaration: "hit",
       });
 
-      // Round auto-completes and returns to player_turns with new deal
+      // Hit draws a card but does NOT call end_turn, so the player
+      // stays in player_turns with the same turn number
       expect(afterHit.status.kind).toBe("in_progress");
       expect(afterHit.currentPhase).toBe("player_turns");
-      expect(afterHit.turnNumber).toBeGreaterThan(state.turnNumber);
+      expect(afterHit.turnNumber).toBe(state.turnNumber);
       expect(afterHit.version).toBeGreaterThan(state.version);
+      // Player should have 3 cards (2 dealt + 1 drawn)
+      expect(afterHit.zones["hand:0"]!.cards).toHaveLength(3);
+    });
+
+    it("hit then all players stand completes the round", () => {
+      const { state, reducer, players } = startGame(ruleset, 2);
+
+      // Player 0 hits (draws a card, no end_turn)
+      let current = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "hit",
+      });
+
+      // Player 0 stands (end_turn)
+      current = reducer(current, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "stand",
+      });
+
+      // Player 1 stands (end_turn)
+      current = reducer(current, {
+        kind: "declare",
+        playerId: players[1]!.id,
+        declaration: "stand",
+      });
+
+      // Round complete → back to player_turns
+      expect(current.currentPhase).toBe("player_turns");
+      expect(current.turnNumber).toBeGreaterThan(state.turnNumber);
     });
   });
 
@@ -380,9 +424,15 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
     it("survives the scoring phase and produces a valid next-round state", () => {
       const { state, reducer, players } = startGame(ruleset, 2);
 
-      const afterRound = reducer(state, {
+      // All players must stand for round to complete
+      let afterRound = reducer(state, {
         kind: "declare",
         playerId: players[0]!.id,
+        declaration: "stand",
+      });
+      afterRound = reducer(afterRound, {
+        kind: "declare",
+        playerId: players[1]!.id,
         declaration: "stand",
       });
 
@@ -396,9 +446,15 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
     it("produces valid hands with dealt cards after scoring round", () => {
       const { state, reducer, players } = startGame(ruleset, 2);
 
-      const afterRound = reducer(state, {
+      // All players must stand for round to complete
+      let afterRound = reducer(state, {
         kind: "declare",
         playerId: players[0]!.id,
+        declaration: "stand",
+      });
+      afterRound = reducer(afterRound, {
+        kind: "declare",
+        playerId: players[1]!.id,
         declaration: "stand",
       });
 
@@ -413,6 +469,23 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
   // ══════════════════════════════════════════════════════════════════
 
   describe("multi-round game", () => {
+    /** Helper: complete one round by having all players stand. */
+    function completeRound(
+      state: CardGameState,
+      reducer: GameReducer,
+      players: Player[]
+    ): CardGameState {
+      let current = state;
+      for (const player of players) {
+        current = reducer(current, {
+          kind: "declare",
+          playerId: player.id,
+          declaration: "stand",
+        });
+      }
+      return current;
+    }
+
     it("survives 5 consecutive rounds with consistent state", () => {
       const { state: initialState, reducer, players } = startGame(ruleset, 2);
 
@@ -423,11 +496,7 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
         expect(current.currentPhase).toBe("player_turns");
         expect(totalCards(current)).toBe(DECK_SIZE);
 
-        current = reducer(current, {
-          kind: "declare",
-          playerId: players[0]!.id,
-          declaration: "stand",
-        });
+        current = completeRound(current, reducer, players);
       }
 
       expect(current.status.kind).toBe("in_progress");
@@ -443,11 +512,7 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
       const turnNumbers: number[] = [current.turnNumber];
 
       for (let round = 0; round < 3; round++) {
-        current = reducer(current, {
-          kind: "declare",
-          playerId: players[0]!.id,
-          declaration: "stand",
-        });
+        current = completeRound(current, reducer, players);
         turnNumbers.push(current.turnNumber);
       }
 
@@ -463,11 +528,7 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
 
       for (let round = 0; round < 5; round++) {
         expect(current.currentPhase).toBe("player_turns");
-        current = reducer(current, {
-          kind: "declare",
-          playerId: players[0]!.id,
-          declaration: "stand",
-        });
+        current = completeRound(current, reducer, players);
       }
       expect(current.currentPhase).toBe("player_turns");
     });
@@ -479,11 +540,7 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
 
       for (let round = 0; round < 5; round++) {
         expect(current.status.kind).toBe("in_progress");
-        current = reducer(current, {
-          kind: "declare",
-          playerId: players[0]!.id,
-          declaration: "stand",
-        });
+        current = completeRound(current, reducer, players);
       }
       expect(current.status.kind).toBe("in_progress");
     });
@@ -730,7 +787,7 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
   // ══════════════════════════════════════════════════════════════════
 
   describe("double down", () => {
-    it("draws exactly 1 card and completes the round", () => {
+    it("draws exactly 1 card and ends the player's turn", () => {
       const { state, reducer, players } = startGame(ruleset, 2);
 
       const afterDoubleDown = reducer(state, {
@@ -739,11 +796,33 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
         declaration: "double_down",
       });
 
-      // Round auto-completes: dealer_turn → scoring → round_end → deal → player_turns
+      // double_down draws 1 card + end_turn → advances to player 1's turn
       expect(afterDoubleDown.status.kind).toBe("in_progress");
       expect(afterDoubleDown.currentPhase).toBe("player_turns");
-      expect(afterDoubleDown.turnNumber).toBeGreaterThan(state.turnNumber);
+      // Player 0's hand should have 3 cards (2 dealt + 1 drawn)
+      expect(afterDoubleDown.zones["hand:0"]!.cards).toHaveLength(3);
       expect(afterDoubleDown.version).toBeGreaterThan(state.version);
+    });
+
+    it("double_down for all players completes the round", () => {
+      const { state, reducer, players } = startGame(ruleset, 2);
+
+      let current = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "double_down",
+      });
+
+      current = reducer(current, {
+        kind: "declare",
+        playerId: players[1]!.id,
+        declaration: "double_down",
+      });
+
+      // All players done → round auto-completes
+      expect(current.status.kind).toBe("in_progress");
+      expect(current.currentPhase).toBe("player_turns");
+      expect(current.turnNumber).toBeGreaterThan(state.turnNumber);
     });
 
     it("double_down ruleset definition includes draw and end_turn effects", () => {
@@ -806,11 +885,14 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
       let current = initialState;
       for (let round = 0; round < 5; round++) {
         expect(totalCards(current)).toBe(DECK_SIZE);
-        current = reducer(current, {
-          kind: "declare",
-          playerId: players[0]!.id,
-          declaration: "stand",
-        });
+        // All players must stand to complete the round
+        for (const player of players) {
+          current = reducer(current, {
+            kind: "declare",
+            playerId: player.id,
+            declaration: "stand",
+          });
+        }
       }
       expect(totalCards(current)).toBe(DECK_SIZE);
     });
@@ -871,14 +953,18 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
     it("maximum player game survives a full round", () => {
       const { state, reducer, players } = startGame(ruleset, 6);
 
-      const afterStand = reducer(state, {
-        kind: "declare",
-        playerId: players[0]!.id,
-        declaration: "stand",
-      });
+      // All 6 players must stand to complete the round
+      let current = state;
+      for (const player of players) {
+        current = reducer(current, {
+          kind: "declare",
+          playerId: player.id,
+          declaration: "stand",
+        });
+      }
 
-      expect(afterStand.currentPhase).toBe("player_turns");
-      expect(afterStand.turnNumber).toBeGreaterThan(state.turnNumber);
+      expect(current.currentPhase).toBe("player_turns");
+      expect(current.turnNumber).toBeGreaterThan(state.turnNumber);
     });
 
     it("start_game is a no-op on an already started game", () => {
@@ -894,13 +980,17 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
       let current = state;
       const versions: number[] = [current.version];
 
+      // Each player standing increases the version
       for (let i = 0; i < 3; i++) {
-        current = reducer(current, {
-          kind: "declare",
-          playerId: players[0]!.id,
-          declaration: "stand",
-        });
-        versions.push(current.version);
+        // Complete a full round (both players stand)
+        for (const player of players) {
+          current = reducer(current, {
+            kind: "declare",
+            playerId: player.id,
+            declaration: "stand",
+          });
+          versions.push(current.version);
+        }
       }
 
       for (let i = 1; i < versions.length; i++) {

@@ -8,6 +8,8 @@ import {
 import { clearBuiltins } from "./expression-evaluator";
 import { registerAllBuiltins } from "./builtins";
 import type {
+  Card,
+  CardInstanceId,
   CardGameRuleset,
   CardGameState,
   CardGameAction,
@@ -26,6 +28,19 @@ function makePlayerId(id: string): PlayerId {
 
 function makeSessionId(id: string): GameSessionId {
   return id as GameSessionId;
+}
+
+function makeCardId(id: string): CardInstanceId {
+  return id as CardInstanceId;
+}
+
+function makeCard(rank: string, suit: string, faceUp = true): Card {
+  return {
+    id: makeCardId(`${rank}_${suit}`),
+    suit,
+    rank,
+    faceUp,
+  };
 }
 
 const BLACKJACK_CARD_VALUES: Readonly<Record<string, CardValue>> = {
@@ -703,10 +718,9 @@ describe("Ruleset Interpreter", () => {
         expect(afterBad.version).toBe(state.version);
       });
 
-      it("hit draws a card and triggers full round completion", () => {
-        // Note: all_players_done always returns true, so after any declare
-        // the game advances through dealer_turn → scoring → round_end → deal.
-        // This tests that the full flow completes without error.
+      it("hit draws a card and stays in player_turns", () => {
+        // With the all_players_done fix, hit does not call end_turn so
+        // the game stays in player_turns (the player can hit again).
         const { state, reducer } = startedState();
 
         const afterHit = reducer(state, {
@@ -715,11 +729,12 @@ describe("Ruleset Interpreter", () => {
           declaration: "hit",
         });
 
-        // The game should have completed a full round and be back at player_turns
-        // (round_end → deal → player_turns)
+        // Game stays in player_turns — player 0 can still act
         expect(afterHit.status.kind).toBe("in_progress");
         expect(afterHit.currentPhase).toBe("player_turns");
         expect(afterHit.version).toBeGreaterThan(state.version);
+        // Player 0's hand has 3 cards (2 dealt + 1 drawn)
+        expect(afterHit.zones["hand:0"]!.cards).toHaveLength(3);
       });
 
       it("logs the action in actionLog", () => {
@@ -733,6 +748,201 @@ describe("Ruleset Interpreter", () => {
 
         const lastLog = afterHit.actionLog[afterHit.actionLog.length - 1]!;
         expect(lastLog.action.kind).toBe("declare");
+      });
+    });
+
+    describe("auto-end turn on bust", () => {
+      /**
+       * Sets up a 2-player started game where player 0's hand is rigged
+       * to be close to (or over) 21, and the draw pile's top card is known.
+       */
+      function riggedBustState(options: {
+        playerHandCards: Card[];
+        drawPileTopCard: Card;
+      }): {
+        state: CardGameState;
+        reducer: ReturnType<typeof createReducer>;
+      } {
+        const ruleset = makeBlackjackRuleset();
+        const reducer = createReducer(ruleset, FIXED_SEED);
+        const players = makePlayers(2);
+        const state = createInitialState(
+          ruleset,
+          makeSessionId("s1"),
+          players,
+          FIXED_SEED
+        );
+
+        const started = reducer(state, { kind: "start_game" });
+
+        // Override player 0's hand and the draw pile's top card
+        const riggedState: CardGameState = {
+          ...started,
+          zones: {
+            ...started.zones,
+            "hand:0": {
+              ...started.zones["hand:0"]!,
+              cards: options.playerHandCards,
+            },
+            draw_pile: {
+              ...started.zones["draw_pile"]!,
+              cards: [
+                options.drawPileTopCard,
+                ...started.zones["draw_pile"]!.cards,
+              ],
+            },
+          },
+        };
+
+        return { state: riggedState, reducer };
+      }
+
+      it("auto-ends turn when player busts after hit", () => {
+        // Player 0 has K + Q = 20. Draw pile top is 10 → bust with 30.
+        const { state, reducer } = riggedBustState({
+          playerHandCards: [
+            makeCard("K", "spades"),
+            makeCard("Q", "hearts"),
+          ],
+          drawPileTopCard: makeCard("10", "clubs"),
+        });
+
+        expect(state.currentPlayerIndex).toBe(0);
+        expect(state.turnsTakenThisPhase).toBe(0);
+
+        const afterHit = reducer(state, {
+          kind: "declare",
+          playerId: makePlayerId("p0"),
+          declaration: "hit",
+        });
+
+        // Player 0 busted → auto-end-turn should have advanced to player 1
+        expect(afterHit.currentPlayerIndex).toBe(1);
+        expect(afterHit.currentPhase).toBe("player_turns");
+        expect(afterHit.status.kind).toBe("in_progress");
+        // Player 0's hand should have 3 cards (2 original + 1 drawn)
+        expect(afterHit.zones["hand:0"]!.cards).toHaveLength(3);
+      });
+
+      it("does NOT auto-end turn when player does not bust", () => {
+        // Player 0 has 5 + 6 = 11. Draw pile top is 2 → 13 (no bust).
+        const { state, reducer } = riggedBustState({
+          playerHandCards: [
+            makeCard("5", "spades"),
+            makeCard("6", "hearts"),
+          ],
+          drawPileTopCard: makeCard("2", "clubs"),
+        });
+
+        expect(state.currentPlayerIndex).toBe(0);
+
+        const afterHit = reducer(state, {
+          kind: "declare",
+          playerId: makePlayerId("p0"),
+          declaration: "hit",
+        });
+
+        // No bust → player 0 stays as current player
+        expect(afterHit.currentPlayerIndex).toBe(0);
+        expect(afterHit.currentPhase).toBe("player_turns");
+        expect(afterHit.turnsTakenThisPhase).toBe(0);
+        // Player 0's hand should have 3 cards
+        expect(afterHit.zones["hand:0"]!.cards).toHaveLength(3);
+      });
+
+      it("does not double-apply end_turn for stand", () => {
+        // Stand already includes end_turn() in its effects.
+        // Verify it doesn't get applied twice.
+        const ruleset = makeBlackjackRuleset();
+        const reducer = createReducer(ruleset, FIXED_SEED);
+        const players = makePlayers(2);
+        const state = createInitialState(
+          ruleset,
+          makeSessionId("s1"),
+          players,
+          FIXED_SEED
+        );
+
+        const started = reducer(state, { kind: "start_game" });
+        expect(started.currentPlayerIndex).toBe(0);
+        expect(started.turnsTakenThisPhase).toBe(0);
+
+        const afterStand = reducer(started, {
+          kind: "declare",
+          playerId: makePlayerId("p0"),
+          declaration: "stand",
+        });
+
+        // After stand, turnsTakenThisPhase should be 1 (not 2).
+        // currentPlayerIndex should be 1 (not 0 from wrapping around with 2 increments).
+        expect(afterStand.currentPlayerIndex).toBe(1);
+        expect(afterStand.turnsTakenThisPhase).toBe(1);
+        expect(afterStand.currentPhase).toBe("player_turns");
+      });
+
+      it("advances through full round after all players bust via auto-end-turn", () => {
+        const ruleset = makeBlackjackRuleset();
+        const reducer = createReducer(ruleset, FIXED_SEED);
+        const players = makePlayers(2);
+        const state = createInitialState(
+          ruleset,
+          makeSessionId("s1"),
+          players,
+          FIXED_SEED
+        );
+
+        const started = reducer(state, { kind: "start_game" });
+
+        // Rig both players to bust: give them high-value hands and put
+        // high-value cards at the top of draw_pile.
+        const rigged: CardGameState = {
+          ...started,
+          zones: {
+            ...started.zones,
+            "hand:0": {
+              ...started.zones["hand:0"]!,
+              cards: [makeCard("K", "spades"), makeCard("Q", "hearts")],
+            },
+            "hand:1": {
+              ...started.zones["hand:1"]!,
+              cards: [makeCard("K", "diamonds"), makeCard("Q", "clubs")],
+            },
+            draw_pile: {
+              ...started.zones["draw_pile"]!,
+              cards: [
+                makeCard("10", "spades"),
+                makeCard("10", "hearts"),
+                ...started.zones["draw_pile"]!.cards,
+              ],
+            },
+          },
+        };
+
+        // Player 0 hits and busts → auto-end-turn
+        let current = reducer(rigged, {
+          kind: "declare",
+          playerId: makePlayerId("p0"),
+          declaration: "hit",
+        });
+
+        expect(current.currentPhase).toBe("player_turns");
+        expect(current.currentPlayerIndex).toBe(1);
+
+        // Player 1 hits and busts → auto-end-turn, all_players_done triggers
+        current = reducer(current, {
+          kind: "declare",
+          playerId: makePlayerId("p1"),
+          declaration: "hit",
+        });
+
+        // all_players_done fires → dealer_turn → scoring → round_end → deal
+        // → back to player_turns with a new round (higher turnNumber)
+        expect(current.status.kind).toBe("in_progress");
+        expect(current.currentPhase).toBe("player_turns");
+        expect(current.turnNumber).toBeGreaterThan(started.turnNumber);
+        // Fresh hands dealt for new round
+        expect(current.zones["hand:0"]!.cards).toHaveLength(2);
+        expect(current.zones["hand:1"]!.cards).toHaveLength(2);
       });
     });
 

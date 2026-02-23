@@ -109,6 +109,7 @@ export function createInitialState(
     turnNumber: 1,
     scores: {},
     actionLog: [],
+    turnsTakenThisPhase: 0,
     version: 0,
   };
 }
@@ -294,6 +295,27 @@ function handleDeclare(
 
   let newState = applyEffects(state, effects, rng);
 
+  // ── Auto-end turn on bust ──────────────────────────────────────
+  // If the player's hand exceeds the bust threshold after a non-turn-ending
+  // action (like "hit"), automatically end their turn. This prevents the
+  // player from being stuck with only "stand" available after busting,
+  // and in multiplayer allows other players to continue their turns.
+  if (!effects.some((e) => e.kind === "end_turn")) {
+    const bustThreshold = 21;
+    const playerZoneName = `hand:${playerIndex}`;
+    const zone = newState.zones[playerZoneName];
+    if (zone && zone.cards.length > 0) {
+      const handValue = computeHandValue(
+        zone.cards,
+        newState.ruleset.deck.cardValues,
+        bustThreshold
+      );
+      if (handValue > bustThreshold) {
+        newState = applyEndTurnEffect(newState);
+      }
+    }
+  }
+
   // Bump version and log
   newState = {
     ...newState,
@@ -424,6 +446,7 @@ function handleAdvancePhase(
   let newState: CardGameState = {
     ...state,
     currentPhase: transition.nextPhase,
+    turnsTakenThisPhase: 0,
     version: state.version + 1,
   };
 
@@ -446,6 +469,7 @@ function handleResetRound(
     currentPhase: firstPhase,
     currentPlayerIndex: 0,
     turnNumber: state.turnNumber + 1,
+    turnsTakenThisPhase: 0,
     scores: {},
     version: state.version + 1,
   };
@@ -503,6 +527,7 @@ function runAutomaticPhases(
     current = {
       ...current,
       currentPhase: transition.nextPhase,
+      turnsTakenThisPhase: 0,
       version: current.version + 1,
     };
     iterations++;
@@ -528,6 +553,7 @@ function checkTransitionsAndRunAuto(
   let newState: CardGameState = {
     ...state,
     currentPhase: transition.nextPhase,
+    turnsTakenThisPhase: 0,
     version: state.version + 1,
   };
 
@@ -749,6 +775,7 @@ function applyEndTurnEffect(state: CardGameState): CardGameState {
   return {
     ...state,
     currentPlayerIndex: nextIndex,
+    turnsTakenThisPhase: state.turnsTakenThisPhase + 1,
   };
 }
 
@@ -850,6 +877,7 @@ function applyResetRoundEffect(state: CardGameState): CardGameState {
     ...state,
     currentPlayerIndex: 0,
     turnNumber: state.turnNumber + 1,
+    turnsTakenThisPhase: 0,
     scores: {},
   };
 }
