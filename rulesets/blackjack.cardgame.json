@@ -3,7 +3,7 @@
     "name": "Blackjack",
     "slug": "blackjack",
     "version": "1.0.0",
-    "author": "card-engine",
+    "author": "faluciano",
     "players": {
       "min": 1,
       "max": 6
@@ -36,12 +36,12 @@
     },
     {
       "name": "hand",
-      "visibility": { "kind": "owner_only" },
+      "visibility": { "kind": "public" },
       "owners": ["player"]
     },
     {
       "name": "dealer_hand",
-      "visibility": { "kind": "partial", "rule": "first_card_only" },
+      "visibility": { "kind": "partial", "rule": "face_up_only" },
       "owners": ["dealer"]
     },
     {
@@ -103,8 +103,7 @@
         }
       ],
       "transitions": [
-        { "to": "dealer_turn", "when": "all_players_done" },
-        { "to": "scoring", "when": "hand_value(current_player.hand) > 21" }
+        { "to": "dealer_turn", "when": "all_players_done" }
       ],
       "turnOrder": "clockwise"
     },
@@ -134,14 +133,19 @@
     },
     {
       "name": "round_end",
-      "kind": "automatic",
-      "actions": [],
+      "kind": "all_players",
+      "actions": [
+        {
+          "name": "new_round",
+          "label": "New Round",
+          "effect": [
+            "collect_all_to(draw_pile)",
+            "reset_round()"
+          ]
+        }
+      ],
       "transitions": [
         { "to": "deal", "when": "continue_game" }
-      ],
-      "automaticSequence": [
-        "collect_all_to(draw_pile)",
-        "reset_round()"
       ]
     }
   ],
@@ -153,15 +157,11 @@
   "visibility": [
     {
       "zone": "hand",
-      "visibility": { "kind": "owner_only" }
+      "visibility": { "kind": "public" }
     },
     {
       "zone": "dealer_hand",
-      "visibility": { "kind": "partial", "rule": "first_card_only" },
-      "phaseOverride": {
-        "phase": "dealer_turn",
-        "visibility": { "kind": "public" }
-      }
+      "visibility": { "kind": "partial", "rule": "face_up_only" }
     },
     {
       "zone": "draw_pile",

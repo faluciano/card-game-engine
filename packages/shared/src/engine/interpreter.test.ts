@@ -608,6 +608,66 @@ describe("Ruleset Interpreter", () => {
         expect(dealerCards[1]!.faceUp).toBe(false);
       });
 
+      it("collect_all_to resets faceUp on all collected cards", () => {
+        const ruleset = makeBlackjackRuleset();
+        const reducer = createReducer(ruleset, FIXED_SEED);
+        const players = makePlayers(1);
+        const state = createInitialState(
+          ruleset,
+          makeSessionId("s1"),
+          players,
+          FIXED_SEED
+        );
+
+        const started = reducer(state, { kind: "start_game" });
+
+        // Rig: set ALL cards in all zones to faceUp: true
+        const rigged: CardGameState = {
+          ...started,
+          zones: Object.fromEntries(
+            Object.entries(started.zones).map(([name, zone]) => [
+              name,
+              {
+                ...zone,
+                cards: zone.cards.map((c) => ({ ...c, faceUp: true })),
+              },
+            ])
+          ),
+        };
+
+        // Verify at least some cards are faceUp
+        const dealerCards = rigged.zones["dealer_hand"]!.cards;
+        expect(dealerCards.every((c) => c.faceUp)).toBe(true);
+
+        // Force round_end with collect_all_to via standing (which triggers
+        // the full auto-chain: dealer_turn → scoring → round_end → deal → player_turns)
+        // The inline ruleset has automatic round_end, so it chains all the way.
+        let current = reducer(rigged, {
+          kind: "declare",
+          playerId: makePlayerId("p0"),
+          declaration: "stand",
+        });
+
+        // After the full chain (round_end → deal → player_turns), cards that
+        // were collected FROM other zones back into draw_pile have faceUp reset
+        // to false. However, cards already in draw_pile keep their original state.
+        // The shuffle randomizes card order, so dealt cards may come from either
+        // the original draw_pile (still faceUp: true) or collected cards (faceUp: false).
+        //
+        // The key invariant: cards collected from hands/dealer back to draw_pile
+        // are reset to faceUp: false.
+        const drawPileCards = current.zones["draw_pile"]!.cards;
+        const collectedCards = drawPileCards.filter((c) => !c.faceUp);
+        // At least some cards in the draw pile should have been reset (the collected ones)
+        expect(collectedCards.length).toBeGreaterThan(0);
+
+        // After a full round, we should be back in player_turns with fresh hands
+        const newDealerCards = current.zones["dealer_hand"]!.cards;
+        expect(newDealerCards).toHaveLength(2);
+        // First card was flipped by set_face_up(dealer_hand, 0, true)
+        expect(newDealerCards[0]!.faceUp).toBe(true);
+      });
+
       it("does nothing if not in waiting_for_players state", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
@@ -824,6 +884,56 @@ describe("Ruleset Interpreter", () => {
         expect(afterHit.zones["hand:0"]!.cards).toHaveLength(3);
       });
 
+      it("auto-stands at exactly 21 after hit", () => {
+        const ruleset = makeBlackjackRuleset();
+        const reducer = createReducer(ruleset, FIXED_SEED);
+        const players = makePlayers(2);
+        const state = createInitialState(
+          ruleset,
+          makeSessionId("s1"),
+          players,
+          FIXED_SEED
+        );
+
+        const started = reducer(state, { kind: "start_game" });
+
+        // Rig player 0's hand to 11 (Ace), put a 10 on top of draw pile
+        // so hitting gives exactly 21
+        const rigged: CardGameState = {
+          ...started,
+          zones: {
+            ...started.zones,
+            "hand:0": {
+              ...started.zones["hand:0"]!,
+              cards: [makeCard("A", "spades"), makeCard("5", "hearts")],
+            },
+            draw_pile: {
+              ...started.zones["draw_pile"]!,
+              cards: [
+                makeCard("5", "diamonds"),
+                ...started.zones["draw_pile"]!.cards,
+              ],
+            },
+          },
+        };
+
+        expect(rigged.currentPlayerIndex).toBe(0);
+
+        // Player 0 hits → hand becomes A + 5 + 5 = 21 → should auto-stand
+        const afterHit = reducer(rigged, {
+          kind: "declare",
+          playerId: makePlayerId("p0"),
+          declaration: "hit",
+        });
+
+        // Turn should have automatically advanced to player 1
+        expect(afterHit.currentPlayerIndex).toBe(1);
+        // Still in player_turns (not transitioned away)
+        expect(afterHit.currentPhase).toBe("player_turns");
+        // Player 0's hand should have 3 cards
+        expect(afterHit.zones["hand:0"]!.cards).toHaveLength(3);
+      });
+
       it("does NOT auto-end turn when player does not bust", () => {
         // Player 0 has 5 + 6 = 11. Draw pile top is 2 → 13 (no bust).
         const { state, reducer } = riggedBustState({
@@ -969,6 +1079,30 @@ describe("Ruleset Interpreter", () => {
         // Should advance to next player or trigger transition
         expect(afterEndTurn.version).toBeGreaterThan(started.version);
       });
+
+      it("increments turnsTakenThisPhase", () => {
+        const ruleset = makeBlackjackRuleset();
+        const reducer = createReducer(ruleset, FIXED_SEED);
+        const players = makePlayers(2);
+        const state = createInitialState(
+          ruleset,
+          makeSessionId("s1"),
+          players,
+          FIXED_SEED
+        );
+
+        const started = reducer(state, { kind: "start_game" });
+        expect(started.turnsTakenThisPhase).toBe(0);
+
+        // Dispatch a raw end_turn action (as opposed to "stand" which goes through declare)
+        const afterEndTurn = reducer(started, {
+          kind: "end_turn",
+          playerId: makePlayerId("p0"),
+        });
+
+        expect(afterEndTurn.turnsTakenThisPhase).toBe(1);
+        expect(afterEndTurn.currentPlayerIndex).toBe(1);
+      });
     });
 
     describe("version increments", () => {
@@ -1111,6 +1245,151 @@ describe("Ruleset Interpreter", () => {
     it("is an instance of Error", () => {
       const err = new RulesetParseError("test", []);
       expect(err).toBeInstanceOf(Error);
+    });
+  });
+
+  // ── all_players round_end phase ──────────────────────────────────
+
+  describe("all_players round_end phase", () => {
+    /**
+     * Creates a blackjack ruleset where round_end is all_players
+     * (matching the production blackjack.cardgame.json).
+     */
+    function makeBlackjackWithAllPlayersRoundEnd(): CardGameRuleset {
+      const base = makeBlackjackRuleset();
+      return {
+        ...base,
+        phases: base.phases.map((phase) =>
+          phase.name === "round_end"
+            ? {
+                ...phase,
+                kind: "all_players" as const,
+                actions: [
+                  {
+                    name: "new_round",
+                    label: "New Round",
+                    effect: [
+                      "collect_all_to(draw_pile)",
+                      "reset_round()",
+                    ],
+                  },
+                ],
+                automaticSequence: undefined,
+              }
+            : phase.name === "player_turns"
+              ? {
+                  ...phase,
+                  // Also remove the bust transition like production ruleset
+                  transitions: [{ to: "dealer_turn", when: "all_players_done" }],
+                }
+              : phase
+        ),
+      };
+    }
+
+    it("stops at round_end after scoring instead of auto-chaining", () => {
+      const ruleset = makeBlackjackWithAllPlayersRoundEnd();
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      const state = createInitialState(
+        ruleset,
+        makeSessionId("s1"),
+        players,
+        FIXED_SEED
+      );
+
+      const started = reducer(state, { kind: "start_game" });
+
+      // Stand to trigger dealer_turn → scoring → round_end (stops here)
+      const afterStand = reducer(started, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "stand",
+      });
+
+      // Should stop at round_end, NOT chain back to player_turns
+      expect(afterStand.currentPhase).toBe("round_end");
+      // Scores should be populated (scoring phase ran)
+      expect(afterStand.scores).toHaveProperty("dealer");
+      expect(afterStand.scores).toHaveProperty("player:0");
+      // Dealer hand should still have cards (not collected yet)
+      expect(afterStand.zones["dealer_hand"]!.cards.length).toBeGreaterThan(0);
+    });
+
+    it("new_round action collects cards and starts new round", () => {
+      const ruleset = makeBlackjackWithAllPlayersRoundEnd();
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      const state = createInitialState(
+        ruleset,
+        makeSessionId("s1"),
+        players,
+        FIXED_SEED
+      );
+
+      const started = reducer(state, { kind: "start_game" });
+      const turnNumberBefore = started.turnNumber;
+
+      // Stand to reach round_end
+      const atRoundEnd = reducer(started, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "stand",
+      });
+      expect(atRoundEnd.currentPhase).toBe("round_end");
+
+      // Dispatch "new_round" action
+      const afterNewRound = reducer(atRoundEnd, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "new_round",
+      });
+
+      // Should have looped: collect → reset → deal → player_turns
+      expect(afterNewRound.currentPhase).toBe("player_turns");
+      expect(afterNewRound.turnNumber).toBeGreaterThan(turnNumberBefore);
+      // Fresh hands dealt
+      expect(afterNewRound.zones["hand:0"]!.cards).toHaveLength(2);
+      expect(afterNewRound.zones["dealer_hand"]!.cards).toHaveLength(2);
+      // Scores reset
+      expect(afterNewRound.scores).toEqual({});
+    });
+
+    it("any player can trigger new_round in all_players phase", () => {
+      const ruleset = makeBlackjackWithAllPlayersRoundEnd();
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(2);
+      const state = createInitialState(
+        ruleset,
+        makeSessionId("s1"),
+        players,
+        FIXED_SEED
+      );
+
+      const started = reducer(state, { kind: "start_game" });
+
+      // Both players stand
+      let current = reducer(started, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "stand",
+      });
+      current = reducer(current, {
+        kind: "declare",
+        playerId: makePlayerId("p1"),
+        declaration: "stand",
+      });
+
+      expect(current.currentPhase).toBe("round_end");
+
+      // Player 1 (not player 0) can trigger new_round because it's all_players phase
+      const afterNewRound = reducer(current, {
+        kind: "declare",
+        playerId: makePlayerId("p1"),
+        declaration: "new_round",
+      });
+
+      expect(afterNewRound.currentPhase).toBe("player_turns");
     });
   });
 });

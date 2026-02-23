@@ -316,6 +316,26 @@ function handleDeclare(
     }
   }
 
+  // ── Auto-stand at 21 (blackjack) ──────────────────────────────
+  // If the player's hand is exactly 21 and they didn't already end
+  // their turn, automatically end it — there's no beneficial action
+  // at 21, and forcing a manual "Stand" is poor UX.
+  if (!effects.some((e) => e.kind === "end_turn") && newState.currentPlayerIndex === state.currentPlayerIndex) {
+    const standThreshold = 21;
+    const playerZoneName = `hand:${state.players.findIndex((p) => p.id === action.playerId)}`;
+    const zone = newState.zones[playerZoneName];
+    if (zone && zone.cards.length > 0) {
+      const handValue = computeHandValue(
+        zone.cards,
+        newState.ruleset.deck.cardValues,
+        standThreshold
+      );
+      if (handValue === standThreshold) {
+        newState = applyEndTurnEffect(newState);
+      }
+    }
+  }
+
   // Bump version and log
   newState = {
     ...newState,
@@ -419,6 +439,7 @@ function handleEndTurn(
   let newState: CardGameState = {
     ...state,
     currentPlayerIndex: nextPlayerIndex,
+    turnsTakenThisPhase: state.turnsTakenThisPhase + 1,
     version: state.version + 1,
     actionLog: [
       ...state.actionLog,
@@ -854,7 +875,7 @@ function applyCollectAllToEffect(
   // Gather all cards from all zones
   for (const [name, zone] of Object.entries(zones)) {
     if (name === targetName) continue;
-    collected.push(...zone.cards);
+    collected.push(...zone.cards.map((card) => ({ ...card, faceUp: false })));
     zones[name] = { ...zone, cards: [] };
   }
 
