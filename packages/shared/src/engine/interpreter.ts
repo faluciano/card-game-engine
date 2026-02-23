@@ -30,6 +30,7 @@ import {
   executePhaseAction,
 } from "./action-validator";
 import { createRng, type SeededRng } from "./prng";
+import { isHumanPlayer } from "./role-utils";
 
 // ─── loadRuleset ───────────────────────────────────────────────────
 
@@ -432,7 +433,7 @@ function handleEndTurn(
   const validation = validateAction(state, action, phaseMachine);
   if (!validation.valid) return state;
 
-  const humanPlayers = state.players.filter((p) => p.role !== "dealer");
+  const humanPlayers = state.players.filter((p) => isHumanPlayer(p, state.ruleset.roles));
   const nextPlayerIndex =
     (state.currentPlayerIndex + 1) % humanPlayers.length;
 
@@ -790,7 +791,7 @@ function applyRevealAllEffect(
  * Advances currentPlayerIndex to the next human player. Wraps around.
  */
 function applyEndTurnEffect(state: CardGameState): CardGameState {
-  const humanPlayers = state.players.filter((p) => p.role !== "dealer");
+  const humanPlayers = state.players.filter((p) => isHumanPlayer(p, state.ruleset.roles));
   const nextIndex = (state.currentPlayerIndex + 1) % humanPlayers.length;
 
   return {
@@ -811,7 +812,7 @@ function applyCalculateScoresEffect(state: CardGameState): CardGameState {
   // Score each player's hand
   for (let i = 0; i < state.players.length; i++) {
     const player = state.players[i]!;
-    if (player.role === "dealer") continue;
+    if (!isHumanPlayer(player, state.ruleset.roles)) continue;
 
     // Try per-player zone first, then shared zone
     const perPlayerZone = state.zones[`hand:${i}`];
@@ -842,7 +843,7 @@ function applyDetermineWinnersEffect(state: CardGameState): CardGameState {
 
   for (let i = 0; i < state.players.length; i++) {
     const player = state.players[i]!;
-    if (player.role === "dealer") continue;
+    if (!isHumanPlayer(player, state.ruleset.roles)) continue;
 
     const playerScore = scores[`player:${i}`] ?? 0;
     const playerBusted = playerScore > 21;
@@ -974,7 +975,7 @@ function initializeZones(
 
     if (isPerPlayer) {
       // Create one zone per human player
-      const humanPlayers = players.filter((p) => p.role !== "dealer");
+      const humanPlayers = players.filter((p) => isHumanPlayer(p, ruleset.roles));
       for (let i = 0; i < humanPlayers.length; i++) {
         const name = `${zoneConfig.name}:${i}`;
         const definition: ZoneDefinition = {

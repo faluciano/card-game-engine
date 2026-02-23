@@ -11,6 +11,7 @@ import {
   ExpressionError,
 } from "./expression-evaluator";
 import type { CardGameState, Card, CardValue, ZoneState } from "../types/index";
+import { isHumanPlayer } from "./role-utils";
 
 // ─── Effect Types ──────────────────────────────────────────────────
 
@@ -227,7 +228,7 @@ const allPlayersDoneBuiltin: BuiltinFunction = (args, context) => {
   }
   const { state } = context;
   const humanPlayerCount = state.players.filter(
-    (p) => p.role !== "dealer"
+    (p) => isHumanPlayer(p, state.ruleset.roles)
   ).length;
   return {
     kind: "boolean",
