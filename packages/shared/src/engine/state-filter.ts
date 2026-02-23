@@ -32,6 +32,15 @@ function getEffectiveVisibility(
   return defaultVisibility;
 }
 
+/** Determines if a player can act in the current phase. */
+function isPlayerActive(state: CardGameState, playerIndex: number): boolean {
+  const phase = state.ruleset.phases.find(
+    (p) => p.name === state.currentPhase
+  );
+  if (phase?.kind === "all_players") return true;
+  return state.currentPlayerIndex === playerIndex;
+}
+
 /**
  * Creates a player-specific view of the game state.
  * Applies visibility rules from the ruleset to filter zone contents.
@@ -96,7 +105,7 @@ export function createPlayerView(
     players: state.players,
     zones: filteredZones,
     currentPhase: state.currentPhase,
-    isMyTurn: state.currentPlayerIndex === playerIndex,
+    isMyTurn: isPlayerActive(state, playerIndex),
     myPlayerId: playerId,
     validActions: validActions
       .filter((a) => a.enabled)

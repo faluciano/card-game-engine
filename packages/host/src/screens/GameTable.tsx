@@ -57,6 +57,7 @@ export function GameTable(): React.JSX.Element {
 
   const engineState = state.engineState;
   const isFinished = engineState.status.kind === "finished";
+  const isRoundEnd = engineState.currentPhase === "round_end";
 
   return (
     <View style={styles.container}>
@@ -71,7 +72,7 @@ export function GameTable(): React.JSX.Element {
         <ScoreBoard engineState={engineState} />
       </ScrollView>
 
-      {isFinished && (
+      {(isFinished || isRoundEnd) && (
         <ResultsOverlay engineState={engineState} dispatch={dispatch} />
       )}
     </View>
@@ -251,13 +252,11 @@ function ScoreBoard({
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>SCORES</Text>
       <View style={styles.scoreBoard}>
-        {scoreEntries.map(([playerId, score]) => {
-          const player = engineState.players.find((p) => p.id === playerId);
+        {scoreEntries.map(([key, score]) => {
+          const displayName = resolveScoreLabel(key, engineState.players);
           return (
-            <View key={playerId} style={styles.scoreRow}>
-              <Text style={styles.scoreName}>
-                {player?.name ?? playerId}
-              </Text>
+            <View key={key} style={styles.scoreRow}>
+              <Text style={styles.scoreName}>{displayName}</Text>
               <Text style={styles.scoreValue}>{score}</Text>
             </View>
           );
@@ -277,19 +276,127 @@ function ResultsOverlay({
   readonly dispatch: (action: HostAction) => void;
 }): React.JSX.Element {
   const [focusedButton, setFocusedButton] = useState<string | null>(null);
+  const isRoundEnd = engineState.currentPhase === "round_end";
+  const isFinished = engineState.status.kind === "finished";
 
-  const handleNewRound = useCallback(() => {
-    dispatch({ type: "RESET_ROUND" });
-  }, [dispatch]);
+  // Guard: only show for round_end or finished
+  if (!isRoundEnd && !isFinished) return <></>;
 
   const handleBackToMenu = useCallback(() => {
     dispatch({ type: "BACK_TO_PICKER" });
   }, [dispatch]);
 
-  // Guard: only show for finished games
-  if (engineState.status.kind !== "finished") return <></>;
+  if (isRoundEnd) {
+    // ── Round-end view: show per-player results ──
+    return (
+      <View style={styles.overlay}>
+        <View style={styles.overlayCard}>
+          <Text style={styles.overlayTitle}>ROUND COMPLETE</Text>
 
-  const { winnerId } = engineState.status;
+          {/* Per-player results */}
+          {engineState.players.map((player, index) => {
+            const handValue = engineState.scores[`player:${index}`] ?? 0;
+            const result = engineState.scores[`result:${index}`] ?? 0;
+            const resultLabel =
+              result > 0 ? "WIN" : result < 0 ? "LOSS" : "PUSH";
+            const resultColor =
+              result > 0 ? "#4caf50" : result < 0 ? "#f44336" : "#ffc107";
+            const busted = handValue > 21;
+
+            return (
+              <View
+                key={player.id}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 16,
+                  marginBottom: 12,
+                }}
+              >
+                <Text style={{ color: "#e0e0e0", fontSize: 28, flex: 1 }}>
+                  {player.name}
+                </Text>
+                <Text style={{ color: "#b0b0b0", fontSize: 24 }}>
+                  {handValue}
+                  {busted ? " (Busted)" : ""}
+                </Text>
+                <View
+                  style={{
+                    backgroundColor: resultColor,
+                    borderRadius: 8,
+                    paddingHorizontal: 16,
+                    paddingVertical: 6,
+                  }}
+                >
+                  <Text
+                    style={{ color: "#fff", fontSize: 20, fontWeight: "700" }}
+                  >
+                    {resultLabel}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+
+          {/* Dealer score */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 16,
+              marginTop: 8,
+              paddingTop: 12,
+              borderTopWidth: 1,
+              borderTopColor: "#333",
+            }}
+          >
+            <Text style={{ color: "#a0a0a0", fontSize: 24, flex: 1 }}>
+              Dealer
+            </Text>
+            <Text style={{ color: "#b0b0b0", fontSize: 24 }}>
+              {engineState.scores["dealer"] ?? 0}
+              {(engineState.scores["dealer"] ?? 0) > 21 ? " (Busted)" : ""}
+            </Text>
+          </View>
+
+          {/* Info text — phones trigger new round, not TV */}
+          <Text
+            style={{
+              color: "#888",
+              fontSize: 18,
+              marginTop: 24,
+              textAlign: "center",
+            }}
+          >
+            Waiting for players to start new round...
+          </Text>
+
+          <View style={styles.overlayButtons}>
+            <Pressable
+              style={[
+                styles.overlayButton,
+                styles.overlayButtonSecondary,
+                focusedButton === "back" && styles.overlayButtonFocused,
+              ]}
+              onFocus={() => setFocusedButton("back")}
+              onBlur={() => setFocusedButton(null)}
+              onPress={handleBackToMenu}
+              hasTVPreferredFocus
+            >
+              <Text style={styles.overlayButtonTextSecondary}>
+                Back to Menu
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Finished view (existing behavior) ──
+  const { winnerId } = engineState.status as {
+    readonly winnerId: string | null;
+  };
   const winner = winnerId
     ? engineState.players.find((p) => p.id === winnerId)
     : null;
@@ -310,26 +417,13 @@ function ResultsOverlay({
           <Pressable
             style={[
               styles.overlayButton,
-              styles.overlayButtonPrimary,
-              focusedButton === "new_round" && styles.overlayButtonFocused,
-            ]}
-            onFocus={() => setFocusedButton("new_round")}
-            onBlur={() => setFocusedButton(null)}
-            onPress={handleNewRound}
-            hasTVPreferredFocus
-          >
-            <Text style={styles.overlayButtonText}>New Round</Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.overlayButton,
               styles.overlayButtonSecondary,
               focusedButton === "back" && styles.overlayButtonFocused,
             ]}
             onFocus={() => setFocusedButton("back")}
             onBlur={() => setFocusedButton(null)}
             onPress={handleBackToMenu}
+            hasTVPreferredFocus
           >
             <Text style={styles.overlayButtonTextSecondary}>
               Back to Menu
@@ -400,6 +494,22 @@ function formatPhaseName(phase: string): string {
 function formatZoneName(name: string): string {
   const baseName = name.replace(/:\d+$/, "");
   return formatPhaseName(baseName);
+}
+
+/** Resolves a score key like "player:0" or "result:1" to a human-readable label. */
+function resolveScoreLabel(key: string, players: readonly Player[]): string {
+  const playerMatch = key.match(/^player:(\d+)$/);
+  if (playerMatch) {
+    const player = players[Number(playerMatch[1])];
+    return player?.name ?? key;
+  }
+  const resultMatch = key.match(/^result:(\d+)$/);
+  if (resultMatch) {
+    const player = players[Number(resultMatch[1])];
+    return player ? `${player.name} (Result)` : key;
+  }
+  // Non-indexed keys like "dealer" — title case
+  return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
 /** Formats a status kind for display. */

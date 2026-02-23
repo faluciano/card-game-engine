@@ -9,6 +9,7 @@ import { type ValidAction } from "@card-engine/shared";
 import { GameInfo } from "../components/GameInfo.js";
 import { HandViewer } from "../components/HandViewer.js";
 import { ActionBar } from "../components/ActionBar.js";
+import { RoundResultsBanner } from "../components/RoundResultsBanner.js";
 
 interface PlayingScreenProps {
   readonly playerView: PlayerView;
@@ -30,6 +31,11 @@ export function PlayingScreen({
   validActions,
   sendAction,
 }: PlayingScreenProps): React.JSX.Element {
+  const isRoundEnd = playerView.currentPhase === "round_end";
+  const myResult = playerView.scores[`result:${playerView.myPlayerId}`] ?? 0;
+  const myScore = playerView.scores[playerView.myPlayerId] ?? 0;
+  const dealerScore = playerView.scores["dealer"] ?? 0;
+
   return (
     <div style={containerStyle}>
       <GameInfo playerView={playerView} />
@@ -40,6 +46,23 @@ export function PlayingScreen({
         playerId={playerView.myPlayerId}
         sendAction={sendAction}
       />
+      {isRoundEnd && (
+        <RoundResultsBanner
+          result={myResult}
+          playerScore={myScore}
+          dealerScore={dealerScore}
+          onNewRound={() =>
+            sendAction({
+              type: "GAME_ACTION",
+              action: {
+                kind: "declare",
+                playerId: playerView.myPlayerId,
+                declaration: "new_round",
+              },
+            })
+          }
+        />
+      )}
     </div>
   );
 }
