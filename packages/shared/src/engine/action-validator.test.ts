@@ -207,6 +207,7 @@ function makeGameState(
     currentPlayerIndex: 0,
     turnNumber: 1,
     scores: {},
+    variables: {},
     actionLog: [],
     turnsTakenThisPhase: 0,
     turnDirection: 1,

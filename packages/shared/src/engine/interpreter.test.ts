@@ -1784,6 +1784,7 @@ describe("Ruleset Interpreter", () => {
         turnsTakenThisPhase: 0,
         turnDirection: 1,
         scores: {},
+        variables: { ...(reversed.ruleset.initialVariables ?? {}) },
       };
       expect(resetState.turnDirection).toBe(1);
     });
@@ -1798,6 +1799,282 @@ describe("Ruleset Interpreter", () => {
         FIXED_SEED
       );
       expect(state.turnDirection).toBe(1);
+    });
+  });
+
+  // ── Custom Variable Effects ─────────────────────────────────────
+
+  describe("Custom Variable Effects", () => {
+    /**
+     * Minimal ruleset for variable testing.
+     * Has a turn-based phase with actions that use set_var and inc_var.
+     */
+    function makeVarRuleset(
+      initialVariables?: Record<string, number>
+    ): CardGameRuleset {
+      return {
+        meta: {
+          name: "Var Test",
+          slug: "var-test",
+          version: "1.0.0",
+          author: "test",
+          players: { min: 1, max: 4 },
+        },
+        deck: {
+          preset: "custom",
+          cards: [{ suit: "s", rank: "1" }],
+          copies: 1,
+          cardValues: { "1": { kind: "fixed", value: 1 } },
+        } as CardGameRuleset["deck"],
+        zones: [
+          { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+          { name: "hand", visibility: { kind: "owner_only" }, owners: ["player"] },
+        ],
+        roles: [{ name: "player", isHuman: true, count: "per_player" }],
+        phases: [
+          {
+            name: "deal",
+            kind: "automatic",
+            actions: [],
+            transitions: [{ to: "play", when: "true" }],
+            automaticSequence: [],
+          },
+          {
+            name: "play",
+            kind: "turn_based",
+            actions: [
+              {
+                name: "set_x",
+                label: "Set X",
+                effect: ['set_var("x", 10)'],
+              },
+              {
+                name: "inc_x",
+                label: "Inc X",
+                effect: ['inc_var("x", 3)'],
+              },
+              {
+                name: "dec_x",
+                label: "Dec X",
+                effect: ['inc_var("x", -2)'],
+              },
+              {
+                name: "pass",
+                label: "Pass",
+                effect: ["end_turn()"],
+              },
+            ],
+            transitions: [],
+            turnOrder: "clockwise",
+          },
+        ],
+        scoring: {
+          method: "0",
+          winCondition: "false",
+        },
+        visibility: [],
+        ui: { layout: "semicircle", tableColor: "felt_green" },
+        ...(initialVariables !== undefined ? { initialVariables } : {}),
+      };
+    }
+
+    it("createInitialState sets variables from initialVariables", () => {
+      const ruleset = makeVarRuleset({ x: 5, y: 0 });
+      const players = makePlayers(1);
+      const state = createInitialState(
+        ruleset,
+        makeSessionId("var-test"),
+        players,
+        FIXED_SEED
+      );
+      expect(state.variables).toEqual({ x: 5, y: 0 });
+    });
+
+    it("createInitialState sets empty variables when no initialVariables", () => {
+      const ruleset = makeVarRuleset();
+      const players = makePlayers(1);
+      const state = createInitialState(
+        ruleset,
+        makeSessionId("var-test"),
+        players,
+        FIXED_SEED
+      );
+      expect(state.variables).toEqual({});
+    });
+
+    it("set_var sets a variable via declare action", () => {
+      const ruleset = makeVarRuleset({ x: 0 });
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("var-test"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      // set_x sets x = 10
+      state = reducer(state, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "set_x",
+      });
+      expect(state.variables.x).toBe(10);
+    });
+
+    it("set_var overwrites existing variable", () => {
+      const ruleset = makeVarRuleset({ x: 99 });
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("var-test"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      state = reducer(state, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "set_x",
+      });
+      // x was 99, now should be 10
+      expect(state.variables.x).toBe(10);
+    });
+
+    it("inc_var increments existing variable", () => {
+      const ruleset = makeVarRuleset({ x: 7 });
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("var-test"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      // inc_x increments x by 3
+      state = reducer(state, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "inc_x",
+      });
+      expect(state.variables.x).toBe(10);
+    });
+
+    it("inc_var creates variable from 0 if not existing", () => {
+      // No initialVariables — x doesn't exist
+      const ruleset = makeVarRuleset({});
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("var-test"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      state = reducer(state, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "inc_x",
+      });
+      // 0 + 3 = 3
+      expect(state.variables.x).toBe(3);
+    });
+
+    it("inc_var with negative amount decrements", () => {
+      const ruleset = makeVarRuleset({ x: 10 });
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("var-test"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      // dec_x increments by -2
+      state = reducer(state, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "dec_x",
+      });
+      expect(state.variables.x).toBe(8);
+    });
+
+    it("reset_round resets variables to initialVariables", () => {
+      // Use a ruleset that has a round_end phase with reset_round
+      const ruleset: CardGameRuleset = {
+        ...makeVarRuleset({ x: 5 }),
+        phases: [
+          {
+            name: "deal",
+            kind: "automatic",
+            actions: [],
+            transitions: [{ to: "play", when: "true" }],
+            automaticSequence: [],
+          },
+          {
+            name: "play",
+            kind: "turn_based",
+            actions: [
+              {
+                name: "set_x",
+                label: "Set X",
+                effect: ['set_var("x", 99)'],
+              },
+              {
+                name: "done",
+                label: "Done",
+                effect: ["end_turn()"],
+              },
+            ],
+            transitions: [{ to: "round_end", when: "all_players_done" }],
+            turnOrder: "clockwise",
+          },
+          {
+            name: "round_end",
+            kind: "automatic",
+            actions: [],
+            transitions: [{ to: "deal", when: "true" }],
+            automaticSequence: ["reset_round()"],
+          },
+        ],
+      };
+
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("var-test"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+      expect(state.variables.x).toBe(5);
+
+      // Set x to 99
+      state = reducer(state, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "set_x",
+      });
+      expect(state.variables.x).toBe(99);
+
+      // End turn → all_players_done → round_end → reset_round
+      state = reducer(state, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "done",
+      });
+      // After reset_round, variables should be back to initial
+      expect(state.variables.x).toBe(5);
     });
   });
 });

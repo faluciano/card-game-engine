@@ -74,6 +74,7 @@ function createMockState(overrides?: Partial<CardGameState>): CardGameState {
     currentPlayerIndex: 0,
     turnNumber: 1,
     scores: {},
+    variables: {},
     actionLog: [],
     turnsTakenThisPhase: 0,
     turnDirection: 1,
@@ -904,6 +905,33 @@ describe("expression-evaluator", () => {
       it("throws on unknown identifier", () => {
         expect(() => evaluateExpression("nonexistent_var", makeContext())).toThrow(ExpressionError);
         expect(() => evaluateExpression("nonexistent_var", makeContext())).toThrow("Unknown identifier");
+      });
+    });
+
+    describe("variable bindings", () => {
+      it("resolves a variable name to its numeric value", () => {
+        const result = evaluateExpression(
+          "round_count",
+          makeContext({ variables: { round_count: 3 } })
+        );
+        expect(result).toEqual({ kind: "number", value: 3 });
+      });
+
+      it("variable does not shadow zones or scores", () => {
+        // If a name exists as a zone, it should resolve as a zone (string), not as a variable
+        const result = evaluateExpression(
+          "hand",
+          makeContext({ variables: { hand: 99 } })
+        );
+        // "hand" exists as a zone in the mock state, so it resolves as zone name string
+        expect(result).toEqual({ kind: "string", value: "hand" });
+      });
+
+      it("variable not found returns undefined (falls through to unknown)", () => {
+        // A name that's not a zone, score, or variable should throw
+        expect(() =>
+          evaluateExpression("no_such_thing", makeContext({ variables: { other: 1 } }))
+        ).toThrow(ExpressionError);
       });
     });
 

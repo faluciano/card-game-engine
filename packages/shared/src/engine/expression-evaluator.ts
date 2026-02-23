@@ -709,6 +709,11 @@ function resolveBinding(
     return { kind: "number", value: state.scores[name]! };
   }
 
+  // Variable lookup
+  if (state.variables && name in state.variables) {
+    return { kind: "number", value: state.variables[name]! };
+  }
+
   return undefined;
 }
 

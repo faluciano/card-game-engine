@@ -135,6 +135,7 @@ function makeGameState(
     currentPlayerIndex: 0,
     turnNumber: 1,
     scores: {},
+    variables: {},
     actionLog: [],
     turnsTakenThisPhase: 0,
     turnDirection: 1,
@@ -1697,6 +1698,74 @@ describe("builtins", () => {
       );
       expect(() => evaluateExpression("set_next_player(0)", ctx)).toThrow(
         "requires a MutableEvalContext"
+      );
+    });
+  });
+
+  // ── Custom Variable Builtins ──────────────────────────────────────
+
+  describe("Custom Variable Builtins", () => {
+    it('get_var("x") returns the variable value', () => {
+      const state = makeGameState({}, { variables: { x: 42 } });
+      const ctx = makeEvalContext(state);
+      const result = evaluateExpression('get_var("x")', ctx);
+      expect(result).toEqual({ kind: "number", value: 42 });
+    });
+
+    it('get_var("missing") throws ExpressionError', () => {
+      const state = makeGameState({}, { variables: {} });
+      const ctx = makeEvalContext(state);
+      expect(() => evaluateExpression('get_var("missing")', ctx)).toThrow(
+        ExpressionError
+      );
+      expect(() => evaluateExpression('get_var("missing")', ctx)).toThrow(
+        "variable 'missing' not found"
+      );
+    });
+
+    it("get_var() with wrong arg count throws", () => {
+      const state = makeGameState({});
+      const ctx = makeEvalContext(state);
+      expect(() => evaluateExpression("get_var()", ctx)).toThrow(
+        "requires exactly 1 argument"
+      );
+    });
+
+    it('set_var("x", 5) pushes a set_var effect', () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      evaluateExpression('set_var("x", 5)', ctx);
+      expect(ctx.effects).toHaveLength(1);
+      expect(ctx.effects[0]).toEqual({
+        kind: "set_var",
+        params: { name: "x", value: 5 },
+      });
+    });
+
+    it("set_var() with wrong arg count throws", () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      expect(() => evaluateExpression('set_var("x")', ctx)).toThrow(
+        "requires exactly 2 argument"
+      );
+    });
+
+    it('inc_var("x", 3) pushes an inc_var effect', () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      evaluateExpression('inc_var("x", 3)', ctx);
+      expect(ctx.effects).toHaveLength(1);
+      expect(ctx.effects[0]).toEqual({
+        kind: "inc_var",
+        params: { name: "x", amount: 3 },
+      });
+    });
+
+    it("inc_var() with wrong arg count throws", () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      expect(() => evaluateExpression('inc_var("x")', ctx)).toThrow(
+        "requires exactly 2 argument"
       );
     });
   });

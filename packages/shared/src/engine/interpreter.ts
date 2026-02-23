@@ -112,6 +112,7 @@ export function createInitialState(
     turnNumber: 1,
     turnDirection: 1,
     scores: {},
+    variables: { ...(ruleset.initialVariables ?? {}) },
     actionLog: [],
     turnsTakenThisPhase: 0,
     version: 0,
@@ -473,6 +474,7 @@ function handleResetRound(
     turnsTakenThisPhase: 0,
     turnDirection: 1,
     scores: {},
+    variables: { ...(state.ruleset.initialVariables ?? {}) },
     version: state.version + 1,
   };
 
@@ -622,6 +624,10 @@ function applySingleEffect(
       return applySkipNextPlayerEffect(state);
     case "set_next_player":
       return applySetNextPlayerEffect(state, effect.params);
+    case "set_var":
+      return applySetVarEffect(state, effect.params);
+    case "inc_var":
+      return applyIncVarEffect(state, effect.params);
     default:
       // Unknown effects are ignored — forward compatible
       return state;
@@ -937,6 +943,39 @@ function applyResetRoundEffect(state: CardGameState): CardGameState {
     turnsTakenThisPhase: 0,
     turnDirection: 1,
     scores: {},
+    variables: { ...(state.ruleset.initialVariables ?? {}) },
+  };
+}
+
+/**
+ * Sets a custom variable to a specific value.
+ */
+function applySetVarEffect(
+  state: CardGameState,
+  params: Record<string, unknown>
+): CardGameState {
+  const name = params.name as string;
+  const value = params.value as number;
+  return {
+    ...state,
+    variables: { ...state.variables, [name]: value },
+  };
+}
+
+/**
+ * Increments a custom variable by an amount.
+ * If the variable doesn't exist yet, treats it as starting from 0.
+ */
+function applyIncVarEffect(
+  state: CardGameState,
+  params: Record<string, unknown>
+): CardGameState {
+  const name = params.name as string;
+  const amount = params.amount as number;
+  const current = state.variables[name] ?? 0;
+  return {
+    ...state,
+    variables: { ...state.variables, [name]: current + amount },
   };
 }
 

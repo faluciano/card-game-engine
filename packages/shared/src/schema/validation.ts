@@ -119,6 +119,7 @@ export const CardGameRulesetSchema = z.object({
   roles: z.array(RoleSchema).min(1),
   phases: z.array(PhaseSchema).min(1),
   scoring: ScoringSchema,
+  initialVariables: z.record(z.string(), z.number()).optional(),
   visibility: z.array(VisibilityRuleSchema),
   ui: UISchema,
 });

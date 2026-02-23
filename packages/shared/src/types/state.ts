@@ -52,6 +52,7 @@ export interface CardGameState {
   /** Current turn advancement direction. 1 = clockwise (normal), -1 = counterclockwise. */
   readonly turnDirection: 1 | -1;
   readonly scores: Readonly<Record<string, number>>;
+  readonly variables: Readonly<Record<string, number>>;
   readonly actionLog: readonly ResolvedAction[];
   /** Tracks how many end_turn effects have been applied in the current phase. */
   readonly turnsTakenThisPhase: number;
@@ -129,6 +130,7 @@ export interface PlayerView {
   readonly myPlayerId: PlayerId;
   readonly validActions: readonly CardGameAction["kind"][];
   readonly scores: Readonly<Record<string, number>>;
+  readonly variables: Readonly<Record<string, number>>;
   readonly turnNumber: number;
 }
 

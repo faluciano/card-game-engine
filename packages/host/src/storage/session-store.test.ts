@@ -60,6 +60,7 @@ function makeGameState(
     currentPlayerIndex: 0,
     turnNumber: 1,
     scores: {},
+    variables: {},
     actionLog: [],
     version: 0,
     ...overrides,

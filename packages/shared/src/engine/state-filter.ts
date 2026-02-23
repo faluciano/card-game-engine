@@ -111,6 +111,7 @@ export function createPlayerView(
       .filter((a) => a.enabled)
       .map((a) => a.actionName as CardGameAction["kind"]),
     scores: remappedScores,
+    variables: state.variables,
     turnNumber: state.turnNumber,
   };
 }

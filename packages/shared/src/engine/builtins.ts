@@ -723,6 +723,44 @@ const turnDirectionBuiltin: BuiltinFunction = (args, context) => {
   return { kind: "number", value: context.state.turnDirection };
 };
 
+// ─── Custom Variable Builtins ──────────────────────────────────────
+
+/**
+ * get_var(name) — Returns the value of a custom variable.
+ * Throws if the variable does not exist.
+ */
+const getVarBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("get_var", args, 1);
+  const name = requireString(args[0]!, "name");
+  const value = context.state.variables[name];
+  if (value === undefined) {
+    throw new ExpressionError(`get_var: variable '${name}' not found`);
+  }
+  return { kind: "number", value };
+};
+
+/**
+ * set_var(name, value) — Records a set_var effect.
+ * Sets a custom variable to the given numeric value.
+ */
+const setVarBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("set_var", args, 2);
+  const name = requireString(args[0]!, "name");
+  const value = requireNumber(args[1]!, "value");
+  pushEffect(context, { kind: "set_var", params: { name, value } });
+};
+
+/**
+ * inc_var(name, amount) — Records an inc_var effect.
+ * Increments a custom variable by the given amount (can be negative).
+ */
+const incVarBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("inc_var", args, 2);
+  const name = requireString(args[0]!, "name");
+  const amount = requireNumber(args[1]!, "amount");
+  pushEffect(context, { kind: "inc_var", params: { name, amount } });
+};
+
 // ─── Registration ──────────────────────────────────────────────────
 
 /**
@@ -754,6 +792,7 @@ export function registerAllBuiltins(): void {
   registerBuiltin("continue_game", continueGameBuiltin);
   registerBuiltin("sum_card_values", sumCardValuesBuiltin);
   registerBuiltin("prefer_high_under", preferHighUnderBuiltin);
+  registerBuiltin("get_var", getVarBuiltin);
 
   // Effect builtins
   registerBuiltin("shuffle", shuffleBuiltin);
@@ -773,4 +812,6 @@ export function registerAllBuiltins(): void {
   registerBuiltin("skip_next_player", skipNextPlayerBuiltin);
   registerBuiltin("set_next_player", setNextPlayerBuiltin);
   registerBuiltin("turn_direction", turnDirectionBuiltin);
+  registerBuiltin("set_var", setVarBuiltin);
+  registerBuiltin("inc_var", incVarBuiltin);
 }

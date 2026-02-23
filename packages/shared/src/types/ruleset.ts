@@ -149,6 +149,7 @@ export interface CardGameRuleset {
   readonly roles: readonly RoleDefinition[];
   readonly phases: readonly PhaseDefinition[];
   readonly scoring: ScoringConfig;
+  readonly initialVariables?: Readonly<Record<string, number>>;
   readonly visibility: readonly VisibilityRule[];
   readonly ui: UIConfig;
 }
