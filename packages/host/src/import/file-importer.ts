@@ -1,9 +1,7 @@
 // ─── File Importer ─────────────────────────────────────────────────
 // Imports a .cardgame.json ruleset from a local file.
 
-// TODO: Add expo-file-system to package.json dependencies:
-//   "expo-file-system": "~18.0.0"
-import * as FileSystem from "expo-file-system";
+import { File } from "expo-file-system";
 import type { CardGameRuleset } from "@card-engine/shared";
 import { safeParseRuleset } from "@card-engine/shared";
 
@@ -30,9 +28,7 @@ export async function importFromFile(
   // ── Read file contents ───────────────────────────────────────────
   let raw: string;
   try {
-    raw = await FileSystem.readAsStringAsync(filePath, {
-      encoding: FileSystem.EncodingType.UTF8,
-    });
+    raw = await new File(filePath).text();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `Failed to read file: ${message}` };

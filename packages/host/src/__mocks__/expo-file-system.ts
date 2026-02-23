@@ -1,52 +1,101 @@
 // Mock for expo-file-system — tests override these via vi.mock
+//
+// Provides stub implementations of File, Directory, and Paths
+// that match the real expo-file-system API shape.
 
-export const EncodingType = {
-  UTF8: "utf8",
-  Base64: "base64",
+/** Collapses duplicate slashes without mangling the protocol prefix (e.g. file:///). */
+function normalizeUri(raw: string): string {
+  const match = raw.match(/^([a-z]+:\/\/\/?)(.*)$/);
+  if (match) {
+    const [, protocol, rest] = match;
+    return protocol! + rest!.replace(/\/+/g, "/");
+  }
+  return raw.replace(/\/+/g, "/");
+}
+
+/** Stub File class for testing. Methods throw by default — override via vi.mock. */
+export class File {
+  readonly uri: string;
+
+  constructor(...segments: (string | { uri: string })[]) {
+    const joined = segments
+      .map((s) => (typeof s === "string" ? s : s.uri))
+      .join("/");
+    this.uri = normalizeUri(joined);
+  }
+
+  get exists(): boolean {
+    throw new Error("File.exists is not mocked — use vi.mock in your test");
+  }
+
+  get name(): string {
+    return this.uri.split("/").pop() ?? "";
+  }
+
+  async text(): Promise<string> {
+    throw new Error("File.text() is not mocked — use vi.mock in your test");
+  }
+
+  textSync(): string {
+    throw new Error("File.textSync() is not mocked — use vi.mock in your test");
+  }
+
+  write(_content: string): void {
+    throw new Error("File.write() is not mocked — use vi.mock in your test");
+  }
+
+  create(
+    _options?: { intermediates?: boolean; overwrite?: boolean },
+  ): void {
+    throw new Error("File.create() is not mocked — use vi.mock in your test");
+  }
+
+  delete(): void {
+    throw new Error("File.delete() is not mocked — use vi.mock in your test");
+  }
+}
+
+/** Stub Directory class for testing. */
+export class Directory {
+  readonly uri: string;
+
+  constructor(...segments: (string | { uri: string })[]) {
+    const joined = segments
+      .map((s) => (typeof s === "string" ? s : s.uri))
+      .join("/");
+    const normalized = normalizeUri(joined);
+    this.uri = normalized.endsWith("/") ? normalized : `${normalized}/`;
+  }
+
+  get exists(): boolean {
+    throw new Error(
+      "Directory.exists is not mocked — use vi.mock in your test",
+    );
+  }
+
+  create(
+    _options?: { intermediates?: boolean; idempotent?: boolean },
+  ): void {
+    throw new Error(
+      "Directory.create() is not mocked — use vi.mock in your test",
+    );
+  }
+
+  delete(): void {
+    throw new Error(
+      "Directory.delete() is not mocked — use vi.mock in your test",
+    );
+  }
+
+  list(): (File | Directory)[] {
+    throw new Error(
+      "Directory.list() is not mocked — use vi.mock in your test",
+    );
+  }
+}
+
+/** Stub Paths for testing. */
+export const Paths = {
+  document: new Directory("file:///mock-document-dir"),
+  cache: new Directory("file:///mock-cache-dir"),
 } as const;
-
-export const documentDirectory: string = "file:///mock-document-dir/";
-
-export async function readAsStringAsync(
-  _fileUri: string,
-  _options?: { encoding?: string },
-): Promise<string> {
-  throw new Error("readAsStringAsync is not mocked — use vi.mock in your test");
-}
-
-export async function writeAsStringAsync(
-  _fileUri: string,
-  _contents: string,
-): Promise<void> {
-  throw new Error(
-    "writeAsStringAsync is not mocked — use vi.mock in your test",
-  );
-}
-
-export async function deleteAsync(
-  _fileUri: string,
-  _options?: { idempotent?: boolean },
-): Promise<void> {
-  throw new Error("deleteAsync is not mocked — use vi.mock in your test");
-}
-
-export async function makeDirectoryAsync(
-  _fileUri: string,
-  _options?: { intermediates?: boolean },
-): Promise<void> {
-  throw new Error(
-    "makeDirectoryAsync is not mocked — use vi.mock in your test",
-  );
-}
-
-export async function getInfoAsync(
-  _fileUri: string,
-): Promise<{
-  exists: boolean;
-  isDirectory: boolean;
-  uri: string;
-  size: number;
-  modificationTime: number;
-}> {
-  throw new Error("getInfoAsync is not mocked — use vi.mock in your test");
-}

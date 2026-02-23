@@ -12,27 +12,42 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { ImportResult } from "../hooks/useRulesetStore";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
 interface ImportModalProps {
   readonly visible: boolean;
   readonly onClose: () => void;
-  readonly onImport: (
-    url: string,
-  ) => Promise<{ ok: true; name: string } | { ok: false; error: string }>;
+  readonly onImport: (url: string) => Promise<ImportResult>;
+  readonly onImportWithSlug: (url: string, slug: string) => Promise<ImportResult>;
+  readonly allSlugs: readonly string[];
 }
 
 type ModalState =
   | { readonly tag: "idle" }
   | { readonly tag: "loading" }
   | { readonly tag: "success"; readonly name: string }
-  | { readonly tag: "error"; readonly message: string };
+  | { readonly tag: "error"; readonly message: string }
+  | { readonly tag: "duplicate"; readonly slug: string; readonly suggestedSlug: string };
 
 const IDLE_STATE: ModalState = { tag: "idle" };
 const LOADING_STATE: ModalState = { tag: "loading" };
 
 const AUTO_CLOSE_DELAY_MS = 1500;
+
+// ─── Helpers ───────────────────────────────────────────────────────
+
+/** Returns the next available slug by appending an incrementing suffix. */
+function nextAvailableSlug(base: string, existing: readonly string[]): string {
+  let n = 1;
+  let candidate = `${base}-${n}`;
+  while (existing.includes(candidate)) {
+    n++;
+    candidate = `${base}-${n}`;
+  }
+  return candidate;
+}
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -40,12 +55,18 @@ export function ImportModal({
   visible,
   onClose,
   onImport,
+  onImportWithSlug,
+  allSlugs,
 }: ImportModalProps): React.JSX.Element | null {
   const [url, setUrl] = useState("");
   const [state, setState] = useState<ModalState>(IDLE_STATE);
+  const [customSlug, setCustomSlug] = useState("");
   const [importFocused, setImportFocused] = useState(false);
   const [cancelFocused, setCancelFocused] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
+  const [slugInputFocused, setSlugInputFocused] = useState(false);
+  const [importAsFocused, setImportAsFocused] = useState(false);
+  const [duplicateCancelFocused, setDuplicateCancelFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
   // Reset state when modal closes
@@ -53,9 +74,13 @@ export function ImportModal({
     if (!visible) {
       setUrl("");
       setState(IDLE_STATE);
+      setCustomSlug("");
       setImportFocused(false);
       setCancelFocused(false);
       setInputFocused(false);
+      setSlugInputFocused(false);
+      setImportAsFocused(false);
+      setDuplicateCancelFocused(false);
     }
   }, [visible]);
 
@@ -91,15 +116,34 @@ export function ImportModal({
 
     if (result.ok) {
       setState({ tag: "success", name: result.name });
+    } else if (result.duplicate) {
+      const suggested = nextAvailableSlug(result.slug, allSlugs);
+      setState({ tag: "duplicate", slug: result.slug, suggestedSlug: suggested });
     } else {
       setState({ tag: "error", message: result.error });
     }
-  }, [url, onImport]);
+  }, [url, onImport, allSlugs]);
+
+  const handleImportWithSlug = useCallback(async () => {
+    if (state.tag !== "duplicate") return;
+
+    const slug = customSlug.trim() || state.suggestedSlug;
+    setState(LOADING_STATE);
+
+    const result = await onImportWithSlug(url.trim(), slug);
+
+    if (result.ok) {
+      setState({ tag: "success", name: result.name });
+    } else {
+      setState({ tag: "error", message: result.error });
+    }
+  }, [customSlug, url, onImportWithSlug, state]);
 
   // Early exit: don't render when not visible
   if (!visible) return null;
 
   const isLoading = state.tag === "loading";
+  const isDuplicate = state.tag === "duplicate";
   const isImportDisabled = url.trim().length === 0 || isLoading;
 
   return (
@@ -121,7 +165,7 @@ export function ImportModal({
             onChangeText={setUrl}
             placeholder="https://example.com/game.cardgame.json"
             placeholderTextColor="#666666"
-            editable={!isLoading}
+            editable={!isLoading && !isDuplicate}
             autoCapitalize="none"
             autoCorrect={false}
             onFocus={() => setInputFocused(true)}
@@ -141,54 +185,108 @@ export function ImportModal({
             <Text style={styles.errorText}>{state.message}</Text>
           )}
 
-          {/* Buttons */}
-          <View style={styles.buttonRow}>
-            <Pressable
-              style={[
-                styles.button,
-                styles.buttonPrimary,
-                isImportDisabled && styles.buttonDisabled,
-                importFocused && !isImportDisabled && styles.buttonFocused,
-              ]}
-              onFocus={() => setImportFocused(true)}
-              onBlur={() => setImportFocused(false)}
-              onPress={handleImport}
-              disabled={isImportDisabled}
-            >
-              <Text
-                style={[
-                  styles.buttonLabel,
-                  styles.buttonLabelPrimary,
-                  isImportDisabled && styles.buttonLabelDisabled,
-                ]}
-              >
-                Import
+          {/* Duplicate State */}
+          {state.tag === "duplicate" && (
+            <View>
+              <Text style={styles.errorText}>
+                A ruleset named &quot;{state.slug}&quot; already exists.
               </Text>
-            </Pressable>
+              <Text style={styles.hintText}>Choose a different name to import:</Text>
+              <TextInput
+                style={[styles.input, slugInputFocused && styles.inputFocused]}
+                value={customSlug}
+                onChangeText={setCustomSlug}
+                placeholder={state.suggestedSlug}
+                placeholderTextColor="#666666"
+                autoCapitalize="none"
+                autoCorrect={false}
+                onFocus={() => setSlugInputFocused(true)}
+                onBlur={() => setSlugInputFocused(false)}
+              />
+              <View style={styles.buttonRow}>
+                <Pressable
+                  style={[
+                    styles.button,
+                    styles.buttonPrimary,
+                    importAsFocused && styles.buttonFocused,
+                  ]}
+                  onFocus={() => setImportAsFocused(true)}
+                  onBlur={() => setImportAsFocused(false)}
+                  onPress={handleImportWithSlug}
+                >
+                  <Text style={[styles.buttonLabel, styles.buttonLabelPrimary]}>
+                    Import As
+                  </Text>
+                </Pressable>
 
-            <Pressable
-              style={[
-                styles.button,
-                styles.buttonSecondary,
-                isLoading && styles.buttonDisabled,
-                cancelFocused && !isLoading && styles.buttonFocused,
-              ]}
-              onFocus={() => setCancelFocused(true)}
-              onBlur={() => setCancelFocused(false)}
-              onPress={onClose}
-              disabled={isLoading}
-            >
-              <Text
+                <Pressable
+                  style={[
+                    styles.button,
+                    styles.buttonSecondary,
+                    duplicateCancelFocused && styles.buttonFocused,
+                  ]}
+                  onFocus={() => setDuplicateCancelFocused(true)}
+                  onBlur={() => setDuplicateCancelFocused(false)}
+                  onPress={onClose}
+                >
+                  <Text style={[styles.buttonLabel, styles.buttonLabelSecondary]}>
+                    Cancel
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {/* Normal Buttons (hidden during duplicate state) */}
+          {!isDuplicate && (
+            <View style={styles.buttonRow}>
+              <Pressable
                 style={[
-                  styles.buttonLabel,
-                  styles.buttonLabelSecondary,
-                  isLoading && styles.buttonLabelDisabled,
+                  styles.button,
+                  styles.buttonPrimary,
+                  isImportDisabled && styles.buttonDisabled,
+                  importFocused && !isImportDisabled && styles.buttonFocused,
                 ]}
+                onFocus={() => setImportFocused(true)}
+                onBlur={() => setImportFocused(false)}
+                onPress={handleImport}
+                disabled={isImportDisabled}
               >
-                Cancel
-              </Text>
-            </Pressable>
-          </View>
+                <Text
+                  style={[
+                    styles.buttonLabel,
+                    styles.buttonLabelPrimary,
+                    isImportDisabled && styles.buttonLabelDisabled,
+                  ]}
+                >
+                  Import
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.button,
+                  styles.buttonSecondary,
+                  isLoading && styles.buttonDisabled,
+                  cancelFocused && !isLoading && styles.buttonFocused,
+                ]}
+                onFocus={() => setCancelFocused(true)}
+                onBlur={() => setCancelFocused(false)}
+                onPress={onClose}
+                disabled={isLoading}
+              >
+                <Text
+                  style={[
+                    styles.buttonLabel,
+                    styles.buttonLabelSecondary,
+                    isLoading && styles.buttonLabelDisabled,
+                  ]}
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -247,6 +345,12 @@ const styles = StyleSheet.create({
     color: "#ff5252",
     fontSize: 20,
     marginBottom: 16,
+    textAlign: "center",
+  },
+  hintText: {
+    color: "#b0b0b0",
+    fontSize: 18,
+    marginBottom: 12,
     textAlign: "center",
   },
   buttonRow: {

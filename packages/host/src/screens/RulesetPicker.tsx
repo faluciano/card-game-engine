@@ -29,9 +29,15 @@ const BUILT_IN_RULESETS: readonly CardGameRuleset[] = [
   loadRuleset(blackjackJson),
 ];
 
+/** Slugs of all built-in rulesets, used for duplicate detection. */
+const BUILT_IN_SLUGS: readonly string[] = BUILT_IN_RULESETS.map(
+  (rs) => rs.meta.slug,
+);
+
 // ─── Types ─────────────────────────────────────────────────────────
 
 interface RulesetItem {
+  readonly id: string | null;
   readonly ruleset: CardGameRuleset;
   readonly source: "built_in" | "imported";
 }
@@ -40,18 +46,27 @@ interface RulesetItem {
 
 export function RulesetPicker(): React.JSX.Element {
   const { dispatch } = useGameHost<HostGameState, HostAction>();
-  const { rulesets: storedRulesets, isLoading, importFromUrl, deleteRuleset } = useRulesetStore();
+  const {
+    rulesets: storedRulesets,
+    isLoading,
+    importFromUrl,
+    importWithSlug,
+    deleteRuleset,
+    allSlugs,
+  } = useRulesetStore(BUILT_IN_SLUGS);
   const [modalVisible, setModalVisible] = useState(false);
 
   const rulesetItems: readonly RulesetItem[] = useMemo(() => {
     const builtIn: RulesetItem[] = BUILT_IN_RULESETS.map(
       (rs: CardGameRuleset): RulesetItem => ({
+        id: null,
         ruleset: rs,
         source: "built_in" as const,
       }),
     );
     const imported: RulesetItem[] = storedRulesets.map(
       (stored): RulesetItem => ({
+        id: stored.id,
         ruleset: stored.ruleset,
         source: "imported" as const,
       }),
@@ -77,18 +92,13 @@ export function RulesetPicker(): React.JSX.Element {
           <View style={styles.grid}>
             {rulesetItems.map((item, index) => (
               <RulesetCard
-                key={item.ruleset.meta.slug}
+                key={item.id ?? `builtin:${item.ruleset.meta.slug}`}
                 item={item}
                 onSelect={handleSelect}
                 isFirst={index === 0}
                 onDelete={
-                  item.source === "imported"
-                    ? () => {
-                        const stored = storedRulesets.find(
-                          (s) => s.ruleset.meta.slug === item.ruleset.meta.slug,
-                        );
-                        if (stored) deleteRuleset(stored.id);
-                      }
+                  item.source === "imported" && item.id != null
+                    ? () => deleteRuleset(item.id!)
                     : undefined
                 }
               />
@@ -102,6 +112,8 @@ export function RulesetPicker(): React.JSX.Element {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onImport={importFromUrl}
+        onImportWithSlug={importWithSlug}
+        allSlugs={allSlugs}
       />
     </View>
   );
