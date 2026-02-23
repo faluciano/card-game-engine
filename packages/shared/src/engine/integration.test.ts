@@ -23,7 +23,7 @@ import {
   createReducer,
 } from "./interpreter";
 import { createPlayerView } from "./state-filter";
-import { clearBuiltins } from "./expression-evaluator";
+import { clearBuiltins, evaluateExpression, type EvalContext } from "./expression-evaluator";
 import { registerAllBuiltins } from "./builtins";
 import { parseRuleset } from "../schema/validation";
 import type {
@@ -1796,6 +1796,800 @@ describe("War Integration — Full Game Lifecycle", () => {
 
       // War involves more automatic phases, so version should jump more
       expect(warVersionJump).toBeGreaterThan(normalVersionJump);
+    });
+  });
+});
+
+// ─── Integration Test — Full Crazy Eights Game Lifecycle ───────────
+// Exercises the Crazy Eights card game end-to-end: load ruleset from
+// JSON, create state, run reducer through play rounds, and verify
+// card matching, drawing, and scoring mechanics. Crazy Eights is a
+// 2-4 player game where players match cards by suit or rank, with
+// eights being wild (playable on anything). Uses if() special form
+// for guarded transitions and has_playable_card builtin for draw
+// condition validation.
+
+// ─── Crazy Eights Fixture Setup ───────────────────────────────────
+
+const CRAZY_EIGHTS_CARD_VALUES: Readonly<Record<string, CardValue>> = {
+  "2":  { kind: "fixed", value: 2 },
+  "3":  { kind: "fixed", value: 3 },
+  "4":  { kind: "fixed", value: 4 },
+  "5":  { kind: "fixed", value: 5 },
+  "6":  { kind: "fixed", value: 6 },
+  "7":  { kind: "fixed", value: 7 },
+  "8":  { kind: "fixed", value: 50 },
+  "9":  { kind: "fixed", value: 9 },
+  "10": { kind: "fixed", value: 10 },
+  "J":  { kind: "fixed", value: 10 },
+  "Q":  { kind: "fixed", value: 10 },
+  "K":  { kind: "fixed", value: 10 },
+  "A":  { kind: "fixed", value: 1 },
+};
+
+const CRAZY_EIGHTS_RULESET_PATH = resolve(
+  import.meta.dirname ?? __dirname,
+  "../../../../rulesets/crazy-eights.cardgame.json"
+);
+
+/**
+ * Builds a Crazy Eights ruleset directly (1 copy of standard 52, 2-4 players).
+ * Matches the structure of crazy-eights.cardgame.json.
+ */
+function makeCrazyEightsRuleset(): CardGameRuleset {
+  return {
+    meta: {
+      name: "Crazy Eights",
+      slug: "crazy-eights",
+      version: "1.0.0",
+      author: "faluciano",
+      players: { min: 2, max: 4 },
+    },
+    deck: {
+      preset: "standard_52",
+      copies: 1,
+      cardValues: CRAZY_EIGHTS_CARD_VALUES,
+    },
+    zones: [
+      { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+      {
+        name: "hand",
+        visibility: { kind: "owner_only" },
+        owners: ["player"],
+      },
+      { name: "discard", visibility: { kind: "public" }, owners: [] },
+    ],
+    roles: [
+      { name: "player", isHuman: true, count: "per_player" },
+    ],
+    phases: [
+      {
+        name: "setup",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "player_turns", when: "all_hands_dealt" }],
+        automaticSequence: [
+          "shuffle(draw_pile)",
+          "deal(draw_pile, hand, 5)",
+          "move_top(draw_pile, discard, 1)",
+          "flip_top(discard, 1)",
+        ],
+      },
+      {
+        name: "player_turns",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play_card",
+            label: "Play Card",
+            effect: ["end_turn()"],
+          },
+          {
+            name: "draw",
+            label: "Draw Card",
+            condition: "!has_playable_card(current_player.hand, discard)",
+            effect: [
+              "draw(draw_pile, current_player.hand, 1)",
+              "end_turn()",
+            ],
+          },
+        ],
+        transitions: [
+          {
+            to: "scoring",
+            when: 'card_count("hand:0") == 0 || card_count("hand:1") == 0 || if(player_count > 2, card_count("hand:2") == 0, false) || if(player_count > 3, card_count("hand:3") == 0, false)',
+          },
+        ],
+        turnOrder: "clockwise",
+      },
+      {
+        name: "scoring",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "round_end", when: "scores_calculated" }],
+        automaticSequence: [
+          "calculate_scores()",
+          "determine_winners()",
+        ],
+      },
+      {
+        name: "round_end",
+        kind: "all_players",
+        actions: [
+          {
+            name: "play_again",
+            label: "Play Again",
+            effect: [
+              "collect_all_to(draw_pile)",
+              "reset_round()",
+            ],
+          },
+        ],
+        transitions: [{ to: "setup", when: "continue_game" }],
+      },
+    ],
+    scoring: {
+      method: "hand_value(current_player.hand, 999)",
+      winCondition: "my_score == 0",
+      bustCondition: "false",
+      tieCondition: "false",
+    },
+    visibility: [
+      { zone: "draw_pile", visibility: { kind: "hidden" } },
+      { zone: "hand", visibility: { kind: "owner_only" } },
+      { zone: "discard", visibility: { kind: "public" } },
+    ],
+    ui: { layout: "circle", tableColor: "felt_green" },
+  };
+}
+
+/**
+ * Creates a started Crazy Eights game ready for player actions.
+ * Returns state at `player_turns` with 5 cards dealt per player and
+ * 1 card face-up in the discard pile.
+ */
+function startCrazyEightsGame(
+  playerCount: number = 2,
+  seed: number = FIXED_SEED
+): { state: CardGameState; reducer: GameReducer; players: Player[] } {
+  const crazyEightsRuleset = makeCrazyEightsRuleset();
+  const players: Player[] = Array.from({ length: playerCount }, (_, i) => ({
+    id: pid(`player-${i}`),
+    name: `Player ${i}`,
+    role: "player" as const,
+    connected: true,
+  }));
+  const reducer = createReducer(crazyEightsRuleset, seed);
+  const initial = createInitialState(
+    crazyEightsRuleset,
+    sid("crazy-eights-test-session"),
+    players,
+    seed
+  );
+  const state = reducer(initial, { kind: "start_game" });
+  return { state, reducer, players };
+}
+
+// ─── Crazy Eights Tests ───────────────────────────────────────────
+
+describe("Crazy Eights Integration — Full Game Lifecycle", () => {
+  beforeEach(() => {
+    clearBuiltins();
+    registerAllBuiltins();
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Ruleset Loading from JSON ──────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("ruleset loading from JSON", () => {
+    it("loads and validates the crazy eights ruleset from disk", () => {
+      const raw = JSON.parse(readFileSync(CRAZY_EIGHTS_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      expect(jsonRuleset.meta.name).toBe("Crazy Eights");
+      expect(jsonRuleset.meta.slug).toBe("crazy-eights");
+      expect(jsonRuleset.deck.preset).toBe("standard_52");
+      expect(jsonRuleset.deck.copies).toBe(1);
+      expect(jsonRuleset.phases).toHaveLength(4);
+      expect(jsonRuleset.roles).toHaveLength(1);
+      expect(jsonRuleset.zones).toHaveLength(3);
+    });
+
+    it("validates schema with parseRuleset without throwing", () => {
+      const raw = JSON.parse(readFileSync(CRAZY_EIGHTS_RULESET_PATH, "utf-8"));
+      expect(() => parseRuleset(raw)).not.toThrow();
+    });
+
+    it("JSON ruleset contains all expected phases", () => {
+      const raw = JSON.parse(readFileSync(CRAZY_EIGHTS_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      const phaseNames = jsonRuleset.phases.map((p) => p.name);
+      expect(phaseNames).toEqual([
+        "setup",
+        "player_turns",
+        "scoring",
+        "round_end",
+      ]);
+    });
+
+    it("JSON ruleset contains draw action with has_playable_card condition", () => {
+      const raw = JSON.parse(readFileSync(CRAZY_EIGHTS_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      const playerTurns = jsonRuleset.phases.find(
+        (p) => p.name === "player_turns"
+      );
+      expect(playerTurns).toBeDefined();
+      const drawAction = playerTurns!.actions.find((a) => a.name === "draw");
+      expect(drawAction).toBeDefined();
+      expect(drawAction!.condition).toBe(
+        "!has_playable_card(current_player.hand, discard)"
+      );
+    });
+
+    it("JSON ruleset transition uses if() for guarded player count checks", () => {
+      const raw = JSON.parse(readFileSync(CRAZY_EIGHTS_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      const playerTurns = jsonRuleset.phases.find(
+        (p) => p.name === "player_turns"
+      );
+      expect(playerTurns).toBeDefined();
+      expect(playerTurns!.transitions[0]!.when).toContain("if(player_count > 2");
+      expect(playerTurns!.transitions[0]!.when).toContain("if(player_count > 3");
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Initial State Creation ─────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("initial state creation", () => {
+    it("creates initial state with correct zones for 2 players", () => {
+      const crazyEightsRuleset = makeCrazyEightsRuleset();
+      const players: Player[] = [
+        { id: pid("player-0"), name: "Player 0", role: "player", connected: true },
+        { id: pid("player-1"), name: "Player 1", role: "player", connected: true },
+      ];
+      const initial = createInitialState(
+        crazyEightsRuleset,
+        sid("test-session"),
+        players,
+        FIXED_SEED
+      );
+
+      // Shared zones
+      expect(initial.zones["draw_pile"]).toBeDefined();
+      expect(initial.zones["discard"]).toBeDefined();
+      // Per-player hand zones
+      expect(initial.zones["hand:0"]).toBeDefined();
+      expect(initial.zones["hand:1"]).toBeDefined();
+      // No hand:2 or hand:3 with only 2 players
+      expect(initial.zones["hand:2"]).toBeUndefined();
+      expect(initial.zones["hand:3"]).toBeUndefined();
+    });
+
+    it("creates initial state with correct zones for 4 players", () => {
+      const crazyEightsRuleset = makeCrazyEightsRuleset();
+      const players: Player[] = Array.from({ length: 4 }, (_, i) => ({
+        id: pid(`player-${i}`),
+        name: `Player ${i}`,
+        role: "player" as const,
+        connected: true,
+      }));
+      const initial = createInitialState(
+        crazyEightsRuleset,
+        sid("test-session"),
+        players,
+        FIXED_SEED
+      );
+
+      expect(initial.zones["hand:0"]).toBeDefined();
+      expect(initial.zones["hand:1"]).toBeDefined();
+      expect(initial.zones["hand:2"]).toBeDefined();
+      expect(initial.zones["hand:3"]).toBeDefined();
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Setup Phase ────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("setup phase", () => {
+    it("deals 5 cards per player and starts discard pile", () => {
+      const { state } = startCrazyEightsGame(2);
+
+      expect(state.zones["hand:0"]!.cards).toHaveLength(5);
+      expect(state.zones["hand:1"]!.cards).toHaveLength(5);
+      expect(state.zones["discard"]!.cards).toHaveLength(1);
+      // 52 - 5 - 5 - 1 = 41 cards in draw pile
+      expect(state.zones["draw_pile"]!.cards).toHaveLength(41);
+    });
+
+    it("discard pile top card is face up after setup", () => {
+      const { state } = startCrazyEightsGame(2);
+
+      const discardCards = state.zones["discard"]!.cards;
+      expect(discardCards).toHaveLength(1);
+      expect(discardCards[0]!.faceUp).toBe(true);
+    });
+
+    it("starts in player_turns phase after setup", () => {
+      const { state } = startCrazyEightsGame(2);
+
+      expect(state.status.kind).toBe("in_progress");
+      expect(state.currentPhase).toBe("player_turns");
+    });
+
+    it("deals correctly with 3 players", () => {
+      const { state } = startCrazyEightsGame(3);
+
+      expect(state.zones["hand:0"]!.cards).toHaveLength(5);
+      expect(state.zones["hand:1"]!.cards).toHaveLength(5);
+      expect(state.zones["hand:2"]!.cards).toHaveLength(5);
+      expect(state.zones["discard"]!.cards).toHaveLength(1);
+      // 52 - 15 - 1 = 36
+      expect(state.zones["draw_pile"]!.cards).toHaveLength(36);
+    });
+
+    it("deals correctly with 4 players", () => {
+      const { state } = startCrazyEightsGame(4);
+
+      expect(state.zones["hand:0"]!.cards).toHaveLength(5);
+      expect(state.zones["hand:1"]!.cards).toHaveLength(5);
+      expect(state.zones["hand:2"]!.cards).toHaveLength(5);
+      expect(state.zones["hand:3"]!.cards).toHaveLength(5);
+      expect(state.zones["discard"]!.cards).toHaveLength(1);
+      // 52 - 20 - 1 = 31
+      expect(state.zones["draw_pile"]!.cards).toHaveLength(31);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Card Matching Builtins ─────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("card matching builtins", () => {
+    it("has_playable_card returns true when hand has matching suit", () => {
+      const { state } = startCrazyEightsGame(2);
+
+      // The discard pile has 1 card. At least some of the 5 hand cards
+      // should match by suit or rank (probabilistic, but with 5 cards
+      // and 4 suits, very likely). We verify the builtin runs without error.
+      const discardTop = state.zones["discard"]!.cards[0]!;
+      const hand0Cards = state.zones["hand:0"]!.cards;
+
+      // Check manually if any card matches
+      const hasMatch = hand0Cards.some(
+        (c) => c.suit === discardTop.suit || c.rank === discardTop.rank
+      );
+
+      // The engine's has_playable_card should agree
+      const evalContext: EvalContext = {
+        state,
+        playerIndex: 0,
+      };
+      const result = evaluateExpression(
+        'has_playable_card("hand:0", discard)',
+        evalContext
+      );
+      expect(result.kind).toBe("boolean");
+      expect(result.value).toBe(hasMatch);
+    });
+
+    it("card_matches_top correctly checks suit or rank match", () => {
+      const { state } = startCrazyEightsGame(2);
+
+      const discardTop = state.zones["discard"]!.cards[0]!;
+      const hand0Cards = state.zones["hand:0"]!.cards;
+
+      // Test each card in hand against the discard top
+      for (let i = 0; i < hand0Cards.length; i++) {
+        const card = hand0Cards[i]!;
+        const expectedMatch =
+          card.suit === discardTop.suit || card.rank === discardTop.rank;
+
+        const evalContext: EvalContext = { state, playerIndex: 0 };
+        const result = evaluateExpression(
+          `card_matches_top("hand:0", ${i}, discard)`,
+          evalContext
+        );
+        expect(result.kind).toBe("boolean");
+        expect(result.value).toBe(expectedMatch);
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Player Drawing ─────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("player drawing", () => {
+    it("player can draw when they have no playable card", () => {
+      // Find a seed where player 0 has no playable cards against the discard
+      let drawSeed: number | null = null;
+      for (let seed = 0; seed < 2000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startCrazyEightsGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          const hand0Cards = game.state.zones["hand:0"]!.cards;
+          const hasMatch = hand0Cards.some(
+            (c) =>
+              c.suit === discardTop.suit || c.rank === discardTop.rank
+          );
+          if (!hasMatch) {
+            drawSeed = seed;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (drawSeed === null) {
+        // Very unlikely with 2000 seeds, but guard the test
+        expect(drawSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startCrazyEightsGame(2, drawSeed);
+
+      const drawPileBefore = state.zones["draw_pile"]!.cards.length;
+      const handBefore = state.zones["hand:0"]!.cards.length;
+
+      const afterDraw = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "draw",
+      });
+
+      // Draw adds 1 card to hand, removes 1 from draw pile, and ends turn
+      expect(afterDraw.zones["hand:0"]!.cards.length).toBe(handBefore + 1);
+      expect(afterDraw.zones["draw_pile"]!.cards.length).toBe(
+        drawPileBefore - 1
+      );
+      expect(afterDraw.version).toBeGreaterThan(state.version);
+    });
+
+    it("draw action is rejected when player has a playable card", () => {
+      // Find a seed where player 0 HAS playable cards against the discard
+      let playSeed: number | null = null;
+      for (let seed = 0; seed < 1000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startCrazyEightsGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          const hand0Cards = game.state.zones["hand:0"]!.cards;
+          const hasMatch = hand0Cards.some(
+            (c) =>
+              c.suit === discardTop.suit || c.rank === discardTop.rank
+          );
+          if (hasMatch) {
+            playSeed = seed;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (playSeed === null) {
+        expect(playSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startCrazyEightsGame(2, playSeed);
+
+      // Attempting to draw when you have a playable card should be a no-op
+      const afterDraw = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "draw",
+      });
+
+      // State should be unchanged (condition not met → no-op)
+      expect(afterDraw.version).toBe(state.version);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Scoring ────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("scoring", () => {
+    it("scoring method uses hand_value with target 999", () => {
+      const ruleset = makeCrazyEightsRuleset();
+      expect(ruleset.scoring.method).toBe("hand_value(current_player.hand, 999)");
+      expect(ruleset.scoring.winCondition).toBe("my_score == 0");
+    });
+
+    it("eights (8s) are worth 50 penalty points", () => {
+      expect(CRAZY_EIGHTS_CARD_VALUES["8"]).toEqual({
+        kind: "fixed",
+        value: 50,
+      });
+    });
+
+    it("face cards (J, Q, K) are worth 10 penalty points each", () => {
+      expect(CRAZY_EIGHTS_CARD_VALUES["J"]).toEqual({
+        kind: "fixed",
+        value: 10,
+      });
+      expect(CRAZY_EIGHTS_CARD_VALUES["Q"]).toEqual({
+        kind: "fixed",
+        value: 10,
+      });
+      expect(CRAZY_EIGHTS_CARD_VALUES["K"]).toEqual({
+        kind: "fixed",
+        value: 10,
+      });
+    });
+
+    it("ace is worth 1 penalty point", () => {
+      expect(CRAZY_EIGHTS_CARD_VALUES["A"]).toEqual({
+        kind: "fixed",
+        value: 1,
+      });
+    });
+
+    it("number cards are worth their face value", () => {
+      for (let n = 2; n <= 7; n++) {
+        expect(CRAZY_EIGHTS_CARD_VALUES[String(n)]).toEqual({
+          kind: "fixed",
+          value: n,
+        });
+      }
+      expect(CRAZY_EIGHTS_CARD_VALUES["9"]).toEqual({
+        kind: "fixed",
+        value: 9,
+      });
+      expect(CRAZY_EIGHTS_CARD_VALUES["10"]).toEqual({
+        kind: "fixed",
+        value: 10,
+      });
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Card Conservation ──────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("card conservation", () => {
+    it("total cards after start_game equals 52", () => {
+      const { state } = startCrazyEightsGame(2);
+      expect(totalCards(state)).toBe(DECK_SIZE);
+    });
+
+    it("total cards are conserved with 3 players", () => {
+      const { state } = startCrazyEightsGame(3);
+      expect(totalCards(state)).toBe(DECK_SIZE);
+    });
+
+    it("total cards are conserved with 4 players", () => {
+      const { state } = startCrazyEightsGame(4);
+      expect(totalCards(state)).toBe(DECK_SIZE);
+    });
+
+    it("no duplicate card IDs exist across all zones", () => {
+      const { state } = startCrazyEightsGame(2);
+
+      const allIds = Object.values(state.zones).flatMap((z) =>
+        z.cards.map((c) => c.id)
+      );
+      const uniqueIds = new Set(allIds);
+      expect(uniqueIds.size).toBe(allIds.length);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Deterministic Replay ───────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("deterministic replay", () => {
+    it("two identical games with same seed produce identical hands", () => {
+      const game1 = startCrazyEightsGame(2, FIXED_SEED);
+      const game2 = startCrazyEightsGame(2, FIXED_SEED);
+
+      expect(handDescription(game1.state, "hand:0")).toEqual(
+        handDescription(game2.state, "hand:0")
+      );
+      expect(handDescription(game1.state, "hand:1")).toEqual(
+        handDescription(game2.state, "hand:1")
+      );
+      expect(handDescription(game1.state, "discard")).toEqual(
+        handDescription(game2.state, "discard")
+      );
+    });
+
+    it("different seeds produce different deals", () => {
+      const game1 = startCrazyEightsGame(2, 42);
+      const game2 = startCrazyEightsGame(2, 999);
+
+      const hand1 = handDescription(game1.state, "hand:0");
+      const hand2 = handDescription(game2.state, "hand:0");
+
+      expect(hand1).not.toEqual(hand2);
+    });
+
+    it("card IDs are identical between same-seed games", () => {
+      const game1 = startCrazyEightsGame(2, FIXED_SEED);
+      const game2 = startCrazyEightsGame(2, FIXED_SEED);
+
+      const ids1 = game1.state.zones["hand:0"]!.cards.map((c) => c.id);
+      const ids2 = game2.state.zones["hand:0"]!.cards.map((c) => c.id);
+      expect(ids1).toEqual(ids2);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Player View Filtering ──────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("player view filtering", () => {
+    it("draw_pile cards are hidden from all players", () => {
+      const { state, players } = startCrazyEightsGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      const drawPile = view.zones["draw_pile"]!;
+      expect(drawPile.cards.every((c) => c === null)).toBe(true);
+      expect(drawPile.cardCount).toBeGreaterThan(0);
+    });
+
+    it("discard pile is visible to all players (public visibility)", () => {
+      const { state, players } = startCrazyEightsGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      const discard = view.zones["discard"]!;
+      expect(discard.cardCount).toBe(1);
+      expect(discard.cards[0]).not.toBeNull();
+    });
+
+    it("isMyTurn is correct for current player", () => {
+      const { state, players } = startCrazyEightsGame(2);
+
+      const view0 = createPlayerView(state, players[0]!.id);
+      expect(view0.isMyTurn).toBe(true);
+
+      const view1 = createPlayerView(state, players[1]!.id);
+      expect(view1.isMyTurn).toBe(false);
+    });
+
+    it("myPlayerId is set correctly in the view", () => {
+      const { state, players } = startCrazyEightsGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      expect(view.myPlayerId).toBe(players[0]!.id);
+    });
+
+    it("view includes all expected zone names", () => {
+      const { state, players } = startCrazyEightsGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      expect(view.zones["draw_pile"]).toBeDefined();
+      expect(view.zones["hand:0"]).toBeDefined();
+      expect(view.zones["hand:1"]).toBeDefined();
+      expect(view.zones["discard"]).toBeDefined();
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Turn Order Enforcement ─────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("turn order enforcement", () => {
+    it("rejects action from player 1 when it is player 0's turn", () => {
+      const { state, reducer, players } = startCrazyEightsGame(2);
+
+      expect(state.currentPlayerIndex).toBe(0);
+
+      const afterWrongTurn = reducer(state, {
+        kind: "declare",
+        playerId: players[1]!.id,
+        declaration: "play_card",
+      });
+
+      // State should be unchanged (no-op)
+      expect(afterWrongTurn.version).toBe(state.version);
+    });
+
+    it("unknown declaration is a no-op", () => {
+      const { state, reducer, players } = startCrazyEightsGame(2);
+
+      const afterBad = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "wild_draw_four",
+      });
+
+      expect(afterBad.version).toBe(state.version);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Edge Cases ─────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("edge cases", () => {
+    it("start_game is a no-op on an already started game", () => {
+      const { state, reducer } = startCrazyEightsGame(2);
+
+      const afterSecondStart = reducer(state, { kind: "start_game" });
+      expect(afterSecondStart).toBe(state);
+    });
+
+    it("version monotonically increases through play_card actions", () => {
+      const { state, reducer, players } = startCrazyEightsGame(2);
+
+      // play_card calls end_turn, advancing to next player
+      const afterPlay = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "play_card",
+      });
+
+      expect(afterPlay.version).toBeGreaterThan(state.version);
+    });
+
+    it("action log grows with each action", () => {
+      const { state, reducer, players } = startCrazyEightsGame(2);
+      const initialLogLength = state.actionLog.length;
+
+      const afterPlay = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "play_card",
+      });
+
+      expect(afterPlay.actionLog.length).toBeGreaterThan(initialLogLength);
+    });
+
+    it("transition condition evaluates safely with 2 players (if() guards)", () => {
+      // With 2 players, hand:2 and hand:3 don't exist.
+      // The if() guard in the transition condition should prevent accessing them.
+      const { state } = startCrazyEightsGame(2);
+
+      // Verify the transition condition can be evaluated without error
+      const evalContext: EvalContext = { state, playerIndex: 0 };
+      expect(() =>
+        evaluateExpression(
+          'card_count("hand:0") == 0 || card_count("hand:1") == 0 || if(player_count > 2, card_count("hand:2") == 0, false) || if(player_count > 3, card_count("hand:3") == 0, false)',
+          evalContext
+        )
+      ).not.toThrow();
+    });
+
+    it("transition condition evaluates safely with 3 players (if() guards)", () => {
+      const { state } = startCrazyEightsGame(3);
+
+      // hand:3 doesn't exist with 3 players, but if() guards it
+      const evalContext: EvalContext = { state, playerIndex: 0 };
+      expect(() =>
+        evaluateExpression(
+          'card_count("hand:0") == 0 || card_count("hand:1") == 0 || if(player_count > 2, card_count("hand:2") == 0, false) || if(player_count > 3, card_count("hand:3") == 0, false)',
+          evalContext
+        )
+      ).not.toThrow();
+    });
+
+    it("transition condition evaluates safely with 4 players", () => {
+      const { state } = startCrazyEightsGame(4);
+
+      const evalContext: EvalContext = { state, playerIndex: 0 };
+      expect(() =>
+        evaluateExpression(
+          'card_count("hand:0") == 0 || card_count("hand:1") == 0 || if(player_count > 2, card_count("hand:2") == 0, false) || if(player_count > 3, card_count("hand:3") == 0, false)',
+          evalContext
+        )
+      ).not.toThrow();
     });
   });
 });

@@ -103,6 +103,7 @@ function createMockState(
     scores: {},
     actionLog: [],
     turnsTakenThisPhase: 0,
+    turnDirection: 1,
     version: 1,
     ...overrides,
   } as CardGameState;

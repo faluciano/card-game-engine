@@ -423,6 +423,110 @@ const maxCardRankBuiltin: BuiltinFunction = (args, context) => {
   return { kind: "number", value: max };
 };
 
+/**
+ * top_card_suit(zone) — Returns the suit string of the first card in a zone.
+ */
+const topCardSuitBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("top_card_suit", args, 1);
+  const zoneName = resolveZoneName(args[0]!);
+  const zone = getZone(context.state, zoneName);
+  if (zone.cards.length === 0) {
+    throw new ExpressionError(`top_card_suit(): zone '${zoneName}' is empty`);
+  }
+  return { kind: "string", value: zone.cards[0]!.suit };
+};
+
+/**
+ * top_card_rank_name(zone) — Returns the rank string of the first card in a zone.
+ */
+const topCardRankNameBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("top_card_rank_name", args, 1);
+  const zoneName = resolveZoneName(args[0]!);
+  const zone = getZone(context.state, zoneName);
+  if (zone.cards.length === 0) {
+    throw new ExpressionError(
+      `top_card_rank_name(): zone '${zoneName}' is empty`
+    );
+  }
+  return { kind: "string", value: zone.cards[0]!.rank };
+};
+
+/**
+ * has_card_matching_suit(zone, suit_string) — Returns boolean: does the zone
+ * contain any card with the given suit?
+ */
+const hasCardMatchingSuitBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("has_card_matching_suit", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const suitName = requireString(args[1]!, "suit");
+  const zone = getZone(context.state, zoneName);
+  const found = zone.cards.some((card) => card.suit === suitName);
+  return { kind: "boolean", value: found };
+};
+
+/**
+ * has_card_matching_rank(zone, rank_string) — Returns boolean: does the zone
+ * contain any card with the given rank?
+ */
+const hasCardMatchingRankBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("has_card_matching_rank", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const rankName = requireString(args[1]!, "rank");
+  const zone = getZone(context.state, zoneName);
+  const found = zone.cards.some((card) => card.rank === rankName);
+  return { kind: "boolean", value: found };
+};
+
+/**
+ * card_matches_top(hand_zone, card_index, target_zone) — Returns boolean:
+ * does the card at `card_index` in `hand_zone` match the top card of
+ * `target_zone` by suit OR rank?
+ */
+const cardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("card_matches_top", args, 3);
+  const handZoneName = resolveZoneName(args[0]!);
+  const cardIndex = requireNumber(args[1]!, "card_index");
+  const targetZoneName = resolveZoneName(args[2]!);
+  const handZone = getZone(context.state, handZoneName);
+  const targetZone = getZone(context.state, targetZoneName);
+  if (cardIndex < 0 || cardIndex >= handZone.cards.length) {
+    throw new ExpressionError(
+      `card_matches_top(): index ${cardIndex} out of bounds for zone '${handZoneName}' (${handZone.cards.length} cards)`
+    );
+  }
+  if (targetZone.cards.length === 0) {
+    throw new ExpressionError(
+      `card_matches_top(): target zone '${targetZoneName}' is empty`
+    );
+  }
+  const card = handZone.cards[cardIndex]!;
+  const topCard = targetZone.cards[0]!;
+  return {
+    kind: "boolean",
+    value: card.suit === topCard.suit || card.rank === topCard.rank,
+  };
+};
+
+/**
+ * has_playable_card(hand_zone, target_zone) — Returns boolean: does the hand
+ * contain any card that matches the top of the target zone by suit or rank?
+ */
+const hasPlayableCardBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("has_playable_card", args, 2);
+  const handZoneName = resolveZoneName(args[0]!);
+  const targetZoneName = resolveZoneName(args[1]!);
+  const handZone = getZone(context.state, handZoneName);
+  const targetZone = getZone(context.state, targetZoneName);
+  if (targetZone.cards.length === 0) {
+    return { kind: "boolean", value: false };
+  }
+  const topCard = targetZone.cards[0]!;
+  const found = handZone.cards.some(
+    (card) => card.suit === topCard.suit || card.rank === topCard.rank
+  );
+  return { kind: "boolean", value: found };
+};
+
 // ─── Effect Builtins ───────────────────────────────────────────────
 
 /**
@@ -569,6 +673,56 @@ const moveAllBuiltin: BuiltinFunction = (args, context) => {
   pushEffect(context, { kind: "move_all", params: { from, to } });
 };
 
+// ─── Turn Manipulation Builtins ────────────────────────────────────
+
+/**
+ * reverse_turn_order() — Records a reverse_turn_order effect.
+ * Flips turn direction (clockwise ↔ counterclockwise).
+ */
+const reverseTurnOrderBuiltin: BuiltinFunction = (args, context) => {
+  if (args.length !== 0) {
+    throw new ExpressionError(
+      `reverse_turn_order() takes no arguments, got ${args.length}`
+    );
+  }
+  pushEffect(context, { kind: "reverse_turn_order", params: {} });
+};
+
+/**
+ * skip_next_player() — Records a skip_next_player effect.
+ * Advances current player index by one step in the current direction.
+ */
+const skipNextPlayerBuiltin: BuiltinFunction = (args, context) => {
+  if (args.length !== 0) {
+    throw new ExpressionError(
+      `skip_next_player() takes no arguments, got ${args.length}`
+    );
+  }
+  pushEffect(context, { kind: "skip_next_player", params: {} });
+};
+
+/**
+ * set_next_player(index) — Records a set_next_player effect.
+ * Sets the next player to a specific index.
+ */
+const setNextPlayerBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("set_next_player", args, 1);
+  const playerIndex = requireNumber(args[0]!, "playerIndex");
+  pushEffect(context, { kind: "set_next_player", params: { playerIndex } });
+};
+
+/**
+ * turn_direction() — Returns the current turn direction as a number (1 or -1).
+ */
+const turnDirectionBuiltin: BuiltinFunction = (args, context) => {
+  if (args.length !== 0) {
+    throw new ExpressionError(
+      `turn_direction() takes no arguments, got ${args.length}`
+    );
+  }
+  return { kind: "number", value: context.state.turnDirection };
+};
+
 // ─── Registration ──────────────────────────────────────────────────
 
 /**
@@ -588,6 +742,12 @@ export function registerAllBuiltins(): void {
   registerBuiltin("count_rank", countRankBuiltin);
   registerBuiltin("max_card_rank", maxCardRankBuiltin);
   registerBuiltin("top_card_rank", topCardRankBuiltin);
+  registerBuiltin("top_card_suit", topCardSuitBuiltin);
+  registerBuiltin("top_card_rank_name", topCardRankNameBuiltin);
+  registerBuiltin("has_card_matching_suit", hasCardMatchingSuitBuiltin);
+  registerBuiltin("has_card_matching_rank", hasCardMatchingRankBuiltin);
+  registerBuiltin("card_matches_top", cardMatchesTopBuiltin);
+  registerBuiltin("has_playable_card", hasPlayableCardBuiltin);
   registerBuiltin("all_players_done", allPlayersDoneBuiltin);
   registerBuiltin("all_hands_dealt", allHandsDealtBuiltin);
   registerBuiltin("scores_calculated", scoresCalculatedBuiltin);
@@ -609,4 +769,8 @@ export function registerAllBuiltins(): void {
   registerBuiltin("move_top", moveTopBuiltin);
   registerBuiltin("flip_top", flipTopBuiltin);
   registerBuiltin("move_all", moveAllBuiltin);
+  registerBuiltin("reverse_turn_order", reverseTurnOrderBuiltin);
+  registerBuiltin("skip_next_player", skipNextPlayerBuiltin);
+  registerBuiltin("set_next_player", setNextPlayerBuiltin);
+  registerBuiltin("turn_direction", turnDirectionBuiltin);
 }

@@ -110,6 +110,7 @@ export function createInitialState(
     currentPhase: ruleset.phases[0]!.name,
     currentPlayerIndex: 0,
     turnNumber: 1,
+    turnDirection: 1,
     scores: {},
     actionLog: [],
     turnsTakenThisPhase: 0,
@@ -411,8 +412,9 @@ function handleEndTurn(
   if (!validation.valid) return state;
 
   const humanPlayers = state.players.filter((p) => isHumanPlayer(p, state.ruleset.roles));
+  const count = humanPlayers.length;
   const nextPlayerIndex =
-    (state.currentPlayerIndex + 1) % humanPlayers.length;
+    ((state.currentPlayerIndex + state.turnDirection) % count + count) % count;
 
   let newState: CardGameState = {
     ...state,
@@ -469,6 +471,7 @@ function handleResetRound(
     currentPlayerIndex: 0,
     turnNumber: state.turnNumber + 1,
     turnsTakenThisPhase: 0,
+    turnDirection: 1,
     scores: {},
     version: state.version + 1,
   };
@@ -613,6 +616,12 @@ function applySingleEffect(
       return applyFlipTopEffect(state, effect.params);
     case "move_all":
       return applyMoveAllEffect(state, effect.params);
+    case "reverse_turn_order":
+      return applyReverseTurnOrderEffect(state);
+    case "skip_next_player":
+      return applySkipNextPlayerEffect(state);
+    case "set_next_player":
+      return applySetNextPlayerEffect(state, effect.params);
     default:
       // Unknown effects are ignored — forward compatible
       return state;
@@ -775,7 +784,8 @@ function applyRevealAllEffect(
  */
 function applyEndTurnEffect(state: CardGameState): CardGameState {
   const humanPlayers = state.players.filter((p) => isHumanPlayer(p, state.ruleset.roles));
-  const nextIndex = (state.currentPlayerIndex + 1) % humanPlayers.length;
+  const count = humanPlayers.length;
+  const nextIndex = ((state.currentPlayerIndex + state.turnDirection) % count + count) % count;
 
   return {
     ...state,
@@ -925,6 +935,7 @@ function applyResetRoundEffect(state: CardGameState): CardGameState {
     currentPlayerIndex: 0,
     turnNumber: state.turnNumber + 1,
     turnsTakenThisPhase: 0,
+    turnDirection: 1,
     scores: {},
   };
 }
@@ -1003,6 +1014,46 @@ function applyMoveAllEffect(
   zones[toName] = { ...toZone, cards: [...toZone.cards, ...fromZone.cards] };
 
   return { ...state, zones };
+}
+
+/**
+ * Reverses the turn direction. Clockwise becomes counterclockwise and vice versa.
+ */
+function applyReverseTurnOrderEffect(state: CardGameState): CardGameState {
+  return {
+    ...state,
+    turnDirection: state.turnDirection === 1 ? -1 : 1,
+  };
+}
+
+/**
+ * Skips the next player by advancing the current player index by one extra step
+ * in the current turn direction.
+ */
+function applySkipNextPlayerEffect(state: CardGameState): CardGameState {
+  const humanPlayers = state.players.filter((p) => isHumanPlayer(p, state.ruleset.roles));
+  const count = humanPlayers.length;
+  const nextIndex = ((state.currentPlayerIndex + state.turnDirection) % count + count) % count;
+  return {
+    ...state,
+    currentPlayerIndex: nextIndex,
+  };
+}
+
+/**
+ * Sets the current player to a specific index.
+ */
+function applySetNextPlayerEffect(
+  state: CardGameState,
+  params: Record<string, unknown>
+): CardGameState {
+  const playerIndex = params.playerIndex as number;
+  const humanPlayers = state.players.filter((p) => isHumanPlayer(p, state.ruleset.roles));
+  if (playerIndex < 0 || playerIndex >= humanPlayers.length) return state;
+  return {
+    ...state,
+    currentPlayerIndex: playerIndex,
+  };
 }
 
 // ─── Deterministic Card Creation ───────────────────────────────────

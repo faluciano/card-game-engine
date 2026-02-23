@@ -14,12 +14,13 @@ running example throughout.
 6. [Phases (the FSM)](#6-phases-the-fsm)
 7. [Actions](#7-actions)
 8. [Expressions](#8-expressions)
-9. [Scoring](#9-scoring)
-10. [Visibility](#10-visibility)
-11. [UI Hints](#11-ui-hints)
-12. [Complete Blackjack Example](#12-complete-blackjack-example)
-13. [Validation](#13-validation)
-14. [Testing Your Ruleset](#14-testing-your-ruleset)
+9. [Turn Order](#9-turn-order)
+10. [Scoring](#10-scoring)
+11. [Visibility](#11-visibility)
+12. [UI Hints](#12-ui-hints)
+13. [Complete Blackjack Example](#13-complete-blackjack-example)
+14. [Validation](#14-validation)
+15. [Testing Your Ruleset](#15-testing-your-ruleset)
 
 ---
 
@@ -470,6 +471,13 @@ for player 1, and so on.
 | `max_card_rank(zone)` | number | Returns the highest numeric rank value among all cards in `zone`. Returns 0 for empty zones. |
 | `sum_card_values(zone, strategy)` | number | Computes card values with a strategy (use with `prefer_high_under`). |
 | `prefer_high_under(target)` | number | Returns a strategy descriptor for `sum_card_values`. |
+| `top_card_suit(zone)` | string | Returns the suit string of the top (first) card in a zone. Throws if the zone is empty. |
+| `top_card_rank_name(zone)` | string | Returns the rank string (e.g., `"A"`, `"K"`) of the top card in a zone. Throws if the zone is empty. |
+| `has_card_matching_suit(zone, suit)` | boolean | True if the zone contains at least one card with the given suit string. |
+| `has_card_matching_rank(zone, rank)` | boolean | True if the zone contains at least one card with the given rank string. |
+| `card_matches_top(hand_zone, card_index, target_zone)` | boolean | True if the card at `card_index` in `hand_zone` matches the top card of `target_zone` by suit **or** rank. |
+| `has_playable_card(hand_zone, target_zone)` | boolean | True if `hand_zone` has any card matching the top card of `target_zone` by suit or rank. Useful for enabling/disabling a "draw" action. |
+| `turn_direction()` | number | Returns the current turn direction: `1` (clockwise) or `-1` (counterclockwise). |
 | `all_players_done()` | boolean | True when all players have completed their turns. |
 | `all_hands_dealt()` | boolean | True after dealing is complete. |
 | `scores_calculated()` | boolean | True after scoring is complete. |
@@ -492,12 +500,28 @@ for player 1, and so on.
 | `determine_winners()` | Evaluates bust/win/tie conditions per player and records results. |
 | `collect_all_to(zone)` | Gathers all cards from all zones into the target zone. |
 | `reset_round()` | Resets the round: clears scores, resets player index, increments turn. |
+| `reverse_turn_order()` | Flips turn direction (clockwise ↔ counterclockwise). Only valid when `effects` collector is available. |
+| `skip_next_player()` | Advances the player index by one extra step in the current direction. Only valid when `effects` collector is available. |
+| `set_next_player(index)` | Sets the next player to a specific index (0-based). Only valid when `effects` collector is available. |
 
 #### Special Forms
 
 | Form | Description |
 |---|---|
 | `while(condition, body)` | Repeatedly evaluates `body` while `condition` is true. Bounded to 100 iterations to prevent infinite loops. Effects are flushed between iterations so the condition sees updated state. |
+| `if(condition, then)` | If `condition` is true, evaluates `then`; otherwise returns `true`. |
+| `if(condition, then, else)` | If `condition` is true, evaluates `then`; otherwise evaluates `else`. |
+
+The `if` form uses **lazy evaluation** -- only the chosen branch is evaluated.
+This makes it safe to guard expressions that would fail on missing zones. For
+example, checking `player_count > 2` before accessing `hand:2`:
+
+```
+if(player_count > 2, card_count("hand:2") == 0, false)
+```
+
+Without the `if()` guard, `card_count("hand:2")` would throw in a 2-player
+game because the zone does not exist.
 
 The `while` form is essential for the dealer's AI in blackjack:
 
@@ -515,7 +539,67 @@ to `"when": "all_players_done()"`.
 
 ---
 
-## 9. Scoring
+## 9. Turn Order
+
+The engine supports configurable turn direction for multi-player games. Turn
+order is tracked in the game state and can be manipulated at runtime through
+effect builtins.
+
+### State: `turnDirection`
+
+Every `CardGameState` has a `turnDirection` field:
+
+- `1` — clockwise (default): players advance `0 → 1 → 2 → ... → 0`
+- `-1` — counterclockwise: players advance in reverse `0 → N-1 → N-2 → ... → 0`
+
+When `end_turn()` is called, the engine computes the next player as:
+
+```
+nextPlayerIndex = (currentPlayerIndex + turnDirection) mod playerCount
+```
+
+### Phase Definition: `turnOrder`
+
+Each `turn_based` phase can declare its initial turn order:
+
+```json
+{
+  "name": "player_turns",
+  "kind": "turn_based",
+  "turnOrder": "clockwise",
+  "..."
+}
+```
+
+| Value | Description |
+|---|---|
+| `"clockwise"` | Players proceed in ascending index order (default). |
+| `"counterclockwise"` | Players proceed in descending index order. |
+| `"fixed"` | Player order does not change; turn direction effects are ignored. |
+
+### Turn Order Effects
+
+Three effect builtins modify turn order at runtime:
+
+- **`reverse_turn_order()`** — Flips `turnDirection` from `1` to `-1` or vice
+  versa. Useful for "reverse" cards (e.g., UNO).
+- **`skip_next_player()`** — Advances the player index by one extra step in the
+  current direction, effectively skipping the next player.
+- **`set_next_player(index)`** — Sets the next player to a specific 0-based
+  index. Useful for "pick a player" mechanics.
+
+### Querying Turn Direction
+
+Use `turn_direction()` in conditions or transitions to check the current
+direction:
+
+```
+if(turn_direction() == -1, "counterclockwise", "clockwise")
+```
+
+---
+
+## 10. Scoring
 
 The `scoring` section defines how winners are determined.
 
@@ -547,7 +631,7 @@ below the target.
 
 ---
 
-## 10. Visibility
+## 11. Visibility
 
 Visibility rules control what each player can see. This is how hidden
 information works -- other players' hands are hidden, the draw pile is hidden,
@@ -614,7 +698,7 @@ network.
 
 ---
 
-## 11. UI Hints
+## 12. UI Hints
 
 The `ui` section provides optional layout hints for the client renderer.
 
@@ -637,7 +721,7 @@ These are hints only -- the client can interpret or override them.
 
 ---
 
-## 12. Complete Blackjack Example
+## 13. Complete Blackjack Example
 
 Below is the full `blackjack.cardgame.json` with annotations explaining each
 section.
@@ -851,7 +935,7 @@ section.
 
 ---
 
-## 13. Validation
+## 14. Validation
 
 Rulesets are validated at load time using two complementary systems:
 
@@ -924,7 +1008,7 @@ You can reference it in your `.cardgame.json` files for editor support:
 
 ---
 
-## 14. Testing Your Ruleset
+## 15. Testing Your Ruleset
 
 You can write tests for your ruleset using the engine's public API. Tests run
 with [Vitest](https://vitest.dev/) and use the same engine that runs on the

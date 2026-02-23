@@ -26,9 +26,10 @@ The TV runs the authoritative game engine: it loads the ruleset, advances the FS
 ## Features
 
 - **Declarative JSON rulesets** — define game logic without writing code
-- **Safe expression language** — conditions and effects use a constrained (non-Turing-complete) evaluator
-- **8 query builtins + 10 effect builtins** — covering common card game mechanics (draw, discard, shuffle, score, etc.)
+- **Safe expression language** — conditions and effects use a constrained (non-Turing-complete) evaluator with `if()` conditional branching and `while()` loops
+- **18 query builtins + 13 effect builtins** — covering common card game mechanics (draw, discard, shuffle, score, card matching, turn order, etc.)
 - **Phase-based FSM** — supports automatic, player_action, and simultaneous phase types
+- **Turn order mechanics** — clockwise/counterclockwise direction, reverse, skip, and set-next-player effects
 - **Seeded PRNG** — mulberry32 enables deterministic replay from an action log
 - **Hidden information** — per-player state filtering via `createPlayerView`
 - **Zod schema validation** — rulesets are validated against a strict schema at load time
@@ -89,7 +90,7 @@ cd packages/shared
 bunx vitest run
 ```
 
-498 tests across 15 test files cover the engine core (expression evaluator, interpreter, PRNG, schema validation, player views, game phases, host bridge) and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
+696 tests across 16 test files cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios, host bridge) and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
 
 ### Build and Deploy
 
@@ -116,19 +117,23 @@ bun run typecheck
 
 A `.cardgame.json` file declaratively defines everything the engine needs to run a card game: metadata, deck composition, zones, roles, phases (FSM), scoring, visibility rules, and UI hints.
 
-The [`rulesets/`](rulesets/) directory contains example rulesets. **`blackjack.cardgame.json`** is the reference implementation demonstrating the full format.
+The [`rulesets/`](rulesets/) directory contains example rulesets:
+
+- **`blackjack.cardgame.json`** — the reference implementation demonstrating dealer AI, hand value scoring, and partial visibility
+- **`war.cardgame.json`** — a simple rank-comparison game showcasing automatic phases and multi-round play
+- **`crazy-eights.cardgame.json`** — a matching game demonstrating `if()` conditional branching, card matching builtins, and turn order mechanics
 
 See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format specification, expression language reference, and annotated examples. The [Engine API Reference](packages/shared/README.md) documents all public functions and builtins.
 
 ## Project Status
 
-All four implementation phases are **complete** with **498 passing tests** across 15 test files.
+All four implementation phases are **complete** with **696 passing tests** across 16 test files.
 
 | Phase | Status | Tests |
 |-------|--------|-------|
-| Phase 1 — Engine Core | ✅ Complete | 419 |
+| Phase 1 — Engine Core | ✅ Complete | 602 |
 | Phase 1.5 — Documentation | ✅ Complete | — |
-| Phase 2 — Storage & Import | ✅ Complete | 79 |
+| Phase 2 — Storage & Import | ✅ Complete | 94 |
 | Phase 3 — Host Screens & CouchKit Integration | ✅ Complete | — |
 | Phase 4 — Client Controller App | ✅ Complete | — |
 

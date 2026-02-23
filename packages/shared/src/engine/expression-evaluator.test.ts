@@ -75,6 +75,8 @@ function createMockState(overrides?: Partial<CardGameState>): CardGameState {
     turnNumber: 1,
     scores: {},
     actionLog: [],
+    turnsTakenThisPhase: 0,
+    turnDirection: 1,
     version: 1,
     ...overrides,
   } as CardGameState;
@@ -1103,6 +1105,93 @@ describe("expression-evaluator", () => {
       expect(() =>
         evaluateExpression("while(get_num(), noop())", makeContext())
       ).toThrow("condition must be boolean");
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── if() special form ────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("if() special form", () => {
+    it("returns then_expr when condition is true", () => {
+      const result = evaluateExpression("if(true, 42)", makeContext());
+      expect(result).toEqual({ kind: "number", value: 42 });
+    });
+
+    it("returns boolean true when condition is false and no else branch", () => {
+      const result = evaluateExpression("if(false, 42)", makeContext());
+      expect(result).toEqual({ kind: "boolean", value: true });
+    });
+
+    it("returns then_expr when condition is true (3-arg form)", () => {
+      const result = evaluateExpression("if(true, 42, 99)", makeContext());
+      expect(result).toEqual({ kind: "number", value: 42 });
+    });
+
+    it("returns else_expr when condition is false (3-arg form)", () => {
+      const result = evaluateExpression("if(false, 42, 99)", makeContext());
+      expect(result).toEqual({ kind: "number", value: 99 });
+    });
+
+    it("evaluates then_expr when comparison is truthy", () => {
+      const result = evaluateExpression("if(1 > 0, 10, 20)", makeContext());
+      expect(result).toEqual({ kind: "number", value: 10 });
+    });
+
+    it("evaluates else_expr when comparison is falsy", () => {
+      const result = evaluateExpression("if(1 < 0, 10, 20)", makeContext());
+      expect(result).toEqual({ kind: "number", value: 20 });
+    });
+
+    it("throws on non-boolean condition", () => {
+      expect(() =>
+        evaluateExpression("if(42, 1, 2)", makeContext())
+      ).toThrow("if() condition must be boolean");
+    });
+
+    it("throws on too few arguments", () => {
+      expect(() =>
+        evaluateExpression("if(true)", makeContext())
+      ).toThrow("if() requires 2-3 arguments");
+    });
+
+    it("throws on too many arguments", () => {
+      expect(() =>
+        evaluateExpression("if(true, 1, 2, 3)", makeContext())
+      ).toThrow("if() requires 2-3 arguments");
+    });
+
+    it("handles nested if expressions", () => {
+      const result = evaluateExpression(
+        "if(true, if(false, 1, 2), 3)",
+        makeContext()
+      );
+      expect(result).toEqual({ kind: "number", value: 2 });
+    });
+
+    it("only evaluates the chosen branch (lazy evaluation)", () => {
+      // If the false branch were evaluated, unknown_fn() would throw
+      const result = evaluateExpression(
+        "if(true, 42, unknown_fn())",
+        makeContext()
+      );
+      expect(result).toEqual({ kind: "number", value: 42 });
+    });
+
+    it("returns string result from then_expr", () => {
+      const result = evaluateExpression(
+        'if(true, "yes", "no")',
+        makeContext()
+      );
+      expect(result).toEqual({ kind: "string", value: "yes" });
+    });
+
+    it("returns boolean result from else_expr", () => {
+      const result = evaluateExpression(
+        "if(false, true, false)",
+        makeContext()
+      );
+      expect(result).toEqual({ kind: "boolean", value: false });
     });
   });
 });

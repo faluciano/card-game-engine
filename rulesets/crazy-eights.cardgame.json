@@ -1,0 +1,148 @@
+{
+  "meta": {
+    "name": "Crazy Eights",
+    "slug": "crazy-eights",
+    "version": "1.0.0",
+    "author": "faluciano",
+    "players": {
+      "min": 2,
+      "max": 4
+    }
+  },
+  "deck": {
+    "preset": "standard_52",
+    "copies": 1,
+    "cardValues": {
+      "2":  { "kind": "fixed", "value": 2 },
+      "3":  { "kind": "fixed", "value": 3 },
+      "4":  { "kind": "fixed", "value": 4 },
+      "5":  { "kind": "fixed", "value": 5 },
+      "6":  { "kind": "fixed", "value": 6 },
+      "7":  { "kind": "fixed", "value": 7 },
+      "8":  { "kind": "fixed", "value": 50 },
+      "9":  { "kind": "fixed", "value": 9 },
+      "10": { "kind": "fixed", "value": 10 },
+      "J":  { "kind": "fixed", "value": 10 },
+      "Q":  { "kind": "fixed", "value": 10 },
+      "K":  { "kind": "fixed", "value": 10 },
+      "A":  { "kind": "fixed", "value": 1 }
+    }
+  },
+  "zones": [
+    {
+      "name": "draw_pile",
+      "visibility": { "kind": "hidden" },
+      "owners": []
+    },
+    {
+      "name": "hand",
+      "visibility": { "kind": "owner_only" },
+      "owners": ["player"]
+    },
+    {
+      "name": "discard",
+      "visibility": { "kind": "public" },
+      "owners": []
+    }
+  ],
+  "roles": [
+    {
+      "name": "player",
+      "isHuman": true,
+      "count": "per_player"
+    }
+  ],
+  "phases": [
+    {
+      "name": "setup",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "player_turns", "when": "all_hands_dealt" }
+      ],
+      "automaticSequence": [
+        "shuffle(draw_pile)",
+        "deal(draw_pile, hand, 5)",
+        "move_top(draw_pile, discard, 1)",
+        "flip_top(discard, 1)"
+      ]
+    },
+    {
+      "name": "player_turns",
+      "kind": "turn_based",
+      "actions": [
+        {
+          "name": "play_card",
+          "label": "Play Card",
+          "effect": ["end_turn()"]
+        },
+        {
+          "name": "draw",
+          "label": "Draw Card",
+          "condition": "!has_playable_card(current_player.hand, discard)",
+          "effect": [
+            "draw(draw_pile, current_player.hand, 1)",
+            "end_turn()"
+          ]
+        }
+      ],
+      "transitions": [
+        { "to": "scoring", "when": "card_count(\"hand:0\") == 0 || card_count(\"hand:1\") == 0 || if(player_count > 2, card_count(\"hand:2\") == 0, false) || if(player_count > 3, card_count(\"hand:3\") == 0, false)" }
+      ],
+      "turnOrder": "clockwise"
+    },
+    {
+      "name": "scoring",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "round_end", "when": "scores_calculated" }
+      ],
+      "automaticSequence": [
+        "calculate_scores()",
+        "determine_winners()"
+      ]
+    },
+    {
+      "name": "round_end",
+      "kind": "all_players",
+      "actions": [
+        {
+          "name": "play_again",
+          "label": "Play Again",
+          "effect": [
+            "collect_all_to(draw_pile)",
+            "reset_round()"
+          ]
+        }
+      ],
+      "transitions": [
+        { "to": "setup", "when": "continue_game" }
+      ]
+    }
+  ],
+  "scoring": {
+    "method": "hand_value(current_player.hand, 999)",
+    "winCondition": "my_score == 0",
+    "bustCondition": "false",
+    "tieCondition": "false"
+  },
+  "visibility": [
+    {
+      "zone": "draw_pile",
+      "visibility": { "kind": "hidden" }
+    },
+    {
+      "zone": "hand",
+      "visibility": { "kind": "owner_only" }
+    },
+    {
+      "zone": "discard",
+      "visibility": { "kind": "public" }
+    }
+  ],
+  "ui": {
+    "layout": "circle",
+    "tableColor": "felt_green"
+  }
+}

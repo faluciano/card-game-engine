@@ -942,6 +942,30 @@ function evaluateFunctionCall(
     return { kind: "boolean", value: true };
   }
 
+  // ── Special form: if(condition, then_expr[, else_expr]) ──
+  // Must be handled before regular lookup because arguments need lazy evaluation.
+  // Only the chosen branch is evaluated, not both.
+  if (node.callee === "if") {
+    if (node.args.length < 2 || node.args.length > 3) {
+      throw new ExpressionError(
+        "if() requires 2-3 arguments: condition, then_expr[, else_expr]"
+      );
+    }
+    const condResult = evaluateNode(node.args[0]!, context, depth + 1);
+    if (condResult.kind !== "boolean") {
+      throw new ExpressionError(
+        `if() condition must be boolean, got ${condResult.kind}`
+      );
+    }
+    if (condResult.value) {
+      return evaluateNode(node.args[1]!, context, depth + 1);
+    }
+    if (node.args.length === 3) {
+      return evaluateNode(node.args[2]!, context, depth + 1);
+    }
+    return { kind: "boolean", value: true };
+  }
+
   const fn = functionRegistry.get(node.callee);
   if (!fn) {
     throw new ExpressionError(`Unknown function: '${node.callee}'`);

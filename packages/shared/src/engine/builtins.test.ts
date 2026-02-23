@@ -137,6 +137,7 @@ function makeGameState(
     scores: {},
     actionLog: [],
     turnsTakenThisPhase: 0,
+    turnDirection: 1,
     version: 1,
     ...overrides,
   };
@@ -186,6 +187,10 @@ describe("builtins", () => {
       expect(names).toContain("determine_winners");
       expect(names).toContain("collect_all_to");
       expect(names).toContain("reset_round");
+      expect(names).toContain("reverse_turn_order");
+      expect(names).toContain("skip_next_player");
+      expect(names).toContain("set_next_player");
+      expect(names).toContain("turn_direction");
     });
 
     it("does not register while (handled as special form)", () => {
@@ -1336,6 +1341,363 @@ describe("builtins", () => {
         expect(result.zones["pile_a"]!.cards).toHaveLength(0);
         expect(result.zones["pile_b"]!.cards).toHaveLength(3);
       });
+    });
+  });
+
+  // ── Card Matching Builtins ──
+
+  describe("card matching builtins", () => {
+    it("registers all card matching builtin names", () => {
+      const names = getRegisteredBuiltins();
+      expect(names).toContain("top_card_suit");
+      expect(names).toContain("top_card_rank_name");
+      expect(names).toContain("has_card_matching_suit");
+      expect(names).toContain("has_card_matching_rank");
+      expect(names).toContain("card_matches_top");
+      expect(names).toContain("has_playable_card");
+    });
+
+    describe("top_card_suit", () => {
+      it("returns suit of first card in zone", () => {
+        const state = makeGameState({
+          discard: makeZone("discard", [
+            makeCard("7", "hearts"),
+            makeCard("K", "spades"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('top_card_suit("discard")', ctx);
+        expect(result).toEqual({ kind: "string", value: "hearts" });
+      });
+
+      it("throws on empty zone", () => {
+        const state = makeGameState({
+          discard: makeZone("discard", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression('top_card_suit("discard")', ctx)).toThrow(
+          "zone 'discard' is empty"
+        );
+      });
+    });
+
+    describe("top_card_rank_name", () => {
+      it("returns rank string of first card in zone", () => {
+        const state = makeGameState({
+          discard: makeZone("discard", [
+            makeCard("Q", "diamonds"),
+            makeCard("3", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('top_card_rank_name("discard")', ctx);
+        expect(result).toEqual({ kind: "string", value: "Q" });
+      });
+
+      it("throws on empty zone", () => {
+        const state = makeGameState({
+          discard: makeZone("discard", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() =>
+          evaluateExpression('top_card_rank_name("discard")', ctx)
+        ).toThrow("zone 'discard' is empty");
+      });
+    });
+
+    describe("has_card_matching_suit", () => {
+      it("returns true when zone contains card with matching suit", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("7", "hearts"),
+            makeCard("3", "diamonds"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression(
+          'has_card_matching_suit("hand", "hearts")',
+          ctx
+        );
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("returns false when no card matches suit", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("7", "spades"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression(
+          'has_card_matching_suit("hand", "clubs")',
+          ctx
+        );
+        expect(result).toEqual({ kind: "boolean", value: false });
+      });
+    });
+
+    describe("has_card_matching_rank", () => {
+      it("returns true when zone contains card with matching rank", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("7", "hearts"),
+            makeCard("3", "diamonds"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression(
+          'has_card_matching_rank("hand", "7")',
+          ctx
+        );
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("returns false when no card matches rank", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("7", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression(
+          'has_card_matching_rank("hand", "A")',
+          ctx
+        );
+        expect(result).toEqual({ kind: "boolean", value: false });
+      });
+    });
+
+    describe("card_matches_top", () => {
+      it("returns true when card matches by suit", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("3", "hearts"),  // index 0: matches suit
+          ]),
+          discard: makeZone("discard", [
+            makeCard("7", "hearts"),  // top card: 7 of hearts
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression(
+          'card_matches_top("hand", 0, "discard")',
+          ctx
+        );
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("returns true when card matches by rank", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("7", "spades"),  // index 0: matches rank
+          ]),
+          discard: makeZone("discard", [
+            makeCard("7", "hearts"),  // top card: 7 of hearts
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression(
+          'card_matches_top("hand", 0, "discard")',
+          ctx
+        );
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("returns false when card matches neither suit nor rank", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),  // index 0: no match
+          ]),
+          discard: makeZone("discard", [
+            makeCard("7", "hearts"),  // top card: 7 of hearts
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression(
+          'card_matches_top("hand", 0, "discard")',
+          ctx
+        );
+        expect(result).toEqual({ kind: "boolean", value: false });
+      });
+
+      it("throws on out-of-bounds index", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [makeCard("K", "spades")]),
+          discard: makeZone("discard", [makeCard("7", "hearts")]),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() =>
+          evaluateExpression('card_matches_top("hand", 5, "discard")', ctx)
+        ).toThrow("index 5 out of bounds");
+      });
+
+      it("throws on empty target zone", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [makeCard("K", "spades")]),
+          discard: makeZone("discard", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() =>
+          evaluateExpression('card_matches_top("hand", 0, "discard")', ctx)
+        ).toThrow("target zone 'discard' is empty");
+      });
+    });
+
+    describe("has_playable_card", () => {
+      it("returns true when hand has playable card matching suit", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "hearts"),  // matches suit
+            makeCard("3", "clubs"),
+          ]),
+          discard: makeZone("discard", [
+            makeCard("7", "hearts"),  // top card
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression(
+          'has_playable_card("hand", "discard")',
+          ctx
+        );
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("returns true when hand has playable card matching rank", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("7", "spades"),  // matches rank
+            makeCard("3", "clubs"),
+          ]),
+          discard: makeZone("discard", [
+            makeCard("7", "hearts"),  // top card
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression(
+          'has_playable_card("hand", "discard")',
+          ctx
+        );
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("returns false when no playable card exists", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("3", "clubs"),
+          ]),
+          discard: makeZone("discard", [
+            makeCard("7", "hearts"),  // top card: no match in hand
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression(
+          'has_playable_card("hand", "discard")',
+          ctx
+        );
+        expect(result).toEqual({ kind: "boolean", value: false });
+      });
+
+      it("returns false when target zone is empty", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+          ]),
+          discard: makeZone("discard", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression(
+          'has_playable_card("hand", "discard")',
+          ctx
+        );
+        expect(result).toEqual({ kind: "boolean", value: false });
+      });
+    });
+  });
+
+  // ── Turn manipulation builtins ──
+
+  describe("turn manipulation builtins", () => {
+    it("turn_direction() returns 1 by default", () => {
+      const state = makeGameState({});
+      const ctx = makeEvalContext(state);
+      const result = evaluateExpression("turn_direction()", ctx);
+      expect(result).toEqual({ kind: "number", value: 1 });
+    });
+
+    it("turn_direction() returns -1 when turnDirection is -1", () => {
+      const state = makeGameState({}, { turnDirection: -1 });
+      const ctx = makeEvalContext(state);
+      const result = evaluateExpression("turn_direction()", ctx);
+      expect(result).toEqual({ kind: "number", value: -1 });
+    });
+
+    it("reverse_turn_order() records a reverse_turn_order effect", () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      evaluateExpression("reverse_turn_order()", ctx);
+      expect(ctx.effects).toEqual([
+        { kind: "reverse_turn_order", params: {} },
+      ]);
+    });
+
+    it("skip_next_player() records a skip_next_player effect", () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      evaluateExpression("skip_next_player()", ctx);
+      expect(ctx.effects).toEqual([
+        { kind: "skip_next_player", params: {} },
+      ]);
+    });
+
+    it("set_next_player(2) records a set_next_player effect with params", () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      evaluateExpression("set_next_player(2)", ctx);
+      expect(ctx.effects).toEqual([
+        { kind: "set_next_player", params: { playerIndex: 2 } },
+      ]);
+    });
+
+    it("reverse_turn_order() throws with arguments", () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      expect(() => evaluateExpression("reverse_turn_order(1)", ctx)).toThrow(
+        "takes no arguments"
+      );
+    });
+
+    it("skip_next_player() throws with arguments", () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      expect(() => evaluateExpression("skip_next_player(1)", ctx)).toThrow(
+        "takes no arguments"
+      );
+    });
+
+    it("turn_direction() throws with arguments", () => {
+      const state = makeGameState({});
+      const ctx = makeEvalContext(state);
+      expect(() => evaluateExpression("turn_direction(1)", ctx)).toThrow(
+        "takes no arguments"
+      );
+    });
+
+    it("turn manipulation effect builtins throw without MutableEvalContext", () => {
+      const state = makeGameState({});
+      const ctx = makeEvalContext(state);
+      expect(() => evaluateExpression("reverse_turn_order()", ctx)).toThrow(
+        "requires a MutableEvalContext"
+      );
+      expect(() => evaluateExpression("skip_next_player()", ctx)).toThrow(
+        "requires a MutableEvalContext"
+      );
+      expect(() => evaluateExpression("set_next_player(0)", ctx)).toThrow(
+        "requires a MutableEvalContext"
+      );
     });
   });
 });

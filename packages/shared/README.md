@@ -266,6 +266,8 @@ Functions are registered builtins. Unknown function names produce an `Expression
 ### Special Forms
 
 - `while(condition, body)` -- Loops with mid-iteration effect flushing. The accumulated effects are applied to state between iterations so condition re-evaluation sees updated zones.
+- `if(condition, then)` -- If condition is true, evaluates then; otherwise returns true. Only the chosen branch is evaluated (lazy).
+- `if(condition, then, else)` -- If condition is true, evaluates then; otherwise evaluates else. Useful for guarding expressions that access zones conditionally.
 
 ### Safety Limits
 
@@ -291,6 +293,13 @@ Pure functions that read state without side effects.
 | `all_hands_dealt()`              | none                | `boolean` | Sentinel -- always returns true                      |
 | `scores_calculated()`            | none                | `boolean` | Sentinel -- always returns true                      |
 | `continue_game()`                | none                | `boolean` | Sentinel -- returns true (game continues)            |
+| `top_card_suit(zone)`            | zone name           | `string`  | Suit string of the top (first) card in zone          |
+| `top_card_rank_name(zone)`       | zone name           | `string`  | Rank string of the top card in zone (e.g., `"A"`)    |
+| `has_card_matching_suit(zone, suit)` | zone, string    | `boolean` | True if zone has a card with the given suit          |
+| `has_card_matching_rank(zone, rank)` | zone, string    | `boolean` | True if zone has a card with the given rank          |
+| `card_matches_top(hand, index, target)` | zone, number, zone | `boolean` | True if card matches target's top by suit or rank |
+| `has_playable_card(hand, target)`| zone, zone          | `boolean` | True if hand has any card matching target's top      |
+| `turn_direction()`               | none                | `number`  | Current turn direction (1=clockwise, -1=counter)     |
 
 ### Effect Builtins
 
@@ -308,6 +317,9 @@ Mutating functions that record effect descriptions for the interpreter to apply.
 | `determine_winners()`               | none                       | Set winners based on scores                    |
 | `collect_all_to(zone)`             | zone name                  | Collect all cards from all zones into target   |
 | `reset_round()`                     | none                       | Increment round, reset scores and player index |
+| `reverse_turn_order()`              | none                       | Flip turn direction (clockwise ↔ counterclockwise) |
+| `skip_next_player()`                | none                       | Advance player index by one extra step             |
+| `set_next_player(index)`            | number                     | Set next player to a specific 0-based index        |
 
 ## Key Types
 
@@ -355,7 +367,7 @@ A zone where hidden cards are replaced with `null` placeholders. Contains `name`
 
 ## Testing
 
-419 tests across 8 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, and integration scenarios.
+602 tests across 8 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, and integration scenarios.
 
 ```sh
 # Run all tests
