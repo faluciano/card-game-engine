@@ -295,7 +295,7 @@ function ResultsOverlay({
 
           {/* Per-player results */}
           {engineState.players.map((player, index) => {
-            const handValue = engineState.scores[`player:${index}`] ?? 0;
+            const handValue = engineState.scores[`player_score:${index}`] ?? 0;
             const result = engineState.scores[`result:${index}`] ?? 0;
             const resultLabel =
               result > 0 ? "WIN" : result < 0 ? "LOSS" : "PUSH";
@@ -354,8 +354,8 @@ function ResultsOverlay({
               Dealer
             </Text>
             <Text style={{ color: "#b0b0b0", fontSize: 24 }}>
-              {engineState.scores["dealer"] ?? 0}
-              {(engineState.scores["dealer"] ?? 0) > 21 ? " (Busted)" : ""}
+              {engineState.scores["dealer_score"] ?? 0}
+              {(engineState.scores["dealer_score"] ?? 0) > 21 ? " (Busted)" : ""}
             </Text>
           </View>
 
@@ -498,7 +498,7 @@ function formatZoneName(name: string): string {
 
 /** Resolves a score key like "player:0" or "result:1" to a human-readable label. */
 function resolveScoreLabel(key: string, players: readonly Player[]): string {
-  const playerMatch = key.match(/^player:(\d+)$/);
+  const playerMatch = key.match(/^player_score:(\d+)$/);
   if (playerMatch) {
     const player = players[Number(playerMatch[1])];
     return player?.name ?? key;
@@ -508,8 +508,10 @@ function resolveScoreLabel(key: string, players: readonly Player[]): string {
     const player = players[Number(resultMatch[1])];
     return player ? `${player.name} (Result)` : key;
   }
-  // Non-indexed keys like "dealer" — title case
-  return key.charAt(0).toUpperCase() + key.slice(1);
+  // Non-indexed keys like "dealer_score" — humanize
+  return key
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /** Formats a status kind for display. */

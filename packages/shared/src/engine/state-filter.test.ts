@@ -154,6 +154,23 @@ describe("state-filter", () => {
       expect(view.isMyTurn).toBe(true);
       expect(view.currentPhase).toBe("player_turns");
     });
+
+    it("remaps player_score:N keys to PlayerId", () => {
+      const state = createMockState({
+        scores: {
+          "player_score:0": 18,
+          "dealer_score": 20,
+          "result:0": -1,
+        },
+      });
+      const view = createPlayerView(state, makePlayerId("p1"));
+      // player_score:0 → remapped to player's ID
+      expect(view.scores["p1"]).toBe(18);
+      // dealer_score passes through unchanged
+      expect(view.scores["dealer_score"]).toBe(20);
+      // result:0 → remapped to result:playerId
+      expect(view.scores["result:p1"]).toBe(-1);
+    });
   });
 
   // ══════════════════════════════════════════════════════════════════

@@ -82,9 +82,9 @@ export function createPlayerView(
   // so client components can look up scores by player.id directly.
   const remappedScores: Record<string, number> = {};
   for (const [key, value] of Object.entries(state.scores)) {
-    const playerMatch = key.match(/^(?:player|result):(\d+)$/);
+    const playerMatch = key.match(/^(?:player_score|result):(\d+)$/);
     if (!playerMatch) {
-      // Non-player keys (e.g. "dealer") pass through unchanged
+      // Non-player keys (e.g. "dealer_score") pass through unchanged
       remappedScores[key] = value;
       continue;
     }
@@ -92,7 +92,7 @@ export function createPlayerView(
     const matchedPlayer = state.players[index];
     if (!matchedPlayer) continue;
 
-    if (key.startsWith("player:")) {
+    if (key.startsWith("player_score:")) {
       remappedScores[matchedPlayer.id] = value;
     } else {
       remappedScores[`result:${matchedPlayer.id}`] = value;

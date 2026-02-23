@@ -24,7 +24,7 @@ import {
   type MutableEvalContext,
   computeHandValue,
 } from "./builtins";
-import { evaluateCondition, evaluateExpression } from "./expression-evaluator";
+import { evaluateCondition, evaluateExpression, type EvalContext, type EvalResult } from "./expression-evaluator";
 import {
   validateAction,
   executePhaseAction,
@@ -802,60 +802,102 @@ function applyEndTurnEffect(state: CardGameState): CardGameState {
 }
 
 /**
- * Calculates scores for all players using the ruleset's card values.
- * Stores hand values in state.scores keyed by player index.
+ * Derives a zone map for an NPC role by finding zones it owns.
+ * Strips the "{roleName}_" prefix to produce base keys.
+ * Example: for dealer, "dealer_hand" → { hand: "dealer_hand" }
  */
-function applyCalculateScoresEffect(state: CardGameState): CardGameState {
-  const cardValues = state.ruleset.deck.cardValues;
-  const scores: Record<string, number> = {};
-
-  // Score each player's hand
-  for (let i = 0; i < state.players.length; i++) {
-    const player = state.players[i]!;
-    if (!isHumanPlayer(player, state.ruleset.roles)) continue;
-
-    // Try per-player zone first, then shared zone
-    const perPlayerZone = state.zones[`hand:${i}`];
-    const sharedZone = state.zones["hand"];
-    const zone = perPlayerZone ?? sharedZone;
-    if (zone) {
-      scores[`player:${i}`] = computeHandValue(zone.cards, cardValues, 21);
+function buildNpcZoneMap(
+  roleName: string,
+  zones: Readonly<Record<string, { readonly definition: { readonly owners: readonly string[] } }>>
+): Readonly<Record<string, string>> {
+  const zoneMap: Record<string, string> = {};
+  const prefix = `${roleName}_`;
+  for (const zoneName of Object.keys(zones)) {
+    const zone = zones[zoneName]!;
+    if (zone.definition.owners.includes(roleName)) {
+      // Strip role prefix if present; otherwise use zone name as-is
+      const baseKey = zoneName.startsWith(prefix)
+        ? zoneName.substring(prefix.length)
+        : zoneName;
+      zoneMap[baseKey] = zoneName;
     }
   }
+  return zoneMap;
+}
 
-  // Score dealer hand
-  const dealerHand = state.zones["dealer_hand"];
-  if (dealerHand) {
-    scores["dealer"] = computeHandValue(dealerHand.cards, cardValues, 21);
+/**
+ * Calculates scores for all entities using the ruleset's scoring expression.
+ * Evaluates `scoring.method` per human player and per NPC role.
+ * Stores results as "player_score:N" for humans, "{role}_score" for NPCs.
+ */
+function applyCalculateScoresEffect(state: CardGameState): CardGameState {
+  const { roles, scoring } = state.ruleset;
+  const scores: Record<string, number> = {};
+
+  for (const role of roles) {
+    if (role.isHuman) {
+      // Score each human player
+      for (let i = 0; i < state.players.length; i++) {
+        const player = state.players[i]!;
+        if (!isHumanPlayer(player, roles)) continue;
+
+        const ctx: EvalContext = { state, playerIndex: i };
+        const result = evaluateExpression(scoring.method, ctx);
+        if (result.kind !== "number") {
+          throw new Error(
+            `scoring.method must return a number, got ${result.kind} for player ${i}`
+          );
+        }
+        scores[`player_score:${i}`] = result.value;
+      }
+    } else {
+      // Score each NPC role
+      const zoneMap = buildNpcZoneMap(role.name, state.zones);
+      const ctx: EvalContext = {
+        state,
+        roleOverride: { roleName: role.name, zoneMap },
+      };
+      const result = evaluateExpression(scoring.method, ctx);
+      if (result.kind !== "number") {
+        throw new Error(
+          `scoring.method must return a number, got ${result.kind} for role "${role.name}"`
+        );
+      }
+      scores[`${role.name}_score`] = result.value;
+    }
   }
 
   return { ...state, scores };
 }
 
 /**
- * Determines winners by comparing player scores to dealer score.
- * In blackjack: player wins if not busted AND (score > dealer OR dealer busted).
+ * Determines round results by evaluating bust/win/tie conditions per player.
+ * Evaluation order: bust → win → tie → loss (default).
+ * Results stored as "result:N" where 1=win, 0=tie, -1=loss.
  */
 function applyDetermineWinnersEffect(state: CardGameState): CardGameState {
-  const dealerScore = state.scores["dealer"] ?? 0;
-  const dealerBusted = dealerScore > 21;
+  const { scoring, roles } = state.ruleset;
   const scores = { ...state.scores };
 
   for (let i = 0; i < state.players.length; i++) {
     const player = state.players[i]!;
-    if (!isHumanPlayer(player, state.ruleset.roles)) continue;
+    if (!isHumanPlayer(player, roles)) continue;
 
-    const playerScore = scores[`player:${i}`] ?? 0;
-    const playerBusted = playerScore > 21;
+    const myScore = scores[`player_score:${i}`] ?? 0;
+    const bindings: Record<string, EvalResult> = {
+      my_score: { kind: "number", value: myScore },
+    };
+    const ctx: EvalContext = { state: { ...state, scores }, playerIndex: i, bindings };
 
-    if (playerBusted) {
-      scores[`result:${i}`] = -1; // loss
-    } else if (dealerBusted || playerScore > dealerScore) {
-      scores[`result:${i}`] = 1; // win
-    } else if (playerScore === dealerScore) {
-      scores[`result:${i}`] = 0; // push/tie
+    // Evaluation order: bust → win → tie → loss
+    if (scoring.bustCondition && evaluateCondition(scoring.bustCondition, ctx)) {
+      scores[`result:${i}`] = -1;
+    } else if (evaluateCondition(scoring.winCondition, ctx)) {
+      scores[`result:${i}`] = 1;
+    } else if (scoring.tieCondition && evaluateCondition(scoring.tieCondition, ctx)) {
+      scores[`result:${i}`] = 0;
     } else {
-      scores[`result:${i}`] = -1; // loss
+      scores[`result:${i}`] = -1;
     }
   }
 

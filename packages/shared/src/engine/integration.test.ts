@@ -200,9 +200,10 @@ function makeBlackjackRuleset(): CardGameRuleset {
       },
     ],
     scoring: {
-      method: "sum_card_values(hand, prefer_high_under(21))",
-      winCondition: "hand_value <= 21",
-      bustCondition: "hand_value > 21",
+      method: "hand_value(current_player.hand, 21)",
+      winCondition: "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
+      bustCondition: "my_score > 21",
+      tieCondition: "my_score == dealer_score && my_score <= 21",
     },
     visibility: [
       { zone: "hand", visibility: { kind: "owner_only" } },

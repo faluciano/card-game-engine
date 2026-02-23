@@ -163,9 +163,10 @@ function makeBlackjackRuleset(): CardGameRuleset {
       },
     ],
     scoring: {
-      method: "sum_card_values(hand, prefer_high_under(21))",
-      winCondition: "hand_value <= 21",
-      bustCondition: "hand_value > 21",
+      method: "hand_value(current_player.hand, 21)",
+      winCondition: "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
+      bustCondition: "my_score > 21",
+      tieCondition: "my_score == dealer_score && my_score <= 21",
     },
     visibility: [],
     ui: { layout: "semicircle", tableColor: "felt_green" },
@@ -1310,8 +1311,8 @@ describe("Ruleset Interpreter", () => {
       // Should stop at round_end, NOT chain back to player_turns
       expect(afterStand.currentPhase).toBe("round_end");
       // Scores should be populated (scoring phase ran)
-      expect(afterStand.scores).toHaveProperty("dealer");
-      expect(afterStand.scores).toHaveProperty("player:0");
+      expect(afterStand.scores).toHaveProperty("dealer_score");
+      expect(afterStand.scores).toHaveProperty("player_score:0");
       // Dealer hand should still have cards (not collected yet)
       expect(afterStand.zones["dealer_hand"]!.cards.length).toBeGreaterThan(0);
     });

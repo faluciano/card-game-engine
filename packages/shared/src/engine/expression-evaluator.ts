@@ -97,6 +97,16 @@ export type EvalResult =
 export interface EvalContext {
   readonly state: CardGameState;
   readonly playerIndex?: number;
+  /** Named bindings injected into the evaluation scope (e.g., my_score). */
+  readonly bindings?: Readonly<Record<string, EvalResult>>;
+  /**
+   * When scoring an NPC role, overrides `current_player` resolution
+   * so `current_player.hand` maps to the NPC's zone (e.g., "dealer_hand").
+   */
+  readonly roleOverride?: {
+    readonly roleName: string;
+    readonly zoneMap: Readonly<Record<string, string>>;
+  };
 }
 
 /** Error thrown when an expression is malformed or references unknown bindings. */
@@ -629,6 +639,19 @@ function resolveBinding(
   // Special identifiers that map to game state
   switch (name) {
     case "current_player": {
+      // NPC role override — build a synthetic player-like object
+      if (context.roleOverride) {
+        const { roleName, zoneMap } = context.roleOverride;
+        const playerObj: Record<string, unknown> = {
+          role: roleName,
+        };
+        for (const [baseKey, zoneName] of Object.entries(zoneMap)) {
+          playerObj[baseKey] = zoneName;
+        }
+        return playerObj as Record<string, unknown>;
+      }
+
+      // Human player — existing logic below
       const idx = context.playerIndex ?? state.currentPlayerIndex;
       const playerObj: Record<string, unknown> = {
         index: idx,
@@ -659,6 +682,11 @@ function resolveBinding(
       return { kind: "number", value: state.turnNumber };
     case "player_count":
       return { kind: "number", value: state.players.length };
+  }
+
+  // Explicit bindings (e.g., my_score injected by determine_winners)
+  if (context.bindings && name in context.bindings) {
+    return context.bindings[name]!;
   }
 
   // Zone lookup — zones are referenced by name directly.
