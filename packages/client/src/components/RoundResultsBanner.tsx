@@ -1,6 +1,6 @@
 // ─── Round Results Banner ───────────────────────────────────────────
-// Full-screen overlay shown on the phone when a blackjack round ends.
-// Displays the result (win/push/loss), score summary, and a button
+// Full-screen overlay shown on the phone when a round ends.
+// Displays the result (win/draw/loss), score summary, and a button
 // to start a new round.
 
 import React from "react";
@@ -9,7 +9,7 @@ import type { CSSProperties } from "react";
 interface RoundResultsBannerProps {
   readonly result: number;
   readonly playerScore: number;
-  readonly dealerScore: number;
+  readonly opponentScores: readonly { readonly label: string; readonly score: number }[];
   readonly onNewRound: () => void;
 }
 
@@ -24,7 +24,7 @@ interface ResultConfig {
 function getResultConfig(result: number): ResultConfig {
   if (result > 0) return { emoji: "🎉", label: "You Win!", color: "#4caf50" };
   if (result < 0) return { emoji: "💔", label: "You Lose", color: "#f44336" };
-  return { emoji: "🤝", label: "Push", color: "#ffc107" };
+  return { emoji: "🤝", label: "Draw", color: "#ffc107" };
 }
 
 // ─── Styles ────────────────────────────────────────────────────────
@@ -84,13 +84,13 @@ const buttonStyle: CSSProperties = {
 // ─── Component ─────────────────────────────────────────────────────
 
 function formatScore(label: string, score: number): string {
-  return score > 21 ? `${label}: ${score} (Busted)` : `${label}: ${score}`;
+  return `${label}: ${score}`;
 }
 
 export function RoundResultsBanner({
   result,
   playerScore,
-  dealerScore,
+  opponentScores,
   onNewRound,
 }: RoundResultsBannerProps): React.JSX.Element {
   const config = getResultConfig(result);
@@ -108,7 +108,9 @@ export function RoundResultsBanner({
         <span style={resultLabelStyle}>{config.label}</span>
         <div style={scoreSummaryStyle}>
           <span>{formatScore("Your Hand", playerScore)}</span>
-          <span>{formatScore("Dealer", dealerScore)}</span>
+          {opponentScores.map(({ label, score }) => (
+            <span key={label}>{formatScore(label, score)}</span>
+          ))}
         </div>
         <button
           type="button"

@@ -34,7 +34,14 @@ export function PlayingScreen({
   const isRoundEnd = playerView.currentPhase === "round_end";
   const myResult = playerView.scores[`result:${playerView.myPlayerId}`] ?? 0;
   const myScore = playerView.scores[playerView.myPlayerId] ?? 0;
-  const dealerScore = playerView.scores["dealer"] ?? 0;
+
+  // Dynamically find NPC/opponent scores (any key ending with "_score" that isn't a player score)
+  const npcScores = Object.entries(playerView.scores)
+    .filter(([key]) => key.endsWith("_score"))
+    .map(([key, value]) => ({
+      label: key.replace(/_score$/, "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+      score: value,
+    }));
 
   return (
     <div style={containerStyle}>
@@ -50,7 +57,7 @@ export function PlayingScreen({
         <RoundResultsBanner
           result={myResult}
           playerScore={myScore}
-          dealerScore={dealerScore}
+          opponentScores={npcScores}
           onNewRound={() =>
             sendAction({
               type: "GAME_ACTION",

@@ -298,10 +298,9 @@ function ResultsOverlay({
             const handValue = engineState.scores[`player_score:${index}`] ?? 0;
             const result = engineState.scores[`result:${index}`] ?? 0;
             const resultLabel =
-              result > 0 ? "WIN" : result < 0 ? "LOSS" : "PUSH";
+              result > 0 ? "WIN" : result < 0 ? "LOSS" : "DRAW";
             const resultColor =
               result > 0 ? "#4caf50" : result < 0 ? "#f44336" : "#ffc107";
-            const busted = handValue > 21;
 
             return (
               <View
@@ -318,7 +317,6 @@ function ResultsOverlay({
                 </Text>
                 <Text style={{ color: "#b0b0b0", fontSize: 24 }}>
                   {handValue}
-                  {busted ? " (Busted)" : ""}
                 </Text>
                 <View
                   style={{
@@ -338,26 +336,48 @@ function ResultsOverlay({
             );
           })}
 
-          {/* Dealer score */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 16,
-              marginTop: 8,
-              paddingTop: 12,
-              borderTopWidth: 1,
-              borderTopColor: "#333",
-            }}
-          >
-            <Text style={{ color: "#a0a0a0", fontSize: 24, flex: 1 }}>
-              Dealer
-            </Text>
-            <Text style={{ color: "#b0b0b0", fontSize: 24 }}>
-              {engineState.scores["dealer_score"] ?? 0}
-              {(engineState.scores["dealer_score"] ?? 0) > 21 ? " (Busted)" : ""}
-            </Text>
-          </View>
+          {/* NPC / opponent scores */}
+          {(() => {
+            const npcScores = Object.entries(engineState.scores)
+              .filter(([key]) => key.endsWith("_score") && !key.startsWith("player_score:"))
+              .map(([key, value]) => ({
+                label: key.replace(/_score$/, "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+                score: value,
+              }));
+
+            if (npcScores.length === 0) return null;
+
+            return (
+              <>
+                <View
+                  style={{
+                    borderTopWidth: 1,
+                    borderTopColor: "#333",
+                    marginTop: 8,
+                    paddingTop: 12,
+                  }}
+                />
+                {npcScores.map(({ label, score }) => (
+                  <View
+                    key={label}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 16,
+                      marginBottom: 4,
+                    }}
+                  >
+                    <Text style={{ color: "#a0a0a0", fontSize: 24, flex: 1 }}>
+                      {label}
+                    </Text>
+                    <Text style={{ color: "#b0b0b0", fontSize: 24 }}>
+                      {score}
+                    </Text>
+                  </View>
+                ))}
+              </>
+            );
+          })()}
 
           {/* Info text — phones trigger new round, not TV */}
           <Text

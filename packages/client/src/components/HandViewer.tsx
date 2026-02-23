@@ -66,20 +66,22 @@ export function HandViewer({
   // Find this player's index for identifying their personal zones
   const myIndex = players.findIndex((p) => p.id === myPlayerId);
 
-  // Separate zones into personal hand and other visible zones
-  const handZoneName = `hand:${myIndex}`;
-  const handZone = zones[handZoneName];
+  // Discover all personal zones for this player (hand, split_hand, etc.)
+  const mySuffix = `:${myIndex}`;
+  const myZones = Object.entries(zones)
+    .filter(([name]) => name.endsWith(mySuffix))
+    .filter(([, zone]) => zone.cardCount > 0);
 
-  // Other zones with cards (community cards, discard pile, etc.)
-  // Exclude draw piles — those are typically hidden
+  // Other zones with visible cards (community cards, discard pile, etc.)
+  // Exclude zones where all cards are null (visibility-hidden zones)
   const otherZones = Object.entries(zones).filter(
     ([name, zone]) =>
-      name !== handZoneName &&
-      !name.startsWith("draw_") &&
-      zone.cardCount > 0,
+      !name.endsWith(mySuffix) &&
+      zone.cardCount > 0 &&
+      zone.cards.some((card) => card !== null),
   );
 
-  const hasAnyCards = (handZone?.cardCount ?? 0) > 0 || otherZones.length > 0;
+  const hasAnyCards = myZones.length > 0 || otherZones.length > 0;
 
   if (!hasAnyCards) {
     return (
@@ -91,20 +93,20 @@ export function HandViewer({
 
   return (
     <div style={containerStyle}>
-      {/* Player's hand — always shown first */}
-      {handZone && handZone.cardCount > 0 && (
-        <div style={zoneStyle}>
-          <p style={zoneLabelStyle}>Your Hand</p>
+      {/* Player's personal zones — always shown first */}
+      {myZones.map(([name, zone]) => (
+        <div key={name} style={zoneStyle}>
+          <p style={zoneLabelStyle}>{formatZoneName(name)}</p>
           <div style={cardsRowStyle}>
-            {handZone.cards.map((card, index) => (
+            {zone.cards.map((card, index) => (
               <CardMini
-                key={card?.id ?? `hidden-${index}`}
+                key={card?.id ?? `hidden-${name}-${index}`}
                 card={card}
               />
             ))}
           </div>
         </div>
-      )}
+      ))}
 
       {/* Other visible zones */}
       {otherZones.map(([name, zone]) => (
