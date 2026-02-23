@@ -607,6 +607,12 @@ function applySingleEffect(
       return applyCollectAllToEffect(state, effect.params);
     case "reset_round":
       return applyResetRoundEffect(state);
+    case "move_top":
+      return applyMoveTopEffect(state, effect.params);
+    case "flip_top":
+      return applyFlipTopEffect(state, effect.params);
+    case "move_all":
+      return applyMoveAllEffect(state, effect.params);
     default:
       // Unknown effects are ignored — forward compatible
       return state;
@@ -921,6 +927,82 @@ function applyResetRoundEffect(state: CardGameState): CardGameState {
     turnsTakenThisPhase: 0,
     scores: {},
   };
+}
+
+/**
+ * Moves the top N cards from one zone to another.
+ * If the source zone has fewer cards than `count`, moves all available.
+ * Preserves card state (faceUp, etc.).
+ */
+function applyMoveTopEffect(
+  state: CardGameState,
+  params: Record<string, unknown>
+): CardGameState {
+  const fromName = params.from as string;
+  const toName = params.to as string;
+  const count = params.count as number;
+
+  const zones = { ...state.zones };
+  const fromZone = zones[fromName];
+  const toZone = zones[toName];
+  if (!fromZone || !toZone) return state;
+
+  const fromCards = [...fromZone.cards];
+  const movedCards = fromCards.splice(0, count);
+
+  zones[fromName] = { ...fromZone, cards: fromCards };
+  zones[toName] = { ...toZone, cards: [...toZone.cards, ...movedCards] };
+
+  return { ...state, zones };
+}
+
+/**
+ * Flips the top N cards in a zone to faceUp = true.
+ * If the zone has fewer cards than `count`, flips all.
+ */
+function applyFlipTopEffect(
+  state: CardGameState,
+  params: Record<string, unknown>
+): CardGameState {
+  const zoneName = params.zone as string;
+  const count = params.count as number;
+
+  const zone = state.zones[zoneName];
+  if (!zone) return state;
+
+  const updatedCards = zone.cards.map((card, i) =>
+    i < count ? { ...card, faceUp: true } : card
+  );
+
+  return {
+    ...state,
+    zones: {
+      ...state.zones,
+      [zoneName]: { ...zone, cards: updatedCards },
+    },
+  };
+}
+
+/**
+ * Moves ALL cards from one zone to another.
+ * Cards retain their faceUp state.
+ */
+function applyMoveAllEffect(
+  state: CardGameState,
+  params: Record<string, unknown>
+): CardGameState {
+  const fromName = params.from as string;
+  const toName = params.to as string;
+
+  const zones = { ...state.zones };
+  const fromZone = zones[fromName];
+  const toZone = zones[toName];
+  if (!fromZone || !toZone) return state;
+
+  zones[fromName] = { ...fromZone, cards: [] };
+  zones[toName] = { ...toZone, cards: [...toZone.cards, ...fromZone.cards] };
+
+  return { ...state, zones };
 }
 
 // ─── Deterministic Card Creation ───────────────────────────────────

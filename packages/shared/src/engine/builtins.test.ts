@@ -14,6 +14,7 @@ import {
   type EvalContext,
   type EvalResult,
 } from "./expression-evaluator";
+import { createInitialState, createReducer } from "./interpreter";
 import type {
   Card,
   CardInstanceId,
@@ -24,6 +25,7 @@ import type {
   CardGameRuleset,
   GameSessionId,
   PlayerId,
+  Player,
 } from "../types/index";
 
 // ─── Test Helpers ──────────────────────────────────────────────────
@@ -808,6 +810,532 @@ describe("builtins", () => {
         { kind: "deal", params: { from: "draw_pile", to: "dealer_hand", count: 2 } },
         { kind: "set_face_up", params: { zone: "dealer_hand", cardIndex: 0, faceUp: true } },
       ]);
+    });
+  });
+
+  // ── Phase 8 — Non-Blackjack Builtins ──
+
+  describe("Phase 8 — Non-Blackjack Builtins", () => {
+    // ── Registration ──
+
+    it("registers all Phase 8 builtin names", () => {
+      const names = getRegisteredBuiltins();
+      expect(names).toContain("card_rank");
+      expect(names).toContain("card_suit");
+      expect(names).toContain("card_rank_name");
+      expect(names).toContain("count_rank");
+      expect(names).toContain("top_card_rank");
+      expect(names).toContain("max_card_rank");
+      expect(names).toContain("move_top");
+      expect(names).toContain("flip_top");
+      expect(names).toContain("move_all");
+    });
+
+    // ── Query Builtins ──
+
+    describe("card_rank", () => {
+      it("returns numeric rank for a fixed-value card", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("7", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('card_rank("hand", 0)', ctx);
+        expect(result).toEqual({ kind: "number", value: 10 });
+      });
+
+      it("returns high value for a dual-value card (Ace)", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("A", "spades"),
+            makeCard("5", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('card_rank("hand", 0)', ctx);
+        expect(result).toEqual({ kind: "number", value: 11 });
+      });
+
+      it("returns rank for card at non-zero index", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("7", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('card_rank("hand", 1)', ctx);
+        expect(result).toEqual({ kind: "number", value: 7 });
+      });
+
+      it("throws on out-of-bounds index", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [makeCard("K", "spades")]),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression('card_rank("hand", 5)', ctx)).toThrow(
+          "index 5 out of bounds"
+        );
+      });
+
+      it("throws on unknown zone", () => {
+        const state = makeGameState({});
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression('card_rank("nonexistent", 0)', ctx)).toThrow(
+          "Unknown zone"
+        );
+      });
+    });
+
+    describe("card_suit", () => {
+      it("returns suit string of a card", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("7", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('card_suit("hand", 0)', ctx);
+        expect(result).toEqual({ kind: "string", value: "spades" });
+      });
+
+      it("returns suit for second card", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("7", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('card_suit("hand", 1)', ctx);
+        expect(result).toEqual({ kind: "string", value: "hearts" });
+      });
+
+      it("throws on out-of-bounds index", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [makeCard("K", "spades")]),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression('card_suit("hand", 3)', ctx)).toThrow(
+          "index 3 out of bounds"
+        );
+      });
+    });
+
+    describe("card_rank_name", () => {
+      it("returns rank string for a face card", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [makeCard("K", "spades")]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('card_rank_name("hand", 0)', ctx);
+        expect(result).toEqual({ kind: "string", value: "K" });
+      });
+
+      it("returns rank string for a number card", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [makeCard("7", "hearts")]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('card_rank_name("hand", 0)', ctx);
+        expect(result).toEqual({ kind: "string", value: "7" });
+      });
+
+      it("returns rank string for Ace", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [makeCard("A", "diamonds")]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('card_rank_name("hand", 0)', ctx);
+        expect(result).toEqual({ kind: "string", value: "A" });
+      });
+
+      it("throws on out-of-bounds index", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression('card_rank_name("hand", 0)', ctx)).toThrow(
+          "index 0 out of bounds"
+        );
+      });
+    });
+
+    describe("count_rank", () => {
+      it("counts matching ranks in a zone", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("K", "hearts"),
+            makeCard("7", "clubs"),
+            makeCard("K", "diamonds"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_rank("hand", "K")', ctx);
+        expect(result).toEqual({ kind: "number", value: 3 });
+      });
+
+      it("returns 0 for no matches", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("Q", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_rank("hand", "A")', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("returns 0 for empty zone", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_rank("hand", "K")', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+    });
+
+    describe("top_card_rank", () => {
+      it("returns numeric rank of first card", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("Q", "spades"),
+            makeCard("3", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('top_card_rank("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 10 });
+      });
+
+      it("returns high value for dual-value top card", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [makeCard("A", "hearts")]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('top_card_rank("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 11 });
+      });
+
+      it("throws on empty zone", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression('top_card_rank("hand")', ctx)).toThrow(
+          "zone 'hand' is empty"
+        );
+      });
+    });
+
+    describe("max_card_rank", () => {
+      it("returns the highest numeric rank in a zone", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("3", "spades"),
+            makeCard("K", "hearts"),
+            makeCard("7", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('max_card_rank("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 10 });
+      });
+
+      it("returns 0 for empty zone", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('max_card_rank("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("handles zone with mixed fixed and dual values", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("5", "spades"),
+            makeCard("A", "hearts"),
+            makeCard("9", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        // A has high value 11, which is the max
+        const result = evaluateExpression('max_card_rank("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 11 });
+      });
+
+      it("handles zone where all cards have same rank", () => {
+        const state = makeGameState({
+          hand: makeZone("hand", [
+            makeCard("7", "spades"),
+            makeCard("7", "hearts"),
+            makeCard("7", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('max_card_rank("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 7 });
+      });
+    });
+
+    // ── Effect Builtins (shape tests) ──
+
+    describe("move_top effect builtin", () => {
+      it("pushes a move_top effect with correct params", () => {
+        const state = makeGameState({});
+        const ctx = makeMutableContext(state);
+        evaluateExpression('move_top("draw_pile", "discard", 3)', ctx);
+        expect(ctx.effects).toEqual([
+          { kind: "move_top", params: { from: "draw_pile", to: "discard", count: 3 } },
+        ]);
+      });
+
+      it("throws without MutableEvalContext", () => {
+        const state = makeGameState({});
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression('move_top("a", "b", 1)', ctx)).toThrow(
+          "requires a MutableEvalContext"
+        );
+      });
+    });
+
+    describe("flip_top effect builtin", () => {
+      it("pushes a flip_top effect with correct params", () => {
+        const state = makeGameState({});
+        const ctx = makeMutableContext(state);
+        evaluateExpression('flip_top("hand", 2)', ctx);
+        expect(ctx.effects).toEqual([
+          { kind: "flip_top", params: { zone: "hand", count: 2 } },
+        ]);
+      });
+    });
+
+    describe("move_all effect builtin", () => {
+      it("pushes a move_all effect with correct params", () => {
+        const state = makeGameState({});
+        const ctx = makeMutableContext(state);
+        evaluateExpression('move_all("hand", "discard")', ctx);
+        expect(ctx.effects).toEqual([
+          { kind: "move_all", params: { from: "hand", to: "discard" } },
+        ]);
+      });
+    });
+
+    // ── Effect Handlers (integration via reducer) ──
+
+    describe("effect handlers via reducer", () => {
+      const FIXED_SEED = 42;
+
+      function makePlayerId(id: string): PlayerId {
+        return id as PlayerId;
+      }
+
+      function makePlayers(count: number): Player[] {
+        const players: Player[] = [];
+        for (let i = 0; i < count; i++) {
+          players.push({
+            id: makePlayerId(`p${i}`),
+            name: `Player ${i}`,
+            role: "player",
+            connected: true,
+          });
+        }
+        return players;
+      }
+
+      function makeEffectTestRuleset(
+        automaticSequence: string[]
+      ): CardGameRuleset {
+        return {
+          meta: {
+            name: "Effect Test",
+            slug: "effect-test",
+            version: "1.0.0",
+            author: "test",
+            players: { min: 1, max: 2 },
+          },
+          deck: {
+            preset: "standard_52",
+            copies: 1,
+            cardValues: BLACKJACK_CARD_VALUES,
+          },
+          zones: [
+            { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+            { name: "hand", visibility: { kind: "owner_only" }, owners: ["player"] },
+            { name: "discard", visibility: { kind: "public" }, owners: [] },
+            { name: "pile_a", visibility: { kind: "public" }, owners: [] },
+            { name: "pile_b", visibility: { kind: "public" }, owners: [] },
+          ],
+          roles: [
+            { name: "player", isHuman: true, count: "per_player" },
+          ],
+          phases: [
+            {
+              name: "setup",
+              kind: "automatic",
+              actions: [],
+              transitions: [{ to: "play", when: "all_hands_dealt" }],
+              automaticSequence,
+            },
+            {
+              name: "play",
+              kind: "turn_based",
+              actions: [{ name: "noop", label: "Noop", effect: [] }],
+              transitions: [],
+              turnOrder: "clockwise",
+            },
+          ],
+          scoring: {
+            method: "0",
+            winCondition: "false",
+          },
+          visibility: [],
+          ui: { layout: "semicircle", tableColor: "felt_green" },
+        };
+      }
+
+      it("move_top: moves top N cards from one zone to another", () => {
+        // Setup: shuffle draw_pile, then deal 5 to pile_a, then move_top 2 from pile_a to pile_b
+        const ruleset = makeEffectTestRuleset([
+          'shuffle("draw_pile")',
+          'deal("draw_pile", "pile_a", 5)',
+          'move_top("pile_a", "pile_b", 2)',
+        ]);
+        const players = makePlayers(1);
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
+        const reducer = createReducer(ruleset, FIXED_SEED);
+
+        const result = reducer(state, { kind: "start_game" });
+
+        // pile_a should have 3 cards (5 dealt - 2 moved)
+        expect(result.zones["pile_a"]!.cards).toHaveLength(3);
+        // pile_b should have 2 cards
+        expect(result.zones["pile_b"]!.cards).toHaveLength(2);
+      });
+
+      it("move_top: moves all available if fewer cards than count", () => {
+        const ruleset = makeEffectTestRuleset([
+          'shuffle("draw_pile")',
+          'deal("draw_pile", "pile_a", 2)',
+          'move_top("pile_a", "pile_b", 10)',
+        ]);
+        const players = makePlayers(1);
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
+        const reducer = createReducer(ruleset, FIXED_SEED);
+
+        const result = reducer(state, { kind: "start_game" });
+
+        // pile_a should be empty (only had 2, requested 10)
+        expect(result.zones["pile_a"]!.cards).toHaveLength(0);
+        // pile_b should have 2 cards
+        expect(result.zones["pile_b"]!.cards).toHaveLength(2);
+      });
+
+      it("flip_top: flips top N cards face-up", () => {
+        // Cards dealt from draw_pile start face-down. flip_top flips them.
+        const ruleset = makeEffectTestRuleset([
+          'shuffle("draw_pile")',
+          'deal("draw_pile", "pile_a", 4)',
+          'flip_top("pile_a", 2)',
+        ]);
+        const players = makePlayers(1);
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
+        const reducer = createReducer(ruleset, FIXED_SEED);
+
+        const result = reducer(state, { kind: "start_game" });
+
+        const pileA = result.zones["pile_a"]!.cards;
+        expect(pileA).toHaveLength(4);
+        // First 2 should be face-up
+        expect(pileA[0]!.faceUp).toBe(true);
+        expect(pileA[1]!.faceUp).toBe(true);
+        // Remaining should still be face-down (original state from deal)
+        expect(pileA[2]!.faceUp).toBe(false);
+        expect(pileA[3]!.faceUp).toBe(false);
+      });
+
+      it("flip_top: flips all if fewer cards than count", () => {
+        const ruleset = makeEffectTestRuleset([
+          'shuffle("draw_pile")',
+          'deal("draw_pile", "pile_a", 2)',
+          'flip_top("pile_a", 10)',
+        ]);
+        const players = makePlayers(1);
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
+        const reducer = createReducer(ruleset, FIXED_SEED);
+
+        const result = reducer(state, { kind: "start_game" });
+
+        const pileA = result.zones["pile_a"]!.cards;
+        expect(pileA).toHaveLength(2);
+        expect(pileA[0]!.faceUp).toBe(true);
+        expect(pileA[1]!.faceUp).toBe(true);
+      });
+
+      it("move_all: moves all cards from one zone to another", () => {
+        const ruleset = makeEffectTestRuleset([
+          'shuffle("draw_pile")',
+          'deal("draw_pile", "pile_a", 5)',
+          'move_all("pile_a", "pile_b")',
+        ]);
+        const players = makePlayers(1);
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
+        const reducer = createReducer(ruleset, FIXED_SEED);
+
+        const result = reducer(state, { kind: "start_game" });
+
+        // pile_a should be empty
+        expect(result.zones["pile_a"]!.cards).toHaveLength(0);
+        // pile_b should have all 5 cards
+        expect(result.zones["pile_b"]!.cards).toHaveLength(5);
+      });
+
+      it("move_all: preserves faceUp state of moved cards", () => {
+        // Deal cards, flip some face-up, then move_all
+        const ruleset = makeEffectTestRuleset([
+          'shuffle("draw_pile")',
+          'deal("draw_pile", "pile_a", 3)',
+          'flip_top("pile_a", 1)',
+          'move_all("pile_a", "pile_b")',
+        ]);
+        const players = makePlayers(1);
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
+        const reducer = createReducer(ruleset, FIXED_SEED);
+
+        const result = reducer(state, { kind: "start_game" });
+
+        const pileB = result.zones["pile_b"]!.cards;
+        expect(pileB).toHaveLength(3);
+        // First card was flipped face-up, should retain that state
+        expect(pileB[0]!.faceUp).toBe(true);
+        // Remaining cards should still be face-down
+        expect(pileB[1]!.faceUp).toBe(false);
+        expect(pileB[2]!.faceUp).toBe(false);
+      });
+
+      it("move_all: empty source zone results in no changes to target", () => {
+        const ruleset = makeEffectTestRuleset([
+          'shuffle("draw_pile")',
+          'deal("draw_pile", "pile_b", 3)',
+          'move_all("pile_a", "pile_b")',
+        ]);
+        const players = makePlayers(1);
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
+        const reducer = createReducer(ruleset, FIXED_SEED);
+
+        const result = reducer(state, { kind: "start_game" });
+
+        // pile_a was empty, so pile_b should still have only its original 3 cards
+        expect(result.zones["pile_a"]!.cards).toHaveLength(0);
+        expect(result.zones["pile_b"]!.cards).toHaveLength(3);
+      });
     });
   });
 });

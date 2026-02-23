@@ -117,6 +117,18 @@ function requireNumber(arg: EvalResult, name: string): number {
 }
 
 /**
+ * Extracts a required string argument from an EvalResult.
+ */
+function requireString(arg: EvalResult, name: string): string {
+  if (arg.kind !== "string") {
+    throw new ExpressionError(
+      `Expected string for '${name}', got ${arg.kind}`
+    );
+  }
+  return arg.value;
+}
+
+/**
  * Extracts a required boolean argument from an EvalResult.
  */
 function requireBoolean(arg: EvalResult, name: string): boolean {
@@ -303,6 +315,114 @@ const preferHighUnderBuiltin: BuiltinFunction = (args, _context) => {
   return { kind: "number", value: target };
 };
 
+/**
+ * card_rank(zone, index) — Returns the numeric rank value of a card.
+ * For dual-value cards (e.g., Ace), returns the high value.
+ */
+const cardRankBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("card_rank", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const index = requireNumber(args[1]!, "index");
+  const zone = getZone(context.state, zoneName);
+  if (index < 0 || index >= zone.cards.length) {
+    throw new ExpressionError(
+      `card_rank(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`
+    );
+  }
+  const card = zone.cards[index]!;
+  const cv = getCardValue(context.state.ruleset.deck.cardValues, card.rank);
+  const value = cv.kind === "fixed" ? cv.value : cv.high;
+  return { kind: "number", value };
+};
+
+/**
+ * card_suit(zone, index) — Returns the suit string of a card.
+ */
+const cardSuitBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("card_suit", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const index = requireNumber(args[1]!, "index");
+  const zone = getZone(context.state, zoneName);
+  if (index < 0 || index >= zone.cards.length) {
+    throw new ExpressionError(
+      `card_suit(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`
+    );
+  }
+  const card = zone.cards[index]!;
+  return { kind: "string", value: card.suit };
+};
+
+/**
+ * card_rank_name(zone, index) — Returns the rank string of a card (e.g., "A", "K", "7").
+ */
+const cardRankNameBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("card_rank_name", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const index = requireNumber(args[1]!, "index");
+  const zone = getZone(context.state, zoneName);
+  if (index < 0 || index >= zone.cards.length) {
+    throw new ExpressionError(
+      `card_rank_name(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`
+    );
+  }
+  const card = zone.cards[index]!;
+  return { kind: "string", value: card.rank };
+};
+
+/**
+ * count_rank(zone, rank_name) — Counts cards in a zone with the given rank string.
+ */
+const countRankBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("count_rank", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const rankName = requireString(args[1]!, "rank_name");
+  const zone = getZone(context.state, zoneName);
+  const count = zone.cards.filter((card) => card.rank === rankName).length;
+  return { kind: "number", value: count };
+};
+
+/**
+ * top_card_rank(zone) — Returns the numeric rank of the first card in a zone.
+ * Shorthand for card_rank(zone, 0).
+ */
+const topCardRankBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("top_card_rank", args, 1);
+  const zoneName = resolveZoneName(args[0]!);
+  const zone = getZone(context.state, zoneName);
+  if (zone.cards.length === 0) {
+    throw new ExpressionError(
+      `top_card_rank(): zone '${zoneName}' is empty`
+    );
+  }
+  const card = zone.cards[0]!;
+  const cv = getCardValue(context.state.ruleset.deck.cardValues, card.rank);
+  const value = cv.kind === "fixed" ? cv.value : cv.high;
+  return { kind: "number", value };
+};
+
+/**
+ * max_card_rank(zone) — Returns the highest numeric rank value in a zone.
+ * Returns 0 for empty zones.
+ */
+const maxCardRankBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("max_card_rank", args, 1);
+  const zoneName = resolveZoneName(args[0]!);
+  const zone = getZone(context.state, zoneName);
+  if (zone.cards.length === 0) {
+    return { kind: "number", value: 0 };
+  }
+  const cardValues = context.state.ruleset.deck.cardValues;
+  let max = -Infinity;
+  for (const card of zone.cards) {
+    const cv = getCardValue(cardValues, card.rank);
+    const value = cv.kind === "fixed" ? cv.value : cv.high;
+    if (value > max) {
+      max = value;
+    }
+  }
+  return { kind: "number", value: max };
+};
+
 // ─── Effect Builtins ───────────────────────────────────────────────
 
 /**
@@ -415,6 +535,40 @@ const resetRoundBuiltin: BuiltinFunction = (args, context) => {
   pushEffect(context, { kind: "reset_round", params: {} });
 };
 
+/**
+ * move_top(from, to, count) — Records a move_top effect.
+ * Moves top N cards from one zone to another.
+ */
+const moveTopBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("move_top", args, 3);
+  const from = resolveZoneName(args[0]!);
+  const to = resolveZoneName(args[1]!);
+  const count = requireNumber(args[2]!, "count");
+  pushEffect(context, { kind: "move_top", params: { from, to, count } });
+};
+
+/**
+ * flip_top(zone, count) — Records a flip_top effect.
+ * Flips top N cards face-up in a zone.
+ */
+const flipTopBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("flip_top", args, 2);
+  const zone = resolveZoneName(args[0]!);
+  const count = requireNumber(args[1]!, "count");
+  pushEffect(context, { kind: "flip_top", params: { zone, count } });
+};
+
+/**
+ * move_all(from, to) — Records a move_all effect.
+ * Moves ALL cards from one zone to another.
+ */
+const moveAllBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("move_all", args, 2);
+  const from = resolveZoneName(args[0]!);
+  const to = resolveZoneName(args[1]!);
+  pushEffect(context, { kind: "move_all", params: { from, to } });
+};
+
 // ─── Registration ──────────────────────────────────────────────────
 
 /**
@@ -428,6 +582,12 @@ export function registerAllBuiltins(): void {
   // Query builtins
   registerBuiltin("hand_value", handValueBuiltin);
   registerBuiltin("card_count", cardCountBuiltin);
+  registerBuiltin("card_rank", cardRankBuiltin);
+  registerBuiltin("card_rank_name", cardRankNameBuiltin);
+  registerBuiltin("card_suit", cardSuitBuiltin);
+  registerBuiltin("count_rank", countRankBuiltin);
+  registerBuiltin("max_card_rank", maxCardRankBuiltin);
+  registerBuiltin("top_card_rank", topCardRankBuiltin);
   registerBuiltin("all_players_done", allPlayersDoneBuiltin);
   registerBuiltin("all_hands_dealt", allHandsDealtBuiltin);
   registerBuiltin("scores_calculated", scoresCalculatedBuiltin);
@@ -446,4 +606,7 @@ export function registerAllBuiltins(): void {
   registerBuiltin("determine_winners", determineWinnersBuiltin);
   registerBuiltin("collect_all_to", collectAllToBuiltin);
   registerBuiltin("reset_round", resetRoundBuiltin);
+  registerBuiltin("move_top", moveTopBuiltin);
+  registerBuiltin("flip_top", flipTopBuiltin);
+  registerBuiltin("move_all", moveAllBuiltin);
 }
