@@ -78,6 +78,8 @@ const ScoringSchema = z.object({
   method: z.string().min(1),
   winCondition: z.string().min(1),
   bustCondition: z.string().optional(),
+  tieCondition: z.string().optional(),
+  autoEndTurnCondition: z.string().optional(),
 });
 
 const VisibilityRuleSchema = z.object({

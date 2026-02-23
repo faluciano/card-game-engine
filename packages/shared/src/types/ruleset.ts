@@ -95,6 +95,8 @@ export interface ScoringConfig {
   readonly method: Expression;
   readonly winCondition: Expression;
   readonly bustCondition?: Expression;
+  readonly tieCondition?: Expression;
+  readonly autoEndTurnCondition?: Expression;
 }
 
 // ─── Visibility Rules ──────────────────────────────────────────────
