@@ -2593,3 +2593,1320 @@ describe("Crazy Eights Integration — Full Game Lifecycle", () => {
     });
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// ═══ Ninety-Nine (99) Integration Tests ═════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// Exercises the custom variables system (get_var, set_var, inc_var) via
+// the Ninety-Nine card game. Each turn a player plays their top card,
+// the running_total is updated based on the card rank, and if it exceeds
+// 99 that player busts and loses.
+//
+// Card effects:
+//   A=+1, 2-3=+face, 4=reverse, 5-8=+face, 9=set to 99,
+//   10=-10, J/Q=+10, K=+0
+
+const NINETY_NINE_CARD_VALUES: Readonly<Record<string, CardValue>> = {
+  A:   { kind: "fixed", value: 1 },
+  "2": { kind: "fixed", value: 2 },
+  "3": { kind: "fixed", value: 3 },
+  "4": { kind: "fixed", value: 0 },
+  "5": { kind: "fixed", value: 5 },
+  "6": { kind: "fixed", value: 6 },
+  "7": { kind: "fixed", value: 7 },
+  "8": { kind: "fixed", value: 8 },
+  "9": { kind: "fixed", value: 0 },
+  "10": { kind: "fixed", value: 10 },
+  J:   { kind: "fixed", value: 10 },
+  Q:   { kind: "fixed", value: 10 },
+  K:   { kind: "fixed", value: 0 },
+};
+
+const NINETY_NINE_RULESET_PATH = resolve(
+  import.meta.dirname ?? __dirname,
+  "../../../../rulesets/ninety-nine.cardgame.json"
+);
+
+function makeNinetyNineRuleset(): CardGameRuleset {
+  return {
+    meta: {
+      name: "Ninety-Nine",
+      slug: "ninety-nine",
+      version: "1.0.0",
+      author: "faluciano",
+      players: { min: 2, max: 4 },
+    },
+    deck: {
+      preset: "standard_52",
+      copies: 1,
+      cardValues: NINETY_NINE_CARD_VALUES,
+    },
+    zones: [
+      { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+      { name: "hand", visibility: { kind: "owner_only" }, owners: ["player"] },
+      { name: "discard", visibility: { kind: "public" }, owners: [] },
+    ],
+    roles: [
+      { name: "player", isHuman: true, count: "per_player" },
+    ],
+    initialVariables: {
+      running_total: 0,
+      bust_player: -1,
+    },
+    phases: [
+      {
+        name: "setup",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "player_turns", when: "all_hands_dealt" }],
+        automaticSequence: [
+          "shuffle(draw_pile)",
+          "deal(draw_pile, hand, 3)",
+        ],
+      },
+      {
+        name: "player_turns",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play",
+            label: "Play Top Card",
+            effect: [
+              "set_var(\"bust_player\", current_player_index)",
+              "if(card_rank_name(current_player.hand, 0) == \"4\", reverse_turn_order())",
+              "if(card_rank_name(current_player.hand, 0) == \"9\", set_var(\"running_total\", 99))",
+              "if(card_rank_name(current_player.hand, 0) == \"10\", inc_var(\"running_total\", -10))",
+              "if(card_rank_name(current_player.hand, 0) != \"4\" && card_rank_name(current_player.hand, 0) != \"9\" && card_rank_name(current_player.hand, 0) != \"10\" && card_rank_name(current_player.hand, 0) != \"K\", inc_var(\"running_total\", card_rank(current_player.hand, 0)))",
+              "move_top(current_player.hand, discard, 1)",
+              "if(card_count(draw_pile) > 0, draw(draw_pile, current_player.hand, 1))",
+              "end_turn()",
+            ],
+          },
+        ],
+        transitions: [
+          { to: "scoring", when: "get_var(\"running_total\") > 99" },
+          { to: "scoring", when: "card_count(\"draw_pile\") == 0 && card_count(\"hand:0\") == 0" },
+        ],
+        turnOrder: "clockwise",
+      },
+      {
+        name: "scoring",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "round_end", when: "scores_calculated" }],
+        automaticSequence: [
+          "calculate_scores()",
+          "determine_winners()",
+        ],
+      },
+      {
+        name: "round_end",
+        kind: "all_players",
+        actions: [
+          {
+            name: "play_again",
+            label: "Play Again",
+            effect: [
+              "collect_all_to(draw_pile)",
+              "reset_round()",
+            ],
+          },
+        ],
+        transitions: [{ to: "setup", when: "continue_game" }],
+      },
+    ],
+    scoring: {
+      method: "if(current_player_index == get_var(\"bust_player\"), 0, 1)",
+      winCondition: "my_score > 0",
+      bustCondition: "false",
+      tieCondition: "false",
+    },
+    visibility: [
+      { zone: "draw_pile", visibility: { kind: "hidden" } },
+      { zone: "hand", visibility: { kind: "owner_only" } },
+      { zone: "discard", visibility: { kind: "public" } },
+    ],
+    ui: { layout: "circle", tableColor: "felt_green" },
+  };
+}
+
+/**
+ * Creates a started Ninety-Nine game ready for player actions.
+ * Returns state at `player_turns` with 3 cards dealt per player.
+ */
+function startNinetyNineGame(
+  playerCount: number = 2,
+  seed: number = FIXED_SEED
+): { state: CardGameState; reducer: GameReducer; players: Player[] } {
+  const ruleset = makeNinetyNineRuleset();
+  const players: Player[] = Array.from({ length: playerCount }, (_, i) => ({
+    id: pid(`player-${i}`),
+    name: `Player ${i}`,
+    role: "player" as const,
+    connected: true,
+  }));
+  const reducer = createReducer(ruleset, seed);
+  const initial = createInitialState(
+    ruleset,
+    sid("ninety-nine-test-session"),
+    players,
+    seed
+  );
+  const state = reducer(initial, { kind: "start_game" });
+  return { state, reducer, players };
+}
+
+/**
+ * Helper: finds a seed where a given player's top card matches the target rank.
+ * Returns the seed, or null if none found within the search range.
+ */
+function findSeedForTopCard(
+  targetRank: string,
+  playerIndex: number = 0,
+  playerCount: number = 2,
+  maxSearch: number = 3000
+): number | null {
+  for (let seed = 0; seed < maxSearch; seed++) {
+    try {
+      clearBuiltins();
+      registerAllBuiltins();
+      const game = startNinetyNineGame(playerCount, seed);
+      const hand = game.state.zones[`hand:${playerIndex}`];
+      if (hand && hand.cards.length > 0 && hand.cards[0]!.rank === targetRank) {
+        return seed;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * Helper: plays a single "play" declare action for the current player.
+ */
+function playTopCard(
+  state: CardGameState,
+  reducer: GameReducer,
+  players: Player[]
+): CardGameState {
+  return reducer(state, {
+    kind: "declare",
+    playerId: players[state.currentPlayerIndex]!.id,
+    declaration: "play",
+  });
+}
+
+// ─── Ninety-Nine Tests ────────────────────────────────────────────
+
+describe("Ninety-Nine (99) Integration — Full Game Lifecycle", () => {
+  beforeEach(() => {
+    clearBuiltins();
+    registerAllBuiltins();
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Schema Validation ─────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("schema validation", () => {
+    it("loads and validates the ninety-nine ruleset from disk", () => {
+      const raw = JSON.parse(readFileSync(NINETY_NINE_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      expect(jsonRuleset.meta.name).toBe("Ninety-Nine");
+      expect(jsonRuleset.meta.slug).toBe("ninety-nine");
+      expect(jsonRuleset.deck.preset).toBe("standard_52");
+      expect(jsonRuleset.deck.copies).toBe(1);
+      expect(jsonRuleset.phases).toHaveLength(4);
+      expect(jsonRuleset.roles).toHaveLength(1);
+      expect(jsonRuleset.zones).toHaveLength(3);
+    });
+
+    it("validates schema with parseRuleset without throwing", () => {
+      const raw = JSON.parse(readFileSync(NINETY_NINE_RULESET_PATH, "utf-8"));
+      expect(() => parseRuleset(raw)).not.toThrow();
+    });
+
+    it("JSON ruleset contains all expected phases", () => {
+      const raw = JSON.parse(readFileSync(NINETY_NINE_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      const phaseNames = jsonRuleset.phases.map((p) => p.name);
+      expect(phaseNames).toEqual([
+        "setup",
+        "player_turns",
+        "scoring",
+        "round_end",
+      ]);
+    });
+
+    it("JSON ruleset contains initialVariables", () => {
+      const raw = JSON.parse(readFileSync(NINETY_NINE_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      expect(jsonRuleset.initialVariables).toEqual({
+        running_total: 0,
+        bust_player: -1,
+      });
+    });
+
+    it("JSON ruleset contains play action with variable effects", () => {
+      const raw = JSON.parse(readFileSync(NINETY_NINE_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      const playerTurns = jsonRuleset.phases.find(
+        (p) => p.name === "player_turns"
+      )!;
+      expect(playerTurns.actions).toHaveLength(1);
+      expect(playerTurns.actions[0]!.name).toBe("play");
+
+      const effects = playerTurns.actions[0]!.effect;
+      expect(effects).toBeDefined();
+      expect(Array.isArray(effects)).toBe(true);
+      // Should include set_var, inc_var, move_top, draw, end_turn
+      const effectStr = (effects as string[]).join(" ");
+      expect(effectStr).toContain("set_var");
+      expect(effectStr).toContain("inc_var");
+      expect(effectStr).toContain("move_top");
+      expect(effectStr).toContain("end_turn");
+    });
+
+    it("scoring method uses custom variables", () => {
+      const raw = JSON.parse(readFileSync(NINETY_NINE_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      expect(jsonRuleset.scoring.method).toContain("get_var");
+      expect(jsonRuleset.scoring.method).toContain("bust_player");
+      expect(jsonRuleset.scoring.winCondition).toBe("my_score > 0");
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Initial State ─────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("initial state", () => {
+    it("initializes variables from ruleset", () => {
+      const ruleset = makeNinetyNineRuleset();
+      const players: Player[] = [
+        { id: pid("p0"), name: "P0", role: "player", connected: true },
+        { id: pid("p1"), name: "P1", role: "player", connected: true },
+      ];
+      const initial = createInitialState(
+        ruleset,
+        sid("test"),
+        players,
+        FIXED_SEED
+      );
+
+      expect(initial.variables).toEqual({
+        running_total: 0,
+        bust_player: -1,
+      });
+    });
+
+    it("creates per-player hand zones", () => {
+      const ruleset = makeNinetyNineRuleset();
+      const players: Player[] = Array.from({ length: 3 }, (_, i) => ({
+        id: pid(`p${i}`),
+        name: `P${i}`,
+        role: "player" as const,
+        connected: true,
+      }));
+      const initial = createInitialState(
+        ruleset,
+        sid("test"),
+        players,
+        FIXED_SEED
+      );
+
+      expect(initial.zones["hand:0"]).toBeDefined();
+      expect(initial.zones["hand:1"]).toBeDefined();
+      expect(initial.zones["hand:2"]).toBeDefined();
+    });
+
+    it("places all 52 cards in draw_pile before start", () => {
+      const ruleset = makeNinetyNineRuleset();
+      const players: Player[] = [
+        { id: pid("p0"), name: "P0", role: "player", connected: true },
+        { id: pid("p1"), name: "P1", role: "player", connected: true },
+      ];
+      const initial = createInitialState(
+        ruleset,
+        sid("test"),
+        players,
+        FIXED_SEED
+      );
+
+      expect(initial.zones["draw_pile"]!.cards).toHaveLength(52);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Setup Phase ───────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("setup phase", () => {
+    it("deals 3 cards per player with 2 players", () => {
+      const { state } = startNinetyNineGame(2);
+
+      expect(state.zones["hand:0"]!.cards).toHaveLength(3);
+      expect(state.zones["hand:1"]!.cards).toHaveLength(3);
+      // 52 - 3 - 3 = 46 cards remain in draw pile
+      expect(state.zones["draw_pile"]!.cards).toHaveLength(46);
+    });
+
+    it("deals 3 cards per player with 3 players", () => {
+      const { state } = startNinetyNineGame(3);
+
+      expect(state.zones["hand:0"]!.cards).toHaveLength(3);
+      expect(state.zones["hand:1"]!.cards).toHaveLength(3);
+      expect(state.zones["hand:2"]!.cards).toHaveLength(3);
+      // 52 - 9 = 43
+      expect(state.zones["draw_pile"]!.cards).toHaveLength(43);
+    });
+
+    it("deals 3 cards per player with 4 players", () => {
+      const { state } = startNinetyNineGame(4);
+
+      expect(state.zones["hand:0"]!.cards).toHaveLength(3);
+      expect(state.zones["hand:1"]!.cards).toHaveLength(3);
+      expect(state.zones["hand:2"]!.cards).toHaveLength(3);
+      expect(state.zones["hand:3"]!.cards).toHaveLength(3);
+      // 52 - 12 = 40
+      expect(state.zones["draw_pile"]!.cards).toHaveLength(40);
+    });
+
+    it("starts in player_turns phase after setup", () => {
+      const { state } = startNinetyNineGame(2);
+
+      expect(state.status.kind).toBe("in_progress");
+      expect(state.currentPhase).toBe("player_turns");
+    });
+
+    it("player 0 goes first", () => {
+      const { state } = startNinetyNineGame(2);
+
+      expect(state.currentPlayerIndex).toBe(0);
+    });
+
+    it("variables are initialized after setup", () => {
+      const { state } = startNinetyNineGame(2);
+
+      expect(state.variables.running_total).toBe(0);
+      expect(state.variables.bust_player).toBe(-1);
+    });
+
+    it("discard pile is empty after setup (no starter card)", () => {
+      const { state } = startNinetyNineGame(2);
+
+      expect(state.zones["discard"]!.cards).toHaveLength(0);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Normal Number Card Play ───────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("normal number card play", () => {
+    it("playing a number card adds its face value to running_total", () => {
+      // Find a seed where player 0 has a normal number card (A,2,3,5,6,7,8,J,Q)
+      const normalRanks = ["A", "2", "3", "5", "6", "7", "8", "J", "Q"];
+      let testSeed: number | null = null;
+      let expectedRank: string | null = null;
+
+      for (let seed = 0; seed < 2000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startNinetyNineGame(2, seed);
+          const topCard = game.state.zones["hand:0"]!.cards[0]!;
+          if (normalRanks.includes(topCard.rank)) {
+            testSeed = seed;
+            expectedRank = topCard.rank;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      expect(testSeed).not.toBeNull();
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, testSeed!);
+
+      const topCard = state.zones["hand:0"]!.cards[0]!;
+      expect(topCard.rank).toBe(expectedRank);
+
+      const expectedValue = NINETY_NINE_CARD_VALUES[topCard.rank]!;
+      const expectedInc =
+        expectedValue.kind === "fixed" ? expectedValue.value : 0;
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      expect(afterPlay.variables.running_total).toBe(expectedInc);
+    });
+
+    it("playing moves card from hand to discard and draws replacement", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      const handBefore = state.zones["hand:0"]!.cards.length;
+      const discardBefore = state.zones["discard"]!.cards.length;
+      const drawBefore = state.zones["draw_pile"]!.cards.length;
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      // Hand still has 3 cards (played 1, drew 1)
+      expect(afterPlay.zones["hand:0"]!.cards.length).toBe(handBefore);
+      // Discard has 1 more card
+      expect(afterPlay.zones["discard"]!.cards.length).toBe(
+        discardBefore + 1
+      );
+      // Draw pile has 1 fewer card
+      expect(afterPlay.zones["draw_pile"]!.cards.length).toBe(
+        drawBefore - 1
+      );
+    });
+
+    it("turn advances to next player after play", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      expect(state.currentPlayerIndex).toBe(0);
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      // Should stay in player_turns (total <= 99)
+      if (afterPlay.currentPhase === "player_turns") {
+        expect(afterPlay.currentPlayerIndex).toBe(1);
+      }
+    });
+
+    it("bust_player is set to current player index on each play", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      expect(state.variables.bust_player).toBe(-1);
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      // Player 0 just played
+      expect(afterPlay.variables.bust_player).toBe(0);
+    });
+
+    it("version increases after each play", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      expect(afterPlay.version).toBeGreaterThan(state.version);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── King (K) Play — +0 ────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("King play (+0)", () => {
+    it("playing a King does not change running_total", () => {
+      const kingSeed = findSeedForTopCard("K", 0, 2);
+      if (kingSeed === null) {
+        // Extremely unlikely, but guard the test
+        expect(kingSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, kingSeed);
+
+      expect(state.zones["hand:0"]!.cards[0]!.rank).toBe("K");
+      expect(state.variables.running_total).toBe(0);
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      expect(afterPlay.variables.running_total).toBe(0);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Four (4) Play — Reverse Direction ─────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("4-reverse", () => {
+    it("playing a 4 reverses turn direction", () => {
+      const fourSeed = findSeedForTopCard("4", 0, 2);
+      if (fourSeed === null) {
+        expect(fourSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, fourSeed);
+
+      expect(state.zones["hand:0"]!.cards[0]!.rank).toBe("4");
+      expect(state.turnDirection).toBe(1);
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      expect(afterPlay.turnDirection).toBe(-1);
+    });
+
+    it("playing a 4 does not change running_total", () => {
+      const fourSeed = findSeedForTopCard("4", 0, 2);
+      if (fourSeed === null) {
+        expect(fourSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, fourSeed);
+
+      expect(state.variables.running_total).toBe(0);
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      expect(afterPlay.variables.running_total).toBe(0);
+    });
+
+    it("playing two 4s restores original direction", () => {
+      // Find a seed where player 0 has a 4, then after play find if player 1 also has a 4
+      const fourSeed = findSeedForTopCard("4", 0, 2);
+      if (fourSeed === null) {
+        expect(fourSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, fourSeed);
+
+      // Play the 4 — reverses direction
+      const afterFirst = playTopCard(state, reducer, players);
+      expect(afterFirst.turnDirection).toBe(-1);
+
+      // With 2 players, reversed direction still wraps to the other player.
+      // If the next player also has a 4 at the top, play it.
+      if (
+        afterFirst.currentPhase === "player_turns" &&
+        afterFirst.zones[`hand:${afterFirst.currentPlayerIndex}`]?.cards[0]
+          ?.rank === "4"
+      ) {
+        const afterSecond = playTopCard(afterFirst, reducer, players);
+        expect(afterSecond.turnDirection).toBe(1);
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Nine (9) Play — Set to 99 ─────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("9-set-to-99", () => {
+    it("playing a 9 sets running_total to exactly 99", () => {
+      const nineSeed = findSeedForTopCard("9", 0, 2);
+      if (nineSeed === null) {
+        expect(nineSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, nineSeed);
+
+      expect(state.zones["hand:0"]!.cards[0]!.rank).toBe("9");
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      expect(afterPlay.variables.running_total).toBe(99);
+    });
+
+    it("playing a 9 when total is already high still sets it to 99", () => {
+      const nineSeed = findSeedForTopCard("9", 0, 2);
+      if (nineSeed === null) {
+        expect(nineSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, nineSeed);
+
+      // Manually set running_total to 95 to simulate a high-total scenario
+      const stateWith95: CardGameState = {
+        ...state,
+        variables: { ...state.variables, running_total: 95 },
+      };
+
+      const afterPlay = playTopCard(stateWith95, reducer, players);
+
+      // 9 always sets to 99, regardless of current total
+      expect(afterPlay.variables.running_total).toBe(99);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Ten (10) Play — Subtract 10 ───────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("10-subtract", () => {
+    it("playing a 10 subtracts 10 from running_total", () => {
+      const tenSeed = findSeedForTopCard("10", 0, 2);
+      if (tenSeed === null) {
+        expect(tenSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, tenSeed);
+
+      expect(state.zones["hand:0"]!.cards[0]!.rank).toBe("10");
+
+      // Set running_total to 50 so we can see the -10 clearly
+      const stateWith50: CardGameState = {
+        ...state,
+        variables: { ...state.variables, running_total: 50 },
+      };
+
+      const afterPlay = playTopCard(stateWith50, reducer, players);
+
+      expect(afterPlay.variables.running_total).toBe(40);
+    });
+
+    it("playing a 10 from zero goes negative", () => {
+      const tenSeed = findSeedForTopCard("10", 0, 2);
+      if (tenSeed === null) {
+        expect(tenSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, tenSeed);
+
+      expect(state.variables.running_total).toBe(0);
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      expect(afterPlay.variables.running_total).toBe(-10);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Bust Detection ────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("bust detection", () => {
+    it("transitions to scoring when running_total exceeds 99", () => {
+      // Find a seed with a high-value normal card (J, Q, or 8) at top
+      const highRanks = ["J", "Q", "8"];
+      let bustSeed: number | null = null;
+      let bustRank: string | null = null;
+
+      for (let seed = 0; seed < 2000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startNinetyNineGame(2, seed);
+          const topCard = game.state.zones["hand:0"]!.cards[0]!;
+          if (highRanks.includes(topCard.rank)) {
+            bustSeed = seed;
+            bustRank = topCard.rank;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      expect(bustSeed).not.toBeNull();
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, bustSeed!);
+
+      // Set running total to 95 — any of J(+10), Q(+10), 8(+8) will exceed 99
+      const stateNear99: CardGameState = {
+        ...state,
+        variables: { ...state.variables, running_total: 95 },
+      };
+
+      const afterPlay = playTopCard(stateNear99, reducer, players);
+
+      // Should have transitioned through scoring to round_end
+      expect(afterPlay.variables.running_total).toBeGreaterThan(99);
+      // The game should have moved past player_turns (to scoring → round_end)
+      expect(afterPlay.currentPhase).not.toBe("player_turns");
+    });
+
+    it("exactly 99 does NOT bust (only > 99 busts)", () => {
+      // Playing a card that lands exactly on 99 should continue
+      const nineSeed = findSeedForTopCard("9", 0, 2);
+      if (nineSeed === null) {
+        expect(nineSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, nineSeed);
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      // Running total is 99, game continues
+      expect(afterPlay.variables.running_total).toBe(99);
+      expect(afterPlay.currentPhase).toBe("player_turns");
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Bust Scoring ──────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("bust scoring", () => {
+    it("bust player gets score 0, other players get score 1", () => {
+      // Use a number card to bust player 0
+      const normalRanks = ["J", "Q", "8", "7", "6", "5"];
+      let bustSeed: number | null = null;
+
+      for (let seed = 0; seed < 2000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startNinetyNineGame(2, seed);
+          const topCard = game.state.zones["hand:0"]!.cards[0]!;
+          if (normalRanks.includes(topCard.rank)) {
+            bustSeed = seed;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      expect(bustSeed).not.toBeNull();
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, bustSeed!);
+
+      const topCard = state.zones["hand:0"]!.cards[0]!;
+      const cardVal = NINETY_NINE_CARD_VALUES[topCard.rank]!;
+      const addedValue = cardVal.kind === "fixed" ? cardVal.value : 0;
+
+      // Set total so this card will push it over 99
+      const stateNearBust: CardGameState = {
+        ...state,
+        variables: {
+          ...state.variables,
+          running_total: 100 - addedValue + 1,
+        },
+      };
+
+      const afterBust = playTopCard(stateNearBust, reducer, players);
+
+      // Should have scored — bust player (0) gets 0, other (1) gets 1
+      expect(afterBust.scores["player_score:0"]).toBe(0);
+      expect(afterBust.scores["player_score:1"]).toBe(1);
+    });
+
+    it("bust player result is loss (-1), non-bust players win (+1)", () => {
+      const normalRanks = ["J", "Q", "8", "7", "6"];
+      let bustSeed: number | null = null;
+
+      for (let seed = 0; seed < 2000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startNinetyNineGame(2, seed);
+          const topCard = game.state.zones["hand:0"]!.cards[0]!;
+          if (normalRanks.includes(topCard.rank)) {
+            bustSeed = seed;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      expect(bustSeed).not.toBeNull();
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(2, bustSeed!);
+
+      const topCard = state.zones["hand:0"]!.cards[0]!;
+      const cardVal = NINETY_NINE_CARD_VALUES[topCard.rank]!;
+      const addedValue = cardVal.kind === "fixed" ? cardVal.value : 0;
+
+      const stateNearBust: CardGameState = {
+        ...state,
+        variables: {
+          ...state.variables,
+          running_total: 100 - addedValue + 1,
+        },
+      };
+
+      const afterBust = playTopCard(stateNearBust, reducer, players);
+
+      // Results: bust player loses, other wins
+      expect(afterBust.scores["result:0"]).toBe(-1);
+      expect(afterBust.scores["result:1"]).toBe(1);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Winner Determination ──────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("winner determination", () => {
+    it("non-bust players are winners (result = 1)", () => {
+      // Force a bust for player 0 with 3 players
+      const normalRanks = ["J", "Q", "8", "7"];
+      let bustSeed: number | null = null;
+
+      for (let seed = 0; seed < 2000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startNinetyNineGame(3, seed);
+          const topCard = game.state.zones["hand:0"]!.cards[0]!;
+          if (normalRanks.includes(topCard.rank)) {
+            bustSeed = seed;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      expect(bustSeed).not.toBeNull();
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(3, bustSeed!);
+
+      const topCard = state.zones["hand:0"]!.cards[0]!;
+      const cardVal = NINETY_NINE_CARD_VALUES[topCard.rank]!;
+      const addedValue = cardVal.kind === "fixed" ? cardVal.value : 0;
+
+      const stateNearBust: CardGameState = {
+        ...state,
+        variables: {
+          ...state.variables,
+          running_total: 100 - addedValue + 1,
+        },
+      };
+
+      const afterBust = playTopCard(stateNearBust, reducer, players);
+
+      // Player 0 busted
+      expect(afterBust.scores["player_score:0"]).toBe(0);
+      expect(afterBust.scores["result:0"]).toBe(-1);
+
+      // Players 1 and 2 are winners
+      expect(afterBust.scores["player_score:1"]).toBe(1);
+      expect(afterBust.scores["result:1"]).toBe(1);
+      expect(afterBust.scores["player_score:2"]).toBe(1);
+      expect(afterBust.scores["result:2"]).toBe(1);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Draw from Deck ────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("draw from deck", () => {
+    it("player draws a replacement card after playing", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      const handBefore = state.zones["hand:0"]!.cards.length;
+      expect(handBefore).toBe(3);
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      // Hand should still have 3 cards (played 1, drew 1 replacement)
+      expect(afterPlay.zones["hand:0"]!.cards.length).toBe(3);
+    });
+
+    it("total cards are conserved after a play (52 cards)", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      expect(totalCards(state)).toBe(DECK_SIZE);
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      expect(totalCards(afterPlay)).toBe(DECK_SIZE);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Deck Exhaustion ───────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("deck exhaustion", () => {
+    it("when draw pile is empty, hand shrinks instead of drawing", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      // Artificially empty the draw pile
+      const emptyDrawState: CardGameState = {
+        ...state,
+        zones: {
+          ...state.zones,
+          draw_pile: { ...state.zones["draw_pile"]!, cards: [] },
+        },
+      };
+
+      const afterPlay = playTopCard(emptyDrawState, reducer, players);
+
+      // Hand should shrink by 1 (played 1, can't draw)
+      if (afterPlay.currentPhase === "player_turns") {
+        expect(afterPlay.zones["hand:0"]!.cards.length).toBe(2);
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Turn Order with Reverse ───────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("turn order with reverse", () => {
+    it("clockwise turn order: 0 → 1 → 0 with 2 players", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      expect(state.currentPlayerIndex).toBe(0);
+
+      const afterP0 = playTopCard(state, reducer, players);
+      if (afterP0.currentPhase !== "player_turns") return;
+      expect(afterP0.currentPlayerIndex).toBe(1);
+
+      const afterP1 = playTopCard(afterP0, reducer, players);
+      if (afterP1.currentPhase !== "player_turns") return;
+      expect(afterP1.currentPlayerIndex).toBe(0);
+    });
+
+    it("clockwise turn order: 0 → 1 → 2 → 0 with 3 players", () => {
+      const { state, reducer, players } = startNinetyNineGame(3);
+
+      expect(state.currentPlayerIndex).toBe(0);
+
+      // We need seeds where no card is a 4 (to avoid direction reversal)
+      // Just play turns and check the order
+      let current = state;
+      const turnOrder: number[] = [current.currentPlayerIndex];
+
+      for (let i = 0; i < 3; i++) {
+        const next = playTopCard(current, reducer, players);
+        if (next.currentPhase !== "player_turns") break;
+        turnOrder.push(next.currentPlayerIndex);
+        current = next;
+      }
+
+      // First three should be 0, 1, 2 (unless a 4 reversed)
+      if (!turnOrder.includes(-1) && turnOrder.length >= 4) {
+        // If no 4 was played, expect clockwise
+        const noFourPlayed =
+          current.turnDirection === 1 && state.turnDirection === 1;
+        if (noFourPlayed) {
+          expect(turnOrder).toEqual([0, 1, 2, 0]);
+        }
+      }
+    });
+
+    it("reverse changes turn order with 3 players", () => {
+      const fourSeed = findSeedForTopCard("4", 0, 3);
+      if (fourSeed === null) {
+        expect(fourSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startNinetyNineGame(3, fourSeed);
+
+      expect(state.currentPlayerIndex).toBe(0);
+      expect(state.turnDirection).toBe(1);
+
+      // Player 0 plays a 4 → reverses direction
+      const afterReverse = playTopCard(state, reducer, players);
+      if (afterReverse.currentPhase !== "player_turns") return;
+
+      expect(afterReverse.turnDirection).toBe(-1);
+      // With reverse direction, next after 0 should be 2 (wraps around)
+      expect(afterReverse.currentPlayerIndex).toBe(2);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Card Conservation ─────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("card conservation", () => {
+    it("total cards after start_game equals 52", () => {
+      const { state } = startNinetyNineGame(2);
+      expect(totalCards(state)).toBe(DECK_SIZE);
+    });
+
+    it("total cards are conserved with 3 players", () => {
+      const { state } = startNinetyNineGame(3);
+      expect(totalCards(state)).toBe(DECK_SIZE);
+    });
+
+    it("total cards are conserved with 4 players", () => {
+      const { state } = startNinetyNineGame(4);
+      expect(totalCards(state)).toBe(DECK_SIZE);
+    });
+
+    it("no duplicate card IDs exist across all zones", () => {
+      const { state } = startNinetyNineGame(2);
+
+      const allIds = Object.values(state.zones).flatMap((z) =>
+        z.cards.map((c) => c.id)
+      );
+      const uniqueIds = new Set(allIds);
+      expect(uniqueIds.size).toBe(allIds.length);
+    });
+
+    it("cards are conserved after multiple plays", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      let current = state;
+      for (let i = 0; i < 5; i++) {
+        if (current.currentPhase !== "player_turns") break;
+        current = playTopCard(current, reducer, players);
+        expect(totalCards(current)).toBe(DECK_SIZE);
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Deterministic Replay ──────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("deterministic replay", () => {
+    it("two identical games with same seed produce identical hands", () => {
+      const game1 = startNinetyNineGame(2, FIXED_SEED);
+      const game2 = startNinetyNineGame(2, FIXED_SEED);
+
+      expect(handDescription(game1.state, "hand:0")).toEqual(
+        handDescription(game2.state, "hand:0")
+      );
+      expect(handDescription(game1.state, "hand:1")).toEqual(
+        handDescription(game2.state, "hand:1")
+      );
+    });
+
+    it("different seeds produce different deals", () => {
+      const game1 = startNinetyNineGame(2, 42);
+      const game2 = startNinetyNineGame(2, 999);
+
+      const hand1 = handDescription(game1.state, "hand:0");
+      const hand2 = handDescription(game2.state, "hand:0");
+
+      expect(hand1).not.toEqual(hand2);
+    });
+
+    it("card IDs are identical between same-seed games", () => {
+      const game1 = startNinetyNineGame(2, FIXED_SEED);
+      const game2 = startNinetyNineGame(2, FIXED_SEED);
+
+      const ids1 = game1.state.zones["hand:0"]!.cards.map((c) => c.id);
+      const ids2 = game2.state.zones["hand:0"]!.cards.map((c) => c.id);
+      expect(ids1).toEqual(ids2);
+    });
+
+    it("replaying same actions produces identical state", () => {
+      const game1 = startNinetyNineGame(2, FIXED_SEED);
+      const game2 = startNinetyNineGame(2, FIXED_SEED);
+
+      // Play 3 turns on each
+      let state1 = game1.state;
+      let state2 = game2.state;
+
+      for (let i = 0; i < 3; i++) {
+        if (state1.currentPhase !== "player_turns") break;
+        state1 = playTopCard(state1, game1.reducer, game1.players);
+        state2 = playTopCard(state2, game2.reducer, game2.players);
+      }
+
+      expect(state1.variables).toEqual(state2.variables);
+      expect(state1.currentPlayerIndex).toBe(state2.currentPlayerIndex);
+      expect(state1.turnDirection).toBe(state2.turnDirection);
+      expect(handDescription(state1, "hand:0")).toEqual(
+        handDescription(state2, "hand:0")
+      );
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Player View (Variables Visible) ───────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("player view (variables visible)", () => {
+    it("player view includes variables", () => {
+      const { state, players } = startNinetyNineGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      expect(view.variables).toBeDefined();
+      expect(view.variables.running_total).toBe(0);
+      expect(view.variables.bust_player).toBe(-1);
+    });
+
+    it("player view variables update after play", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      const afterPlay = playTopCard(state, reducer, players);
+      const view = createPlayerView(afterPlay, players[0]!.id);
+
+      // bust_player should have been set to 0 (player 0 played)
+      expect(view.variables.bust_player).toBe(0);
+    });
+
+    it("draw_pile cards are hidden from all players", () => {
+      const { state, players } = startNinetyNineGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      const drawPile = view.zones["draw_pile"]!;
+      expect(drawPile.cards.every((c) => c === null)).toBe(true);
+      expect(drawPile.cardCount).toBeGreaterThan(0);
+    });
+
+    it("discard pile is visible to all players", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      // Play one card so there's something in the discard
+      const afterPlay = playTopCard(state, reducer, players);
+      const view = createPlayerView(afterPlay, players[1]!.id);
+
+      const discard = view.zones["discard"]!;
+      expect(discard.cardCount).toBeGreaterThan(0);
+      expect(discard.cards[0]).not.toBeNull();
+    });
+
+    it("isMyTurn is correct for current player", () => {
+      const { state, players } = startNinetyNineGame(2);
+
+      const view0 = createPlayerView(state, players[0]!.id);
+      expect(view0.isMyTurn).toBe(true);
+
+      const view1 = createPlayerView(state, players[1]!.id);
+      expect(view1.isMyTurn).toBe(false);
+    });
+
+    it("myPlayerId is set correctly in the view", () => {
+      const { state, players } = startNinetyNineGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      expect(view.myPlayerId).toBe(players[0]!.id);
+    });
+
+    it("view includes all expected zone names", () => {
+      const { state, players } = startNinetyNineGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      expect(view.zones["draw_pile"]).toBeDefined();
+      expect(view.zones["hand:0"]).toBeDefined();
+      expect(view.zones["hand:1"]).toBeDefined();
+      expect(view.zones["discard"]).toBeDefined();
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Turn Order Enforcement ────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("turn order enforcement", () => {
+    it("rejects action from wrong player (no-op)", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      expect(state.currentPlayerIndex).toBe(0);
+
+      const afterWrongTurn = reducer(state, {
+        kind: "declare",
+        playerId: players[1]!.id,
+        declaration: "play",
+      });
+
+      // State should be unchanged
+      expect(afterWrongTurn.version).toBe(state.version);
+    });
+
+    it("unknown declaration is a no-op", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      const afterBad = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "unknown_action",
+      });
+
+      expect(afterBad.version).toBe(state.version);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Edge Cases ────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("edge cases", () => {
+    it("start_game is a no-op on an already started game", () => {
+      const { state, reducer } = startNinetyNineGame(2);
+
+      const afterSecondStart = reducer(state, { kind: "start_game" });
+      expect(afterSecondStart).toBe(state);
+    });
+
+    it("version monotonically increases through play actions", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      expect(afterPlay.version).toBeGreaterThan(state.version);
+    });
+
+    it("action log grows with each action", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+      const initialLogLength = state.actionLog.length;
+
+      const afterPlay = playTopCard(state, reducer, players);
+
+      expect(afterPlay.actionLog.length).toBeGreaterThan(initialLogLength);
+    });
+
+    it("running_total accumulates across multiple turns", () => {
+      const { state, reducer, players } = startNinetyNineGame(2);
+
+      let current = state;
+      let prevTotal = 0;
+
+      for (let i = 0; i < 4; i++) {
+        if (current.currentPhase !== "player_turns") break;
+
+        const playerIdx = current.currentPlayerIndex;
+        const topCard =
+          current.zones[`hand:${playerIdx}`]!.cards[0]!;
+
+        current = playTopCard(current, reducer, players);
+
+        // For non-special cards, total should have increased
+        // For special cards, verify the specific effect
+        if (topCard.rank === "K") {
+          expect(current.variables.running_total).toBe(prevTotal);
+        } else if (topCard.rank === "4") {
+          expect(current.variables.running_total).toBe(prevTotal);
+        } else if (topCard.rank === "9") {
+          expect(current.variables.running_total).toBe(99);
+        } else if (topCard.rank === "10") {
+          expect(current.variables.running_total).toBe(prevTotal - 10);
+        } else {
+          const expectedVal =
+            NINETY_NINE_CARD_VALUES[topCard.rank]!;
+          const inc =
+            expectedVal.kind === "fixed" ? expectedVal.value : 0;
+          expect(current.variables.running_total).toBe(prevTotal + inc);
+        }
+
+        prevTotal = current.variables.running_total as number;
+      }
+    });
+  });
+});
