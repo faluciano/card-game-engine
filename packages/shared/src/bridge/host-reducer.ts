@@ -15,6 +15,14 @@ import type {
 } from "../types/index";
 import type { HostAction, HostGameState, HostScreen } from "./host-state";
 
+// ─── Helpers ───────────────────────────────────────────────────────
+
+/** UUID v4-like session ID without depending on `crypto` (unavailable in Hermes). */
+function generateSessionId(): string {
+  const hex = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, "0");
+  return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-${(0x8 | (Math.random() * 0x4) | 0).toString(16)}${hex().slice(1)}-${hex()}${hex()}${hex()}`;
+}
+
 // ─── Lazy Reducer Cache ────────────────────────────────────────────
 
 // Module-level cache: ruleset → reducer. WeakMap allows GC when ruleset is dropped.
@@ -139,8 +147,12 @@ function handleStartGame(state: HostGameState, seed?: number): HostGameState {
   // Guard: need at least one player to create a session
   if (enginePlayers.length === 0) return state;
 
-  const sessionId = crypto.randomUUID() as GameSessionId;
-  const engineState = createInitialState(ruleset, sessionId, enginePlayers, seed);
+  const sessionId = generateSessionId() as GameSessionId;
+  const initialEngineState = createInitialState(ruleset, sessionId, enginePlayers, seed);
+
+  // Immediately transition from waiting_for_players → in_progress and run deal phase
+  const engineReducer = getOrCreateReducer(ruleset);
+  const engineState = engineReducer(initialEngineState, { kind: "start_game" });
 
   const screen: HostScreen = { tag: "game_table", ruleset };
 

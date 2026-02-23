@@ -31,25 +31,31 @@ export function App(): React.JSX.Element {
   >({
     reducer: hostReducer,
     initialState,
-    debug: true,
   });
 
-  // Not connected yet — show connecting/error screen
+  // ── Hooks must be called unconditionally (Rules of Hooks) ──
+  const playerView = useMemo((): PlayerView | null => {
+    if (!state.engineState || !playerId) return null;
+    try {
+      return createPlayerView(state.engineState, playerId as PlayerId);
+    } catch {
+      return null;
+    }
+  }, [state.engineState, playerId]);
+
+  const validActions = useMemo((): readonly ValidAction[] => {
+    if (!state.engineState || !playerId) return [];
+    try {
+      return getValidActions(state.engineState, playerId as PlayerId);
+    } catch {
+      return [];
+    }
+  }, [state.engineState, playerId]);
+
+  // ── Guards (after all hooks) ──
   if (status !== "connected" || !playerId) {
     return <ConnectingScreen status={status} />;
   }
-
-  // Compute player view when game is active
-  const playerView = useMemo((): PlayerView | null => {
-    if (!state.engineState) return null;
-    return createPlayerView(state.engineState, playerId as PlayerId);
-  }, [state.engineState, playerId]);
-
-  // Compute full valid actions (with labels and enabled state) for ActionBar
-  const validActions = useMemo((): readonly ValidAction[] => {
-    if (!state.engineState) return [];
-    return getValidActions(state.engineState, playerId as PlayerId);
-  }, [state.engineState, playerId]);
 
   // Route based on game status
   if (state.status === "ruleset_picker") {

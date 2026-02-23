@@ -54,8 +54,10 @@ const rankStyle: CSSProperties = {
 };
 
 export function CardMini({ card }: CardMiniProps): React.JSX.Element {
-  // Null card = hidden from this player
-  if (!card || !card.faceUp) {
+  // Null card = hidden from this player by visibility rules.
+  // Non-null card = player is allowed to see it (visibility already enforced
+  // by createPlayerView). Show face-up regardless of card.faceUp property.
+  if (!card) {
     return <div style={faceDownStyle} aria-label="Face-down card" />;
   }
 

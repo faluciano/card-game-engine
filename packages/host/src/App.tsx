@@ -76,7 +76,6 @@ function HostProvider({
         reducer: hostReducer,
         initialState: createHostInitialState(),
         staticDir,
-        debug: true,
       }}
     >
       {children}
