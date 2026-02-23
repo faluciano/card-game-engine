@@ -193,14 +193,21 @@ export function computeHandValue(
 // ─── Query Builtins ────────────────────────────────────────────────
 
 /**
- * hand_value(zone_ref) — Computes blackjack hand value for a zone.
+ * hand_value(zone_ref) or hand_value(zone_ref, target) — Computes hand value.
+ * With 1 arg: uses target=21 for backward compatibility.
+ * With 2 args: uses the provided target for dual-value card downgrading.
  */
 const handValueBuiltin: BuiltinFunction = (args, context) => {
-  assertArgCount("hand_value", args, 1);
+  if (args.length < 1 || args.length > 2) {
+    throw new ExpressionError(
+      `hand_value() requires 1-2 arguments, got ${args.length}`
+    );
+  }
   const zoneName = resolveZoneName(args[0]!);
   const zone = getZone(context.state, zoneName);
   const cardValues = context.state.ruleset.deck.cardValues;
-  const value = computeHandValue(zone.cards, cardValues, 21);
+  const target = args.length === 2 ? requireNumber(args[1]!, "target") : 21;
+  const value = computeHandValue(zone.cards, cardValues, target);
   return { kind: "number", value };
 };
 

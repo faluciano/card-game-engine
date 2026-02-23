@@ -296,14 +296,75 @@ describe("builtins", () => {
       );
     });
 
-    it("throws on wrong argument count", () => {
+    it("accepts explicit target=21 (identical to 1-arg form)", () => {
+      const state = makeGameState({
+        hand: makeZone("hand", [
+          makeCard("A", "spades"),
+          makeCard("6", "hearts"),
+        ]),
+      });
+      const ctx = makeEvalContext(state);
+      // A(11) + 6 = 17, same as 1-arg form
+      const result = evaluateExpression('hand_value("hand", 21)', ctx);
+      expect(result).toEqual({ kind: "number", value: 17 });
+    });
+
+    it("downgrades ace at lower target (15)", () => {
+      const state = makeGameState({
+        hand: makeZone("hand", [
+          makeCard("A", "spades"),
+          makeCard("5", "hearts"),
+          makeCard("8", "clubs"),
+        ]),
+      });
+      const ctx = makeEvalContext(state);
+      // A(11) + 5 + 8 = 24 > 15 → A(1) + 5 + 8 = 14
+      const result = evaluateExpression('hand_value("hand", 15)', ctx);
+      expect(result).toEqual({ kind: "number", value: 14 });
+    });
+
+    it("never downgrades with very high target", () => {
+      const state = makeGameState({
+        hand: makeZone("hand", [
+          makeCard("A", "spades"),
+          makeCard("A", "hearts"),
+          makeCard("9", "clubs"),
+        ]),
+      });
+      const ctx = makeEvalContext(state);
+      // A(11) + A(11) + 9 = 31, no downgrading since 31 <= 99999
+      const result = evaluateExpression('hand_value("hand", 99999)', ctx);
+      expect(result).toEqual({ kind: "number", value: 31 });
+    });
+
+    it("computeHandValue never downgrades with Infinity target", () => {
+      const cards = [
+        makeCard("A", "spades"),
+        makeCard("A", "hearts"),
+        makeCard("9", "clubs"),
+      ];
+      // A(11) + A(11) + 9 = 31, no downgrading since 31 <= Infinity
+      expect(computeHandValue(cards, BLACKJACK_CARD_VALUES, Infinity)).toBe(31);
+    });
+
+    it("throws on 0 arguments", () => {
       const state = makeGameState({
         hand: makeZone("hand", []),
       });
       const ctx = makeEvalContext(state);
       expect(() => evaluateExpression("hand_value()", ctx)).toThrow(
-        "requires exactly 1 argument"
+        "requires 1-2 arguments, got 0"
       );
+    });
+
+    it("throws on 3 arguments", () => {
+      const state = makeGameState({
+        hand: makeZone("hand", []),
+      });
+      const ctx = makeEvalContext(state);
+      expect(() =>
+        evaluateExpression('hand_value("hand", 21, 42)', ctx)
+      ).toThrow("requires 1-2 arguments, got 3");
     });
   });
 
