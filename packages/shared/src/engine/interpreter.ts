@@ -16,7 +16,7 @@ import type {
   ZoneState,
 } from "../types/index";
 import { parseRuleset } from "../schema/validation";
-import { getPresetDeck } from "../deck/presets";
+import { getPresetDeck, type CardTemplate } from "../deck/presets";
 import { PhaseMachine } from "./phase-machine";
 import {
   registerAllBuiltins,
@@ -91,8 +91,11 @@ export function createInitialState(
 
   const rng = createRng(seed);
 
-  // Build deck from preset templates with deterministic IDs
-  const templates = getPresetDeck(ruleset.deck.preset);
+  // Build deck from preset templates or custom card definitions
+  const templates =
+    ruleset.deck.preset === "custom"
+      ? ruleset.deck.cards
+      : getPresetDeck(ruleset.deck.preset);
   const allCards = createDeterministicCards(templates, ruleset.deck.copies, rng);
 
   // Initialize zones
@@ -921,11 +924,6 @@ function applyResetRoundEffect(state: CardGameState): CardGameState {
 }
 
 // ─── Deterministic Card Creation ───────────────────────────────────
-
-interface CardTemplate {
-  readonly suit: string;
-  readonly rank: string;
-}
 
 /**
  * Creates Card instances from templates with deterministic IDs from the seeded RNG.

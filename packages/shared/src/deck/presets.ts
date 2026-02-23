@@ -6,7 +6,7 @@
 import type { Rank, Suit, StandardSuit, StandardRank, CardInstanceId, Card } from "../types/index";
 
 /** A card template before it gets a unique instance ID. */
-interface CardTemplate {
+export interface CardTemplate {
   readonly suit: Suit;
   readonly rank: Rank;
 }

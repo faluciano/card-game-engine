@@ -441,6 +441,145 @@ describe("Ruleset Interpreter", () => {
       expect(state.zones["hand:0"]!.cards).toHaveLength(0);
       expect(state.zones["hand:1"]!.cards).toHaveLength(0);
     });
+
+    describe("custom deck support", () => {
+      it("creates game with custom deck cards", () => {
+        const customRuleset = {
+          ...makeBlackjackRuleset(),
+          deck: {
+            preset: "custom" as const,
+            cards: [
+              { suit: "red", rank: "1" },
+              { suit: "red", rank: "2" },
+              { suit: "blue", rank: "1" },
+              { suit: "blue", rank: "2" },
+            ],
+            copies: 1,
+            cardValues: {
+              "1": { kind: "fixed" as const, value: 1 },
+              "2": { kind: "fixed" as const, value: 2 },
+            },
+          },
+        };
+        const players = makePlayers(1);
+        const state = createInitialState(
+          customRuleset,
+          makeSessionId("custom-test"),
+          players,
+          42
+        );
+
+        // Count total cards across all zones
+        const totalCards = Object.values(state.zones).reduce(
+          (sum, zone) => sum + zone.cards.length,
+          0
+        );
+        expect(totalCards).toBe(4); // 4 custom cards × 1 copy
+      });
+
+      it("custom deck respects copies multiplier", () => {
+        const customRuleset = {
+          ...makeBlackjackRuleset(),
+          deck: {
+            preset: "custom" as const,
+            cards: [
+              { suit: "star", rank: "High" },
+              { suit: "star", rank: "Low" },
+            ],
+            copies: 3,
+            cardValues: {
+              High: { kind: "fixed" as const, value: 10 },
+              Low: { kind: "fixed" as const, value: 1 },
+            },
+          },
+        };
+        const players = makePlayers(1);
+        const state = createInitialState(
+          customRuleset,
+          makeSessionId("copies-test"),
+          players,
+          42
+        );
+
+        const totalCards = Object.values(state.zones).reduce(
+          (sum, zone) => sum + zone.cards.length,
+          0
+        );
+        expect(totalCards).toBe(6); // 2 cards × 3 copies
+      });
+
+      it("custom deck cards have correct suit and rank", () => {
+        const customRuleset = {
+          ...makeBlackjackRuleset(),
+          deck: {
+            preset: "custom" as const,
+            cards: [
+              { suit: "fire", rank: "Dragon" },
+              { suit: "ice", rank: "Phoenix" },
+            ],
+            copies: 1,
+            cardValues: {
+              Dragon: { kind: "fixed" as const, value: 10 },
+              Phoenix: { kind: "fixed" as const, value: 5 },
+            },
+          },
+        };
+        const players = makePlayers(1);
+        const state = createInitialState(
+          customRuleset,
+          makeSessionId("suit-rank-test"),
+          players,
+          42
+        );
+
+        const allCards = Object.values(state.zones).flatMap(
+          (zone) => zone.cards
+        );
+        expect(allCards).toHaveLength(2);
+
+        const suits = allCards.map((c) => c.suit).sort();
+        expect(suits).toEqual(["fire", "ice"]);
+
+        const ranks = allCards.map((c) => c.rank).sort();
+        expect(ranks).toEqual(["Dragon", "Phoenix"]);
+      });
+
+      it("custom deck cards have deterministic IDs from seed", () => {
+        const customRuleset = {
+          ...makeBlackjackRuleset(),
+          deck: {
+            preset: "custom" as const,
+            cards: [{ suit: "x", rank: "A" }],
+            copies: 1,
+            cardValues: {
+              A: { kind: "fixed" as const, value: 1 },
+            },
+          },
+        };
+        const players = makePlayers(1);
+
+        const state1 = createInitialState(
+          customRuleset,
+          makeSessionId("det1"),
+          players,
+          42
+        );
+        const state2 = createInitialState(
+          customRuleset,
+          makeSessionId("det2"),
+          players,
+          42
+        );
+
+        const ids1 = Object.values(state1.zones).flatMap((z) =>
+          z.cards.map((c) => c.id)
+        );
+        const ids2 = Object.values(state2.zones).flatMap((z) =>
+          z.cards.map((c) => c.id)
+        );
+        expect(ids1).toEqual(ids2);
+      });
+    });
   });
 
   // ── createReducer ────────────────────────────────────────────────

@@ -23,11 +23,25 @@ export interface RulesetMeta {
 /** Preset deck identifiers the engine knows how to build. */
 export type DeckPreset = "standard_52" | "standard_54" | "uno_108";
 
-export interface DeckConfig {
-  readonly preset: DeckPreset;
-  readonly copies: number;
-  readonly cardValues: Readonly<Record<string, CardValue>>;
+/** A card template for custom deck definitions. */
+export interface CardTemplateConfig {
+  readonly suit: string;
+  readonly rank: string;
 }
+
+/** Deck configuration — either a known preset or a custom card list. */
+export type DeckConfig =
+  | {
+      readonly preset: DeckPreset;
+      readonly copies: number;
+      readonly cardValues: Readonly<Record<string, CardValue>>;
+    }
+  | {
+      readonly preset: "custom";
+      readonly cards: readonly CardTemplateConfig[];
+      readonly copies: number;
+      readonly cardValues: Readonly<Record<string, CardValue>>;
+    };
 
 // ─── Zone Configuration ────────────────────────────────────────────
 

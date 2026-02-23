@@ -34,11 +34,24 @@ const MetaSchema = z.object({
   ),
 });
 
-const DeckSchema = z.object({
-  preset: z.enum(["standard_52", "standard_54", "uno_108"]),
-  copies: z.number().int().min(1),
-  cardValues: z.record(z.string(), CardValueSchema),
+const CardTemplateSchema = z.object({
+  suit: z.string().min(1),
+  rank: z.string().min(1),
 });
+
+const DeckSchema = z.discriminatedUnion("preset", [
+  z.object({
+    preset: z.enum(["standard_52", "standard_54", "uno_108"]),
+    copies: z.number().int().min(1),
+    cardValues: z.record(z.string(), CardValueSchema),
+  }),
+  z.object({
+    preset: z.literal("custom"),
+    cards: z.array(CardTemplateSchema).min(1),
+    copies: z.number().int().min(1),
+    cardValues: z.record(z.string(), CardValueSchema),
+  }),
+]);
 
 const ZoneSchema = z.object({
   name: z.string().min(1),
