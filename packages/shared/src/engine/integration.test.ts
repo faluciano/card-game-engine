@@ -25,6 +25,7 @@ import {
 import { createPlayerView } from "./state-filter";
 import { clearBuiltins } from "./expression-evaluator";
 import { registerAllBuiltins } from "./builtins";
+import { parseRuleset } from "../schema/validation";
 import type {
   PlayerId,
   GameSessionId,
@@ -1011,6 +1012,790 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
       });
 
       expect(afterStand.actionLog.length).toBeGreaterThan(initialLogLength);
+    });
+  });
+});
+
+// ─── Integration Test — Full War Game Lifecycle ────────────────────
+// Exercises the War card game end-to-end: load ruleset from JSON,
+// create state, run reducer through battle rounds (including war/tie
+// scenarios), and verify player views. War is a 2-player game where
+// each player reveals their top card; the higher rank wins the pair.
+// On ties, a "war" occurs: 4 extra cards per player are staked and
+// the comparison card determines the winner of the entire pot.
+
+// ─── War Fixture Setup ────────────────────────────────────────────
+
+const WAR_CARD_VALUES: Readonly<Record<string, CardValue>> = {
+  "2":  { kind: "fixed", value: 2 },
+  "3":  { kind: "fixed", value: 3 },
+  "4":  { kind: "fixed", value: 4 },
+  "5":  { kind: "fixed", value: 5 },
+  "6":  { kind: "fixed", value: 6 },
+  "7":  { kind: "fixed", value: 7 },
+  "8":  { kind: "fixed", value: 8 },
+  "9":  { kind: "fixed", value: 9 },
+  "10": { kind: "fixed", value: 10 },
+  "J":  { kind: "fixed", value: 11 },
+  "Q":  { kind: "fixed", value: 12 },
+  "K":  { kind: "fixed", value: 13 },
+  "A":  { kind: "fixed", value: 14 },
+};
+
+const WAR_RULESET_PATH = resolve(
+  import.meta.dirname ?? __dirname,
+  "../../../../rulesets/war.cardgame.json"
+);
+
+/**
+ * Builds a War ruleset directly (1 copy of standard 52, 2 players).
+ * Matches the structure of war.cardgame.json.
+ */
+function makeWarRuleset(): CardGameRuleset {
+  return {
+    meta: {
+      name: "War",
+      slug: "war",
+      version: "1.0.0",
+      author: "faluciano",
+      players: { min: 2, max: 2 },
+    },
+    deck: {
+      preset: "standard_52",
+      copies: 1,
+      cardValues: WAR_CARD_VALUES,
+    },
+    zones: [
+      { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+      {
+        name: "deck",
+        visibility: { kind: "hidden" },
+        owners: ["player"],
+      },
+      {
+        name: "battle",
+        visibility: { kind: "partial", rule: "face_up_only" },
+        owners: ["player"],
+      },
+      {
+        name: "won",
+        visibility: { kind: "hidden" },
+        owners: ["player"],
+      },
+      { name: "pot", visibility: { kind: "hidden" }, owners: [] },
+    ],
+    roles: [
+      { name: "player", isHuman: true, count: "per_player" },
+    ],
+    phases: [
+      {
+        name: "setup",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "ready_check", when: "all_hands_dealt" }],
+        automaticSequence: [
+          "shuffle(draw_pile)",
+          "deal(draw_pile, deck, 26)",
+        ],
+      },
+      {
+        name: "ready_check",
+        kind: "all_players",
+        actions: [
+          {
+            name: "ready",
+            label: "Battle!",
+            effect: ["end_turn()"],
+          },
+        ],
+        transitions: [
+          { to: "scoring", when: 'card_count("deck:0") == 0 || card_count("deck:1") == 0' },
+          { to: "battle", when: "all_players_done" },
+        ],
+      },
+      {
+        name: "battle",
+        kind: "automatic",
+        actions: [],
+        transitions: [
+          { to: "resolve_p0_wins", when: 'top_card_rank("battle:0") > top_card_rank("battle:1")' },
+          { to: "resolve_p1_wins", when: 'top_card_rank("battle:0") < top_card_rank("battle:1")' },
+          { to: "war", when: 'top_card_rank("battle:0") == top_card_rank("battle:1")' },
+        ],
+        automaticSequence: [
+          'move_top("deck:0", "battle:0", 1)',
+          'flip_top("battle:0", 1)',
+          'move_top("deck:1", "battle:1", 1)',
+          'flip_top("battle:1", 1)',
+        ],
+      },
+      {
+        name: "war",
+        kind: "automatic",
+        actions: [],
+        transitions: [
+          { to: "resolve_p0_wins", when: 'card_count("deck:0") == 0 || card_count("deck:1") == 0 || top_card_rank("battle:0") > top_card_rank("battle:1")' },
+          { to: "resolve_p1_wins", when: 'top_card_rank("battle:0") < top_card_rank("battle:1")' },
+          { to: "war", when: 'top_card_rank("battle:0") == top_card_rank("battle:1")' },
+        ],
+        automaticSequence: [
+          'move_all("battle:0", "pot")',
+          'move_all("battle:1", "pot")',
+          'move_top("deck:0", "battle:0", 1)',
+          'flip_top("battle:0", 1)',
+          'move_top("deck:0", "battle:0", 3)',
+          'move_top("deck:1", "battle:1", 1)',
+          'flip_top("battle:1", 1)',
+          'move_top("deck:1", "battle:1", 3)',
+        ],
+      },
+      {
+        name: "resolve_p0_wins",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "ready_check", when: "all_hands_dealt" }],
+        automaticSequence: [
+          'move_all("battle:0", "won:0")',
+          'move_all("battle:1", "won:0")',
+          'move_all("pot", "won:0")',
+          'shuffle("won:0")',
+          'move_all("won:0", "deck:0")',
+        ],
+      },
+      {
+        name: "resolve_p1_wins",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "ready_check", when: "all_hands_dealt" }],
+        automaticSequence: [
+          'move_all("battle:0", "won:1")',
+          'move_all("battle:1", "won:1")',
+          'move_all("pot", "won:1")',
+          'shuffle("won:1")',
+          'move_all("won:1", "deck:1")',
+        ],
+      },
+      {
+        name: "scoring",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "game_over", when: "scores_calculated" }],
+        automaticSequence: [
+          "calculate_scores()",
+          "determine_winners()",
+        ],
+      },
+      {
+        name: "game_over",
+        kind: "all_players",
+        actions: [
+          {
+            name: "play_again",
+            label: "Play Again",
+            effect: [
+              "collect_all_to(draw_pile)",
+              "reset_round()",
+            ],
+          },
+        ],
+        transitions: [{ to: "setup", when: "continue_game" }],
+      },
+    ],
+    scoring: {
+      method: "card_count(current_player.deck) + card_count(current_player.battle) + card_count(current_player.won)",
+      winCondition: "my_score > 0",
+    },
+    visibility: [
+      { zone: "draw_pile", visibility: { kind: "hidden" } },
+      { zone: "deck", visibility: { kind: "hidden" } },
+      { zone: "battle", visibility: { kind: "partial", rule: "face_up_only" } },
+      { zone: "won", visibility: { kind: "hidden" } },
+      { zone: "pot", visibility: { kind: "hidden" } },
+    ],
+    ui: { layout: "linear", tableColor: "felt_green" },
+  };
+}
+
+/**
+ * Creates a started War game ready for player actions.
+ * Returns state at `ready_check` with 26 cards dealt to each player's deck.
+ */
+function startWarGame(
+  seed: number = FIXED_SEED
+): { state: CardGameState; reducer: GameReducer; players: Player[] } {
+  const warRuleset = makeWarRuleset();
+  const players: Player[] = [
+    { id: pid("player-0"), name: "Player 0", role: "player", connected: true },
+    { id: pid("player-1"), name: "Player 1", role: "player", connected: true },
+  ];
+  const reducer = createReducer(warRuleset, seed);
+  const initial = createInitialState(
+    warRuleset,
+    sid("war-test-session"),
+    players,
+    seed
+  );
+  const state = reducer(initial, { kind: "start_game" });
+  return { state, reducer, players };
+}
+
+/**
+ * Plays one battle round: both players declare "ready", engine auto-resolves
+ * through battle → resolve → back to ready_check.
+ */
+function playWarRound(
+  state: CardGameState,
+  reducer: GameReducer,
+  players: Player[]
+): CardGameState {
+  let current = reducer(state, {
+    kind: "declare",
+    playerId: players[0]!.id,
+    declaration: "ready",
+  });
+  current = reducer(current, {
+    kind: "declare",
+    playerId: players[1]!.id,
+    declaration: "ready",
+  });
+  return current;
+}
+
+// ─── War Tests ─────────────────────────────────────────────────────
+
+describe("War Integration — Full Game Lifecycle", () => {
+  beforeEach(() => {
+    clearBuiltins();
+    registerAllBuiltins();
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Ruleset Loading from JSON ──────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("ruleset loading from JSON", () => {
+    it("loads and validates the war ruleset from disk", () => {
+      const raw = JSON.parse(readFileSync(WAR_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      expect(jsonRuleset.meta.name).toBe("War");
+      expect(jsonRuleset.meta.slug).toBe("war");
+      expect(jsonRuleset.phases).toHaveLength(8);
+      expect(jsonRuleset.roles).toHaveLength(1);
+      expect(jsonRuleset.zones).toHaveLength(5);
+    });
+
+    it("validates schema with parseRuleset without throwing", () => {
+      const raw = JSON.parse(readFileSync(WAR_RULESET_PATH, "utf-8"));
+      expect(() => parseRuleset(raw)).not.toThrow();
+    });
+
+    it("JSON ruleset contains all expected phases", () => {
+      const raw = JSON.parse(readFileSync(WAR_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      const phaseNames = jsonRuleset.phases.map((p) => p.name);
+      expect(phaseNames).toEqual([
+        "setup",
+        "ready_check",
+        "battle",
+        "war",
+        "resolve_p0_wins",
+        "resolve_p1_wins",
+        "scoring",
+        "game_over",
+      ]);
+    });
+
+    it("JSON ruleset contains the ready action in ready_check phase", () => {
+      const raw = JSON.parse(readFileSync(WAR_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      const readyCheck = jsonRuleset.phases.find(
+        (p) => p.name === "ready_check"
+      );
+      expect(readyCheck).toBeDefined();
+      expect(readyCheck!.kind).toBe("all_players");
+      const actionNames = readyCheck!.actions.map((a) => a.name);
+      expect(actionNames).toContain("ready");
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Setup Phase ────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("setup phase", () => {
+    it("after start_game, state is in_progress at ready_check", () => {
+      const { state } = startWarGame();
+
+      expect(state.status.kind).toBe("in_progress");
+      expect(state.currentPhase).toBe("ready_check");
+    });
+
+    it("deals 26 cards to each player's deck", () => {
+      const { state } = startWarGame();
+
+      expect(state.zones["deck:0"]!.cards).toHaveLength(26);
+      expect(state.zones["deck:1"]!.cards).toHaveLength(26);
+    });
+
+    it("draw_pile is empty after dealing", () => {
+      const { state } = startWarGame();
+
+      expect(state.zones["draw_pile"]!.cards).toHaveLength(0);
+    });
+
+    it("battle, won, and pot zones are empty after setup", () => {
+      const { state } = startWarGame();
+
+      expect(state.zones["battle:0"]!.cards).toHaveLength(0);
+      expect(state.zones["battle:1"]!.cards).toHaveLength(0);
+      expect(state.zones["won:0"]!.cards).toHaveLength(0);
+      expect(state.zones["won:1"]!.cards).toHaveLength(0);
+      expect(state.zones["pot"]!.cards).toHaveLength(0);
+    });
+
+    it("total cards equals 52 after setup", () => {
+      const { state } = startWarGame();
+
+      expect(totalCards(state)).toBe(DECK_SIZE);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Battle Round ───────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("battle round", () => {
+    it("both players pressing ready triggers battle → resolve → ready_check", () => {
+      const { state, reducer, players } = startWarGame();
+
+      const afterRound = playWarRound(state, reducer, players);
+
+      expect(afterRound.currentPhase).toBe("ready_check");
+      expect(afterRound.status.kind).toBe("in_progress");
+    });
+
+    it("card conservation holds after a battle round (52 total)", () => {
+      const { state, reducer, players } = startWarGame();
+
+      const afterRound = playWarRound(state, reducer, players);
+
+      expect(totalCards(afterRound)).toBe(DECK_SIZE);
+    });
+
+    it("one player gained cards after a normal battle round", () => {
+      const { state, reducer, players } = startWarGame();
+
+      const afterRound = playWarRound(state, reducer, players);
+
+      const deck0 = afterRound.zones["deck:0"]!.cards.length;
+      const deck1 = afterRound.zones["deck:1"]!.cards.length;
+
+      // In a normal battle, the winner gains 2 cards (the battle pair).
+      // After resolution, won cards are shuffled back into the winner's deck.
+      // So one deck should be > 26 and the other < 26.
+      expect(deck0 + deck1).toBe(DECK_SIZE);
+      expect(deck0 !== deck1).toBe(true);
+    });
+
+    it("battle and won zones are empty after resolution", () => {
+      const { state, reducer, players } = startWarGame();
+
+      const afterRound = playWarRound(state, reducer, players);
+
+      expect(afterRound.zones["battle:0"]!.cards).toHaveLength(0);
+      expect(afterRound.zones["battle:1"]!.cards).toHaveLength(0);
+      expect(afterRound.zones["won:0"]!.cards).toHaveLength(0);
+      expect(afterRound.zones["won:1"]!.cards).toHaveLength(0);
+      expect(afterRound.zones["pot"]!.cards).toHaveLength(0);
+    });
+
+    it("version increases after a battle round", () => {
+      const { state, reducer, players } = startWarGame();
+
+      const afterRound = playWarRound(state, reducer, players);
+
+      expect(afterRound.version).toBeGreaterThan(state.version);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Card Conservation Across Multiple Battles ──────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("card conservation across multiple battles", () => {
+    it("maintains 52 total cards across 5 battle rounds", () => {
+      const { state, reducer, players } = startWarGame();
+
+      let current = state;
+      for (let round = 0; round < 5; round++) {
+        expect(totalCards(current)).toBe(DECK_SIZE);
+        current = playWarRound(current, reducer, players);
+      }
+      expect(totalCards(current)).toBe(DECK_SIZE);
+    });
+
+    it("game stays at ready_check after 5 rounds (not over yet)", () => {
+      const { state, reducer, players } = startWarGame();
+
+      let current = state;
+      for (let round = 0; round < 5; round++) {
+        current = playWarRound(current, reducer, players);
+        expect(current.status.kind).toBe("in_progress");
+        expect(current.currentPhase).toBe("ready_check");
+      }
+    });
+
+    it("no duplicate card IDs after multiple rounds", () => {
+      const { state, reducer, players } = startWarGame();
+
+      let current = state;
+      for (let round = 0; round < 5; round++) {
+        current = playWarRound(current, reducer, players);
+      }
+
+      const allIds = Object.values(current.zones).flatMap((z) =>
+        z.cards.map((c) => c.id)
+      );
+      const uniqueIds = new Set(allIds);
+      expect(uniqueIds.size).toBe(allIds.length);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Deterministic Replay ───────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("deterministic replay", () => {
+    it("two games with same seed produce identical decks after setup", () => {
+      const game1 = startWarGame(FIXED_SEED);
+      const game2 = startWarGame(FIXED_SEED);
+
+      expect(handDescription(game1.state, "deck:0")).toEqual(
+        handDescription(game2.state, "deck:0")
+      );
+      expect(handDescription(game1.state, "deck:1")).toEqual(
+        handDescription(game2.state, "deck:1")
+      );
+    });
+
+    it("same seed produces identical state after a battle round", () => {
+      const game1 = startWarGame(FIXED_SEED);
+      const game2 = startWarGame(FIXED_SEED);
+
+      const after1 = playWarRound(game1.state, game1.reducer, game1.players);
+      const after2 = playWarRound(game2.state, game2.reducer, game2.players);
+
+      expect(handDescription(after1, "deck:0")).toEqual(
+        handDescription(after2, "deck:0")
+      );
+      expect(handDescription(after1, "deck:1")).toEqual(
+        handDescription(after2, "deck:1")
+      );
+      expect(after1.version).toBe(after2.version);
+    });
+
+    it("different seeds produce different deck contents", () => {
+      const game1 = startWarGame(42);
+      const game2 = startWarGame(999);
+
+      const deck1 = handDescription(game1.state, "deck:0");
+      const deck2 = handDescription(game2.state, "deck:0");
+
+      expect(deck1).not.toEqual(deck2);
+    });
+
+    it("card IDs are identical between same-seed games", () => {
+      const game1 = startWarGame(FIXED_SEED);
+      const game2 = startWarGame(FIXED_SEED);
+
+      const ids1 = game1.state.zones["deck:0"]!.cards.map((c) => c.id);
+      const ids2 = game2.state.zones["deck:0"]!.cards.map((c) => c.id);
+      expect(ids1).toEqual(ids2);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Player View Filtering ──────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("player view filtering", () => {
+    it("deck cards are hidden (all null) for player 0", () => {
+      const { state, players } = startWarGame();
+      const view = createPlayerView(state, players[0]!.id);
+
+      const deck0 = view.zones["deck:0"]!;
+      expect(deck0.cardCount).toBe(26);
+      expect(deck0.cards.every((c) => c === null)).toBe(true);
+    });
+
+    it("deck cards are hidden for player 1 as well", () => {
+      const { state, players } = startWarGame();
+      const view = createPlayerView(state, players[1]!.id);
+
+      const deck1 = view.zones["deck:1"]!;
+      expect(deck1.cardCount).toBe(26);
+      expect(deck1.cards.every((c) => c === null)).toBe(true);
+    });
+
+    it("battle zone uses face_up_only visibility (empty after setup)", () => {
+      const { state, players } = startWarGame();
+      const view = createPlayerView(state, players[0]!.id);
+
+      const battle0 = view.zones["battle:0"]!;
+      expect(battle0.cardCount).toBe(0);
+      expect(battle0.cards).toHaveLength(0);
+    });
+
+    it("pot cards are hidden from all players", () => {
+      const { state, players } = startWarGame();
+      const view = createPlayerView(state, players[0]!.id);
+
+      const pot = view.zones["pot"]!;
+      expect(pot.cardCount).toBe(0);
+      expect(pot.cards.every((c) => c === null)).toBe(true);
+    });
+
+    it("isMyTurn is true for both players in all_players phase", () => {
+      const { state, players } = startWarGame();
+
+      const view0 = createPlayerView(state, players[0]!.id);
+      const view1 = createPlayerView(state, players[1]!.id);
+
+      // ready_check is an all_players phase, so both are active
+      expect(view0.isMyTurn).toBe(true);
+      expect(view1.isMyTurn).toBe(true);
+    });
+
+    it("myPlayerId is set correctly in each view", () => {
+      const { state, players } = startWarGame();
+
+      const view0 = createPlayerView(state, players[0]!.id);
+      expect(view0.myPlayerId).toBe(players[0]!.id);
+
+      const view1 = createPlayerView(state, players[1]!.id);
+      expect(view1.myPlayerId).toBe(players[1]!.id);
+    });
+
+    it("view includes all expected zone names", () => {
+      const { state, players } = startWarGame();
+      const view = createPlayerView(state, players[0]!.id);
+
+      expect(view.zones["draw_pile"]).toBeDefined();
+      expect(view.zones["deck:0"]).toBeDefined();
+      expect(view.zones["deck:1"]).toBeDefined();
+      expect(view.zones["battle:0"]).toBeDefined();
+      expect(view.zones["battle:1"]).toBeDefined();
+      expect(view.zones["won:0"]).toBeDefined();
+      expect(view.zones["won:1"]).toBeDefined();
+      expect(view.zones["pot"]).toBeDefined();
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Scoring and Game Over ──────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("scoring and game over", () => {
+    it("scoring expression parses without errors via parseRuleset", () => {
+      const raw = JSON.parse(readFileSync(WAR_RULESET_PATH, "utf-8"));
+      const parsed = parseRuleset(raw);
+
+      expect(parsed.scoring.method).toBe(
+        "card_count(current_player.deck) + card_count(current_player.battle) + card_count(current_player.won)"
+      );
+      expect(parsed.scoring.winCondition).toBe("my_score > 0");
+    });
+
+    it("engine survives 20 rounds without errors", () => {
+      const { state, reducer, players } = startWarGame();
+
+      let current = state;
+      for (let round = 0; round < 20; round++) {
+        // Game might end if one player runs out of cards
+        if (current.status.kind !== "in_progress" || current.currentPhase !== "ready_check") {
+          break;
+        }
+        current = playWarRound(current, reducer, players);
+        expect(totalCards(current)).toBe(DECK_SIZE);
+      }
+
+      // Game should still be valid — either in_progress or finished
+      expect(["in_progress", "finished"]).toContain(current.status.kind);
+    });
+
+    it("scoring method sums deck + battle + won for each player", () => {
+      // Verify the scoring config is structurally correct
+      const ruleset = makeWarRuleset();
+      expect(ruleset.scoring.method).toContain("card_count(current_player.deck)");
+      expect(ruleset.scoring.method).toContain("card_count(current_player.battle)");
+      expect(ruleset.scoring.method).toContain("card_count(current_player.won)");
+      expect(ruleset.scoring.winCondition).toBe("my_score > 0");
+      // No bustCondition or tieCondition in War
+      expect(ruleset.scoring).not.toHaveProperty("bustCondition");
+      expect(ruleset.scoring).not.toHaveProperty("tieCondition");
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── War Scenario (Tie) ─────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("war scenario (tie)", () => {
+    /**
+     * Finds a seed where a war (tie) occurs in the first battle round.
+     * Detection: after one battle round, the winner gains more than 2 cards
+     * (war involves original 2 battle cards + pot cards from the war stakes).
+     * A normal win transfers 2 cards; a war transfers at minimum 10 cards
+     * (2 original + 8 stakes). Returns the seed or null if none found.
+     */
+    function findWarSeed(range: number = 1000): number | null {
+      for (let seed = 0; seed < range; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startWarGame(seed);
+          const afterRound = playWarRound(game.state, game.reducer, game.players);
+
+          // In a normal battle, the difference in deck sizes is exactly 2
+          // (winner gains 2 cards, loser loses 2). In a war, the difference
+          // is much larger because of the staked cards.
+          const deck0 = afterRound.zones["deck:0"]!.cards.length;
+          const deck1 = afterRound.zones["deck:1"]!.cards.length;
+          const diff = Math.abs(deck0 - deck1);
+
+          // War: 2 battle cards + at least 8 stakes = 10 card swing
+          if (diff > 2) {
+            return seed;
+          }
+        } catch {
+          // Skip seeds that cause errors (e.g., edge cases)
+          continue;
+        }
+      }
+      return null;
+    }
+
+    it("can find a seed that produces a war (tie) in the first round", () => {
+      const warSeed = findWarSeed();
+      expect(warSeed).not.toBeNull();
+    });
+
+    it("war produces correct card conservation after tie resolution", () => {
+      const warSeed = findWarSeed();
+      if (warSeed === null) {
+        // Skip test if no war seed found — should not happen with 1000 seeds
+        expect(warSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startWarGame(warSeed);
+      const afterRound = playWarRound(state, reducer, players);
+
+      expect(totalCards(afterRound)).toBe(DECK_SIZE);
+      expect(afterRound.currentPhase).toBe("ready_check");
+      expect(afterRound.status.kind).toBe("in_progress");
+    });
+
+    it("war winner gains more than 2 cards (pot is distributed)", () => {
+      const warSeed = findWarSeed();
+      if (warSeed === null) {
+        expect(warSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startWarGame(warSeed);
+      const afterRound = playWarRound(state, reducer, players);
+
+      const deck0 = afterRound.zones["deck:0"]!.cards.length;
+      const deck1 = afterRound.zones["deck:1"]!.cards.length;
+
+      // The winner should have significantly more than 26 cards
+      const winnerDeck = Math.max(deck0, deck1);
+      const loserDeck = Math.min(deck0, deck1);
+
+      // War involves at minimum 10 cards (2 battle + 4 stakes per player)
+      expect(winnerDeck - loserDeck).toBeGreaterThan(2);
+      expect(winnerDeck + loserDeck).toBe(DECK_SIZE);
+    });
+
+    it("game survives multiple rounds after a war", () => {
+      const warSeed = findWarSeed();
+      if (warSeed === null) {
+        expect(warSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startWarGame(warSeed);
+
+      let current = state;
+      for (let round = 0; round < 10; round++) {
+        if (current.status.kind !== "in_progress" || current.currentPhase !== "ready_check") {
+          break;
+        }
+        current = playWarRound(current, reducer, players);
+        expect(totalCards(current)).toBe(DECK_SIZE);
+      }
+
+      // Game should still be valid after multiple rounds post-war
+      expect(["in_progress", "finished"]).toContain(current.status.kind);
+    });
+
+    it("war produces higher version jump than a normal battle", () => {
+      const warSeed = findWarSeed();
+      if (warSeed === null) {
+        expect(warSeed).not.toBeNull();
+        return;
+      }
+
+      // Find a seed with a normal (non-war) battle for comparison
+      let normalSeed: number | null = null;
+      for (let seed = 0; seed < 1000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startWarGame(seed);
+          const afterRound = playWarRound(game.state, game.reducer, game.players);
+          const deck0 = afterRound.zones["deck:0"]!.cards.length;
+          const deck1 = afterRound.zones["deck:1"]!.cards.length;
+          if (Math.abs(deck0 - deck1) === 2) {
+            normalSeed = seed;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (normalSeed === null) {
+        // Can't find a normal seed; skip comparison
+        return;
+      }
+
+      // Run war game
+      clearBuiltins();
+      registerAllBuiltins();
+      const warGame = startWarGame(warSeed);
+      const warAfter = playWarRound(warGame.state, warGame.reducer, warGame.players);
+      const warVersionJump = warAfter.version - warGame.state.version;
+
+      // Run normal game
+      clearBuiltins();
+      registerAllBuiltins();
+      const normalGame = startWarGame(normalSeed);
+      const normalAfter = playWarRound(normalGame.state, normalGame.reducer, normalGame.players);
+      const normalVersionJump = normalAfter.version - normalGame.state.version;
+
+      // War involves more automatic phases, so version should jump more
+      expect(warVersionJump).toBeGreaterThan(normalVersionJump);
     });
   });
 });

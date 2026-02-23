@@ -1,0 +1,219 @@
+{
+  "meta": {
+    "name": "War",
+    "slug": "war",
+    "version": "1.0.0",
+    "author": "faluciano",
+    "players": {
+      "min": 2,
+      "max": 2
+    }
+  },
+  "deck": {
+    "preset": "standard_52",
+    "copies": 1,
+    "cardValues": {
+      "2":  { "kind": "fixed", "value": 2 },
+      "3":  { "kind": "fixed", "value": 3 },
+      "4":  { "kind": "fixed", "value": 4 },
+      "5":  { "kind": "fixed", "value": 5 },
+      "6":  { "kind": "fixed", "value": 6 },
+      "7":  { "kind": "fixed", "value": 7 },
+      "8":  { "kind": "fixed", "value": 8 },
+      "9":  { "kind": "fixed", "value": 9 },
+      "10": { "kind": "fixed", "value": 10 },
+      "J":  { "kind": "fixed", "value": 11 },
+      "Q":  { "kind": "fixed", "value": 12 },
+      "K":  { "kind": "fixed", "value": 13 },
+      "A":  { "kind": "fixed", "value": 14 }
+    }
+  },
+  "zones": [
+    {
+      "name": "draw_pile",
+      "visibility": { "kind": "hidden" },
+      "owners": []
+    },
+    {
+      "name": "deck",
+      "visibility": { "kind": "hidden" },
+      "owners": ["player"]
+    },
+    {
+      "name": "battle",
+      "visibility": { "kind": "partial", "rule": "face_up_only" },
+      "owners": ["player"]
+    },
+    {
+      "name": "won",
+      "visibility": { "kind": "hidden" },
+      "owners": ["player"]
+    },
+    {
+      "name": "pot",
+      "visibility": { "kind": "hidden" },
+      "owners": []
+    }
+  ],
+  "roles": [
+    {
+      "name": "player",
+      "isHuman": true,
+      "count": "per_player"
+    }
+  ],
+  "phases": [
+    {
+      "name": "setup",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "ready_check", "when": "all_hands_dealt" }
+      ],
+      "automaticSequence": [
+        "shuffle(draw_pile)",
+        "deal(draw_pile, deck, 26)"
+      ]
+    },
+    {
+      "name": "ready_check",
+      "kind": "all_players",
+      "actions": [
+        {
+          "name": "ready",
+          "label": "Battle!",
+          "effect": ["end_turn()"]
+        }
+      ],
+      "transitions": [
+        { "to": "scoring", "when": "card_count(deck:0) == 0 || card_count(deck:1) == 0" },
+        { "to": "battle", "when": "all_players_done" }
+      ]
+    },
+    {
+      "name": "battle",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "resolve_p0_wins", "when": "top_card_rank(battle:0) > top_card_rank(battle:1)" },
+        { "to": "resolve_p1_wins", "when": "top_card_rank(battle:0) < top_card_rank(battle:1)" },
+        { "to": "war", "when": "top_card_rank(battle:0) == top_card_rank(battle:1)" }
+      ],
+      "automaticSequence": [
+        "move_top(deck:0, battle:0, 1)",
+        "flip_top(battle:0, 1)",
+        "move_top(deck:1, battle:1, 1)",
+        "flip_top(battle:1, 1)"
+      ]
+    },
+    {
+      "name": "war",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "resolve_p0_wins", "when": "card_count(deck:0) == 0 || card_count(deck:1) == 0 || top_card_rank(battle:0) > top_card_rank(battle:1)" },
+        { "to": "resolve_p1_wins", "when": "top_card_rank(battle:0) < top_card_rank(battle:1)" },
+        { "to": "war", "when": "top_card_rank(battle:0) == top_card_rank(battle:1)" }
+      ],
+      "automaticSequence": [
+        "move_all(battle:0, pot)",
+        "move_all(battle:1, pot)",
+        "move_top(deck:0, battle:0, 1)",
+        "flip_top(battle:0, 1)",
+        "move_top(deck:0, battle:0, 3)",
+        "move_top(deck:1, battle:1, 1)",
+        "flip_top(battle:1, 1)",
+        "move_top(deck:1, battle:1, 3)"
+      ]
+    },
+    {
+      "name": "resolve_p0_wins",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "ready_check", "when": "all_hands_dealt" }
+      ],
+      "automaticSequence": [
+        "move_all(battle:0, won:0)",
+        "move_all(battle:1, won:0)",
+        "move_all(pot, won:0)",
+        "shuffle(won:0)",
+        "move_all(won:0, deck:0)"
+      ]
+    },
+    {
+      "name": "resolve_p1_wins",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "ready_check", "when": "all_hands_dealt" }
+      ],
+      "automaticSequence": [
+        "move_all(battle:0, won:1)",
+        "move_all(battle:1, won:1)",
+        "move_all(pot, won:1)",
+        "shuffle(won:1)",
+        "move_all(won:1, deck:1)"
+      ]
+    },
+    {
+      "name": "scoring",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "game_over", "when": "scores_calculated" }
+      ],
+      "automaticSequence": [
+        "calculate_scores()",
+        "determine_winners()"
+      ]
+    },
+    {
+      "name": "game_over",
+      "kind": "all_players",
+      "actions": [
+        {
+          "name": "play_again",
+          "label": "Play Again",
+          "effect": [
+            "collect_all_to(draw_pile)",
+            "reset_round()"
+          ]
+        }
+      ],
+      "transitions": [
+        { "to": "setup", "when": "continue_game" }
+      ]
+    }
+  ],
+  "scoring": {
+    "method": "card_count(current_player.deck) + card_count(current_player.battle) + card_count(current_player.won)",
+    "winCondition": "my_score > 0"
+  },
+  "visibility": [
+    {
+      "zone": "draw_pile",
+      "visibility": { "kind": "hidden" }
+    },
+    {
+      "zone": "deck",
+      "visibility": { "kind": "hidden" }
+    },
+    {
+      "zone": "battle",
+      "visibility": { "kind": "partial", "rule": "face_up_only" }
+    },
+    {
+      "zone": "won",
+      "visibility": { "kind": "hidden" }
+    },
+    {
+      "zone": "pot",
+      "visibility": { "kind": "hidden" }
+    }
+  ],
+  "ui": {
+    "layout": "linear",
+    "tableColor": "felt_green"
+  }
+}
