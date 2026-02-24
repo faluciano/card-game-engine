@@ -378,7 +378,7 @@ A zone where hidden cards are replaced with `null` placeholders. Contains `name`
 
 ## Testing
 
-740 tests across 8 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, and integration scenarios.
+804 tests across 8 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, and integration scenarios.
 
 ```sh
 # Run all tests

@@ -10,6 +10,7 @@ This directory contains example `.cardgame.json` ruleset files that the Card Gam
 | `war.cardgame.json` | War | Rank comparison | 2 |
 | `crazy-eights.cardgame.json` | Crazy Eights | Matching / shedding | 2–4 |
 | `ninety-nine.cardgame.json` | Ninety-Nine (99) | Accumulation / avoidance | 2–4 |
+| `uno.cardgame.json` | Uno (Simplified) | Shedding / color matching | 2–4 |
 
 ## Creating Your Own
 

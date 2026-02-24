@@ -1,0 +1,295 @@
+{
+  "meta": {
+    "name": "Uno",
+    "slug": "uno",
+    "version": "1.0.0",
+    "author": "faluciano",
+    "players": {
+      "min": 2,
+      "max": 4
+    }
+  },
+  "deck": {
+    "preset": "custom",
+    "copies": 1,
+    "cards": [
+      { "suit": "red", "rank": "0" },
+      { "suit": "red", "rank": "1" },
+      { "suit": "red", "rank": "1" },
+      { "suit": "red", "rank": "2" },
+      { "suit": "red", "rank": "2" },
+      { "suit": "red", "rank": "3" },
+      { "suit": "red", "rank": "3" },
+      { "suit": "red", "rank": "4" },
+      { "suit": "red", "rank": "4" },
+      { "suit": "red", "rank": "5" },
+      { "suit": "red", "rank": "5" },
+      { "suit": "red", "rank": "6" },
+      { "suit": "red", "rank": "6" },
+      { "suit": "red", "rank": "7" },
+      { "suit": "red", "rank": "7" },
+      { "suit": "red", "rank": "8" },
+      { "suit": "red", "rank": "8" },
+      { "suit": "red", "rank": "9" },
+      { "suit": "red", "rank": "9" },
+      { "suit": "red", "rank": "Skip" },
+      { "suit": "red", "rank": "Skip" },
+      { "suit": "red", "rank": "Reverse" },
+      { "suit": "red", "rank": "Reverse" },
+      { "suit": "red", "rank": "Draw Two" },
+      { "suit": "red", "rank": "Draw Two" },
+      { "suit": "blue", "rank": "0" },
+      { "suit": "blue", "rank": "1" },
+      { "suit": "blue", "rank": "1" },
+      { "suit": "blue", "rank": "2" },
+      { "suit": "blue", "rank": "2" },
+      { "suit": "blue", "rank": "3" },
+      { "suit": "blue", "rank": "3" },
+      { "suit": "blue", "rank": "4" },
+      { "suit": "blue", "rank": "4" },
+      { "suit": "blue", "rank": "5" },
+      { "suit": "blue", "rank": "5" },
+      { "suit": "blue", "rank": "6" },
+      { "suit": "blue", "rank": "6" },
+      { "suit": "blue", "rank": "7" },
+      { "suit": "blue", "rank": "7" },
+      { "suit": "blue", "rank": "8" },
+      { "suit": "blue", "rank": "8" },
+      { "suit": "blue", "rank": "9" },
+      { "suit": "blue", "rank": "9" },
+      { "suit": "blue", "rank": "Skip" },
+      { "suit": "blue", "rank": "Skip" },
+      { "suit": "blue", "rank": "Reverse" },
+      { "suit": "blue", "rank": "Reverse" },
+      { "suit": "blue", "rank": "Draw Two" },
+      { "suit": "blue", "rank": "Draw Two" },
+      { "suit": "green", "rank": "0" },
+      { "suit": "green", "rank": "1" },
+      { "suit": "green", "rank": "1" },
+      { "suit": "green", "rank": "2" },
+      { "suit": "green", "rank": "2" },
+      { "suit": "green", "rank": "3" },
+      { "suit": "green", "rank": "3" },
+      { "suit": "green", "rank": "4" },
+      { "suit": "green", "rank": "4" },
+      { "suit": "green", "rank": "5" },
+      { "suit": "green", "rank": "5" },
+      { "suit": "green", "rank": "6" },
+      { "suit": "green", "rank": "6" },
+      { "suit": "green", "rank": "7" },
+      { "suit": "green", "rank": "7" },
+      { "suit": "green", "rank": "8" },
+      { "suit": "green", "rank": "8" },
+      { "suit": "green", "rank": "9" },
+      { "suit": "green", "rank": "9" },
+      { "suit": "green", "rank": "Skip" },
+      { "suit": "green", "rank": "Skip" },
+      { "suit": "green", "rank": "Reverse" },
+      { "suit": "green", "rank": "Reverse" },
+      { "suit": "green", "rank": "Draw Two" },
+      { "suit": "green", "rank": "Draw Two" },
+      { "suit": "yellow", "rank": "0" },
+      { "suit": "yellow", "rank": "1" },
+      { "suit": "yellow", "rank": "1" },
+      { "suit": "yellow", "rank": "2" },
+      { "suit": "yellow", "rank": "2" },
+      { "suit": "yellow", "rank": "3" },
+      { "suit": "yellow", "rank": "3" },
+      { "suit": "yellow", "rank": "4" },
+      { "suit": "yellow", "rank": "4" },
+      { "suit": "yellow", "rank": "5" },
+      { "suit": "yellow", "rank": "5" },
+      { "suit": "yellow", "rank": "6" },
+      { "suit": "yellow", "rank": "6" },
+      { "suit": "yellow", "rank": "7" },
+      { "suit": "yellow", "rank": "7" },
+      { "suit": "yellow", "rank": "8" },
+      { "suit": "yellow", "rank": "8" },
+      { "suit": "yellow", "rank": "9" },
+      { "suit": "yellow", "rank": "9" },
+      { "suit": "yellow", "rank": "Skip" },
+      { "suit": "yellow", "rank": "Skip" },
+      { "suit": "yellow", "rank": "Reverse" },
+      { "suit": "yellow", "rank": "Reverse" },
+      { "suit": "yellow", "rank": "Draw Two" },
+      { "suit": "yellow", "rank": "Draw Two" },
+      { "suit": "wild", "rank": "Wild" },
+      { "suit": "wild", "rank": "Wild" },
+      { "suit": "wild", "rank": "Wild" },
+      { "suit": "wild", "rank": "Wild" }
+    ],
+    "cardValues": {
+      "0":        { "kind": "fixed", "value": 0 },
+      "1":        { "kind": "fixed", "value": 1 },
+      "2":        { "kind": "fixed", "value": 2 },
+      "3":        { "kind": "fixed", "value": 3 },
+      "4":        { "kind": "fixed", "value": 4 },
+      "5":        { "kind": "fixed", "value": 5 },
+      "6":        { "kind": "fixed", "value": 6 },
+      "7":        { "kind": "fixed", "value": 7 },
+      "8":        { "kind": "fixed", "value": 8 },
+      "9":        { "kind": "fixed", "value": 9 },
+      "Skip":     { "kind": "fixed", "value": 20 },
+      "Reverse":  { "kind": "fixed", "value": 20 },
+      "Draw Two": { "kind": "fixed", "value": 20 },
+      "Wild":     { "kind": "fixed", "value": 50 }
+    }
+  },
+  "zones": [
+    {
+      "name": "draw_pile",
+      "visibility": { "kind": "hidden" },
+      "owners": []
+    },
+    {
+      "name": "hand",
+      "visibility": { "kind": "owner_only" },
+      "owners": ["player"]
+    },
+    {
+      "name": "discard",
+      "visibility": { "kind": "public" },
+      "owners": []
+    }
+  ],
+  "roles": [
+    {
+      "name": "player",
+      "isHuman": true,
+      "count": "per_player"
+    }
+  ],
+  "initialVariables": {
+    "chosen_color": 0,
+    "draw_penalty": 0
+  },
+  "phases": [
+    {
+      "name": "setup",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "play_turn", "when": "all_hands_dealt" }
+      ],
+      "automaticSequence": [
+        "shuffle(draw_pile)",
+        "deal(draw_pile, hand, 7)",
+        "move_top(draw_pile, discard, 1)",
+        "flip_top(discard, 1)"
+      ]
+    },
+    {
+      "name": "play_turn",
+      "kind": "turn_based",
+      "actions": [
+        {
+          "name": "play_card",
+          "label": "Play Card",
+          "effect": [
+            "if(top_card_rank_name(discard) == \"Skip\", skip_next_player())",
+            "if(top_card_rank_name(discard) == \"Reverse\", reverse_turn_order())",
+            "if(top_card_rank_name(discard) == \"Draw Two\", set_var(\"draw_penalty\", 2))",
+            "if(top_card_suit(discard) != \"wild\", set_var(\"chosen_color\", 0))",
+            "if(top_card_suit(discard) != \"wild\", end_turn())"
+          ]
+        },
+        {
+          "name": "draw_penalty",
+          "label": "Draw Penalty Cards",
+          "condition": "get_var(\"draw_penalty\") > 0",
+          "effect": [
+            "draw(draw_pile, current_player.hand, get_var(\"draw_penalty\"))",
+            "set_var(\"draw_penalty\", 0)",
+            "end_turn()"
+          ]
+        },
+        {
+          "name": "draw_card",
+          "label": "Draw Card",
+          "condition": "get_var(\"draw_penalty\") == 0",
+          "effect": [
+            "draw(draw_pile, current_player.hand, 1)",
+            "end_turn()"
+          ]
+        }
+      ],
+      "transitions": [
+        { "to": "choose_color", "when": "top_card_suit(discard) == \"wild\" && get_var(\"chosen_color\") == 0" },
+        { "to": "scoring", "when": "card_count(\"hand:0\") == 0 || card_count(\"hand:1\") == 0 || if(player_count > 2, card_count(\"hand:2\") == 0, false) || if(player_count > 3, card_count(\"hand:3\") == 0, false)" }
+      ],
+      "turnOrder": "clockwise"
+    },
+    {
+      "name": "choose_color",
+      "kind": "turn_based",
+      "actions": [
+        {
+          "name": "choose_color",
+          "label": "Choose Color",
+          "effect": [
+            "set_var(\"chosen_color\", get_param(\"color_code\"))",
+            "end_turn()"
+          ]
+        }
+      ],
+      "transitions": [
+        { "to": "scoring", "when": "card_count(\"hand:0\") == 0 || card_count(\"hand:1\") == 0 || if(player_count > 2, card_count(\"hand:2\") == 0, false) || if(player_count > 3, card_count(\"hand:3\") == 0, false)" },
+        { "to": "play_turn", "when": "get_var(\"chosen_color\") > 0" }
+      ],
+      "turnOrder": "clockwise"
+    },
+    {
+      "name": "scoring",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "round_end", "when": "scores_calculated" }
+      ],
+      "automaticSequence": [
+        "calculate_scores()",
+        "determine_winners()"
+      ]
+    },
+    {
+      "name": "round_end",
+      "kind": "all_players",
+      "actions": [
+        {
+          "name": "play_again",
+          "label": "Play Again",
+          "effect": [
+            "collect_all_to(draw_pile)",
+            "reset_round()"
+          ]
+        }
+      ],
+      "transitions": [
+        { "to": "setup", "when": "continue_game" }
+      ]
+    }
+  ],
+  "scoring": {
+    "method": "hand_value(current_player.hand, 999)",
+    "winCondition": "my_score == 0",
+    "bustCondition": "false",
+    "tieCondition": "false"
+  },
+  "visibility": [
+    {
+      "zone": "draw_pile",
+      "visibility": { "kind": "hidden" }
+    },
+    {
+      "zone": "hand",
+      "visibility": { "kind": "owner_only" }
+    },
+    {
+      "zone": "discard",
+      "visibility": { "kind": "public" }
+    }
+  ],
+  "ui": {
+    "layout": "circle",
+    "tableColor": "felt_green"
+  }
+}

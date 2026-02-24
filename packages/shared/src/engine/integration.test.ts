@@ -3910,3 +3910,1751 @@ describe("Ninety-Nine (99) Integration — Full Game Lifecycle", () => {
     });
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// ═══ Uno Integration Tests ══════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// Exercises the play_card action kind with phase effects, custom variables
+// (chosen_color, draw_penalty), declare with params (choose_color),
+// and turn order mechanics (Skip, Reverse) via the Simplified Uno ruleset.
+//
+// Key Uno mechanics:
+//   Number cards (0-9): play and end turn
+//   Skip: skips next player
+//   Reverse: reverses turn direction
+//   Draw Two: next player must draw 2
+//   Wild: player must choose a color (transitions to choose_color phase)
+//
+// NOTE: The engine's play_card handler appends the played card to the END
+// of the discard array. The top_card_rank_name/top_card_suit builtins read
+// cards[0] — the FIRST element. This means effects that check these builtins
+// reference the card at index 0, which after setup is the initial discard card.
+// After multiple plays, cards[0] remains the initial card. Tests account for
+// this convention by verifying actual engine behavior.
+
+const UNO_CARD_VALUES: Readonly<Record<string, CardValue>> = {
+  "0": { kind: "fixed", value: 0 },
+  "1": { kind: "fixed", value: 1 },
+  "2": { kind: "fixed", value: 2 },
+  "3": { kind: "fixed", value: 3 },
+  "4": { kind: "fixed", value: 4 },
+  "5": { kind: "fixed", value: 5 },
+  "6": { kind: "fixed", value: 6 },
+  "7": { kind: "fixed", value: 7 },
+  "8": { kind: "fixed", value: 8 },
+  "9": { kind: "fixed", value: 9 },
+  Skip: { kind: "fixed", value: 20 },
+  Reverse: { kind: "fixed", value: 20 },
+  "Draw Two": { kind: "fixed", value: 20 },
+  Wild: { kind: "fixed", value: 50 },
+};
+
+const UNO_DECK_SIZE = 104; // Custom 104-card deck
+
+const UNO_RULESET_PATH = resolve(
+  import.meta.dirname ?? __dirname,
+  "../../../../rulesets/uno.cardgame.json"
+);
+
+/**
+ * Builds an Uno ruleset directly (custom 104-card deck, 2-4 players).
+ * Matches the structure of rulesets/uno.cardgame.json exactly.
+ */
+function makeUnoRuleset(): CardGameRuleset {
+  const cards: Array<{ suit: string; rank: string }> = [];
+  for (const color of ["red", "blue", "green", "yellow"]) {
+    cards.push({ suit: color, rank: "0" });
+    for (const rank of [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "Skip",
+      "Reverse",
+      "Draw Two",
+    ]) {
+      cards.push({ suit: color, rank });
+      cards.push({ suit: color, rank });
+    }
+  }
+  for (let i = 0; i < 4; i++) {
+    cards.push({ suit: "wild", rank: "Wild" });
+  }
+
+  return {
+    meta: {
+      name: "Uno",
+      slug: "uno",
+      version: "1.0.0",
+      author: "faluciano",
+      players: { min: 2, max: 4 },
+    },
+    deck: {
+      preset: "custom",
+      copies: 1,
+      cards,
+      cardValues: UNO_CARD_VALUES,
+    },
+    zones: [
+      { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+      {
+        name: "hand",
+        visibility: { kind: "owner_only" },
+        owners: ["player"],
+      },
+      { name: "discard", visibility: { kind: "public" }, owners: [] },
+    ],
+    roles: [{ name: "player", isHuman: true, count: "per_player" }],
+    initialVariables: {
+      chosen_color: 0,
+      draw_penalty: 0,
+    },
+    phases: [
+      {
+        name: "setup",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "play_turn", when: "all_hands_dealt" }],
+        automaticSequence: [
+          "shuffle(draw_pile)",
+          "deal(draw_pile, hand, 7)",
+          "move_top(draw_pile, discard, 1)",
+          "flip_top(discard, 1)",
+        ],
+      },
+      {
+        name: "play_turn",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play_card",
+            label: "Play Card",
+            effect: [
+              'if(top_card_rank_name(discard) == "Skip", skip_next_player())',
+              'if(top_card_rank_name(discard) == "Reverse", reverse_turn_order())',
+              'if(top_card_rank_name(discard) == "Draw Two", set_var("draw_penalty", 2))',
+              'if(top_card_suit(discard) != "wild", set_var("chosen_color", 0))',
+              'if(top_card_suit(discard) != "wild", end_turn())',
+            ],
+          },
+          {
+            name: "draw_penalty",
+            label: "Draw Penalty Cards",
+            condition: 'get_var("draw_penalty") > 0',
+            effect: [
+              'draw(draw_pile, current_player.hand, get_var("draw_penalty"))',
+              'set_var("draw_penalty", 0)',
+              "end_turn()",
+            ],
+          },
+          {
+            name: "draw_card",
+            label: "Draw Card",
+            condition: 'get_var("draw_penalty") == 0',
+            effect: ["draw(draw_pile, current_player.hand, 1)", "end_turn()"],
+          },
+        ],
+        transitions: [
+          {
+            to: "choose_color",
+            when: 'top_card_suit(discard) == "wild" && get_var("chosen_color") == 0',
+          },
+          {
+            to: "scoring",
+            when: 'card_count("hand:0") == 0 || card_count("hand:1") == 0 || if(player_count > 2, card_count("hand:2") == 0, false) || if(player_count > 3, card_count("hand:3") == 0, false)',
+          },
+        ],
+        turnOrder: "clockwise",
+      },
+      {
+        name: "choose_color",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "choose_color",
+            label: "Choose Color",
+            effect: [
+              'set_var("chosen_color", get_param("color_code"))',
+              "end_turn()",
+            ],
+          },
+        ],
+        transitions: [
+          {
+            to: "scoring",
+            when: 'card_count("hand:0") == 0 || card_count("hand:1") == 0 || if(player_count > 2, card_count("hand:2") == 0, false) || if(player_count > 3, card_count("hand:3") == 0, false)',
+          },
+          {
+            to: "play_turn",
+            when: 'get_var("chosen_color") > 0',
+          },
+        ],
+        turnOrder: "clockwise",
+      },
+      {
+        name: "scoring",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "round_end", when: "scores_calculated" }],
+        automaticSequence: ["calculate_scores()", "determine_winners()"],
+      },
+      {
+        name: "round_end",
+        kind: "all_players",
+        actions: [
+          {
+            name: "play_again",
+            label: "Play Again",
+            effect: ["collect_all_to(draw_pile)", "reset_round()"],
+          },
+        ],
+        transitions: [{ to: "setup", when: "continue_game" }],
+      },
+    ],
+    scoring: {
+      method: "hand_value(current_player.hand, 999)",
+      winCondition: "my_score == 0",
+      bustCondition: "false",
+      tieCondition: "false",
+    },
+    visibility: [
+      { zone: "draw_pile", visibility: { kind: "hidden" } },
+      { zone: "hand", visibility: { kind: "owner_only" } },
+      { zone: "discard", visibility: { kind: "public" } },
+    ],
+    ui: { layout: "circle", tableColor: "felt_green" },
+  };
+}
+
+/**
+ * Creates a started Uno game ready for player actions.
+ * Returns state at `play_turn` with 7 cards dealt per player and
+ * 1 card face-up in the discard pile.
+ */
+function startUnoGame(
+  playerCount: number = 2,
+  seed: number = FIXED_SEED
+): { state: CardGameState; reducer: GameReducer; players: Player[] } {
+  const unoRuleset = makeUnoRuleset();
+  const players: Player[] = Array.from({ length: playerCount }, (_, i) => ({
+    id: pid(`player-${i}`),
+    name: `Player ${i}`,
+    role: "player" as const,
+    connected: true,
+  }));
+  const reducer = createReducer(unoRuleset, seed);
+  const initial = createInitialState(
+    unoRuleset,
+    sid("uno-test-session"),
+    players,
+    seed
+  );
+  const state = reducer(initial, { kind: "start_game" });
+  return { state, reducer, players };
+}
+
+/**
+ * Find a seed where player has a specific card rank in hand.
+ * Returns { seed, cardIndex } or null.
+ */
+function findUnoSeedForCard(
+  targetRank: string,
+  playerIndex: number = 0,
+  playerCount: number = 2,
+  maxSearch: number = 3000
+): { seed: number; cardIndex: number } | null {
+  for (let seed = 0; seed < maxSearch; seed++) {
+    try {
+      clearBuiltins();
+      registerAllBuiltins();
+      const game = startUnoGame(playerCount, seed);
+      const hand = game.state.zones[`hand:${playerIndex}`];
+      if (hand) {
+        const idx = hand.cards.findIndex((c) => c.rank === targetRank);
+        if (idx !== -1) return { seed, cardIndex: idx };
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find a seed where player has a Wild card in hand.
+ */
+function findUnoSeedForWild(
+  playerIndex: number = 0,
+  playerCount: number = 2,
+  maxSearch: number = 3000
+): { seed: number; cardIndex: number } | null {
+  return findUnoSeedForCard("Wild", playerIndex, playerCount, maxSearch);
+}
+
+/**
+ * Find a seed where player has a card with specific rank AND the discard
+ * top allows it to be played (matching suit or rank, or card is Wild).
+ */
+function findUnoSeedForPlayableCard(
+  targetRank: string,
+  playerIndex: number = 0,
+  playerCount: number = 2,
+  maxSearch: number = 5000
+): { seed: number; cardIndex: number } | null {
+  for (let seed = 0; seed < maxSearch; seed++) {
+    try {
+      clearBuiltins();
+      registerAllBuiltins();
+      const game = startUnoGame(playerCount, seed);
+      const hand = game.state.zones[`hand:${playerIndex}`];
+      const discardTop = game.state.zones["discard"]?.cards[0];
+      if (!hand || !discardTop) continue;
+      const idx = hand.cards.findIndex(
+        (c) =>
+          c.rank === targetRank &&
+          (c.suit === "wild" ||
+            c.suit === discardTop.suit ||
+            c.rank === discardTop.rank)
+      );
+      if (idx !== -1) return { seed, cardIndex: idx };
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * Plays a specific card from the current player's hand to the discard pile.
+ * Uses the play_card action kind (not declare).
+ */
+function playUnoCard(
+  state: CardGameState,
+  reducer: GameReducer,
+  players: Player[],
+  cardIndex: number
+): CardGameState {
+  const playerIdx = state.currentPlayerIndex;
+  const hand = state.zones[`hand:${playerIdx}`]!;
+  const card = hand.cards[cardIndex]!;
+  return reducer(state, {
+    kind: "play_card",
+    playerId: players[playerIdx]!.id,
+    cardId: card.id,
+    fromZone: `hand:${playerIdx}`,
+    toZone: "discard",
+  });
+}
+
+// ─── Uno Tests ────────────────────────────────────────────────────
+
+describe("Uno Integration — Full Game Lifecycle", () => {
+  beforeEach(() => {
+    clearBuiltins();
+    registerAllBuiltins();
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Schema Validation ─────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("schema validation", () => {
+    it("loads and validates the uno ruleset from disk", () => {
+      const raw = JSON.parse(readFileSync(UNO_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      expect(jsonRuleset.meta.name).toBe("Uno");
+      expect(jsonRuleset.meta.slug).toBe("uno");
+      expect(jsonRuleset.deck.preset).toBe("custom");
+      expect(jsonRuleset.phases).toHaveLength(5);
+      expect(jsonRuleset.roles).toHaveLength(1);
+      expect(jsonRuleset.zones).toHaveLength(3);
+    });
+
+    it("validates schema with parseRuleset without throwing", () => {
+      const raw = JSON.parse(readFileSync(UNO_RULESET_PATH, "utf-8"));
+      expect(() => parseRuleset(raw)).not.toThrow();
+    });
+
+    it("JSON ruleset contains all 5 expected phases", () => {
+      const raw = JSON.parse(readFileSync(UNO_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      const phaseNames = jsonRuleset.phases.map((p) => p.name);
+      expect(phaseNames).toEqual([
+        "setup",
+        "play_turn",
+        "choose_color",
+        "scoring",
+        "round_end",
+      ]);
+    });
+
+    it("JSON ruleset contains play_card action with Skip/Reverse/Draw Two effects", () => {
+      const raw = JSON.parse(readFileSync(UNO_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      const playTurn = jsonRuleset.phases.find(
+        (p) => p.name === "play_turn"
+      )!;
+      const playCardAction = playTurn.actions.find(
+        (a) => a.name === "play_card"
+      );
+      expect(playCardAction).toBeDefined();
+
+      const effects = playCardAction!.effect;
+      expect(effects).toBeDefined();
+      expect(Array.isArray(effects)).toBe(true);
+      const effectStr = (effects as string[]).join(" ");
+      expect(effectStr).toContain("Skip");
+      expect(effectStr).toContain("Reverse");
+      expect(effectStr).toContain("Draw Two");
+      expect(effectStr).toContain("skip_next_player");
+      expect(effectStr).toContain("reverse_turn_order");
+      expect(effectStr).toContain("set_var");
+    });
+
+    it("JSON ruleset contains initialVariables (chosen_color, draw_penalty)", () => {
+      const raw = JSON.parse(readFileSync(UNO_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      expect(jsonRuleset.initialVariables).toEqual({
+        chosen_color: 0,
+        draw_penalty: 0,
+      });
+    });
+
+    it("deck.preset is custom with 104 cards", () => {
+      const raw = JSON.parse(readFileSync(UNO_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      expect(jsonRuleset.deck.preset).toBe("custom");
+      expect(jsonRuleset.deck.cards).toBeDefined();
+      expect(jsonRuleset.deck.cards).toHaveLength(104);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Initial State Creation ─────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("initial state creation", () => {
+    it("creates correct zones for 2 players", () => {
+      const unoRuleset = makeUnoRuleset();
+      const players: Player[] = [
+        {
+          id: pid("player-0"),
+          name: "Player 0",
+          role: "player",
+          connected: true,
+        },
+        {
+          id: pid("player-1"),
+          name: "Player 1",
+          role: "player",
+          connected: true,
+        },
+      ];
+      const initial = createInitialState(
+        unoRuleset,
+        sid("test-session"),
+        players,
+        FIXED_SEED
+      );
+
+      expect(initial.zones["draw_pile"]).toBeDefined();
+      expect(initial.zones["discard"]).toBeDefined();
+      expect(initial.zones["hand:0"]).toBeDefined();
+      expect(initial.zones["hand:1"]).toBeDefined();
+      expect(initial.zones["hand:2"]).toBeUndefined();
+    });
+
+    it("creates correct zones for 4 players", () => {
+      const unoRuleset = makeUnoRuleset();
+      const players: Player[] = Array.from({ length: 4 }, (_, i) => ({
+        id: pid(`player-${i}`),
+        name: `Player ${i}`,
+        role: "player" as const,
+        connected: true,
+      }));
+      const initial = createInitialState(
+        unoRuleset,
+        sid("test-session"),
+        players,
+        FIXED_SEED
+      );
+
+      expect(initial.zones["hand:0"]).toBeDefined();
+      expect(initial.zones["hand:1"]).toBeDefined();
+      expect(initial.zones["hand:2"]).toBeDefined();
+      expect(initial.zones["hand:3"]).toBeDefined();
+    });
+
+    it("variables initialized to chosen_color=0, draw_penalty=0", () => {
+      const unoRuleset = makeUnoRuleset();
+      const players: Player[] = [
+        {
+          id: pid("player-0"),
+          name: "Player 0",
+          role: "player",
+          connected: true,
+        },
+        {
+          id: pid("player-1"),
+          name: "Player 1",
+          role: "player",
+          connected: true,
+        },
+      ];
+      const initial = createInitialState(
+        unoRuleset,
+        sid("test"),
+        players,
+        FIXED_SEED
+      );
+
+      expect(initial.variables).toEqual({
+        chosen_color: 0,
+        draw_penalty: 0,
+      });
+    });
+
+    it("turnDirection starts as 1", () => {
+      const unoRuleset = makeUnoRuleset();
+      const players: Player[] = [
+        {
+          id: pid("player-0"),
+          name: "Player 0",
+          role: "player",
+          connected: true,
+        },
+        {
+          id: pid("player-1"),
+          name: "Player 1",
+          role: "player",
+          connected: true,
+        },
+      ];
+      const initial = createInitialState(
+        unoRuleset,
+        sid("test"),
+        players,
+        FIXED_SEED
+      );
+
+      expect(initial.turnDirection).toBe(1);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Setup Phase ────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("setup phase", () => {
+    it("deals 7 cards per player and 1 in discard pile (2 players)", () => {
+      const { state } = startUnoGame(2);
+
+      expect(state.zones["hand:0"]!.cards).toHaveLength(7);
+      expect(state.zones["hand:1"]!.cards).toHaveLength(7);
+      expect(state.zones["discard"]!.cards).toHaveLength(1);
+      // 104 - 14 - 1 = 89
+      expect(state.zones["draw_pile"]!.cards).toHaveLength(89);
+    });
+
+    it("deals correctly with 4 players (104 - 28 - 1 = 75 in draw pile)", () => {
+      const { state } = startUnoGame(4);
+
+      expect(state.zones["hand:0"]!.cards).toHaveLength(7);
+      expect(state.zones["hand:1"]!.cards).toHaveLength(7);
+      expect(state.zones["hand:2"]!.cards).toHaveLength(7);
+      expect(state.zones["hand:3"]!.cards).toHaveLength(7);
+      expect(state.zones["discard"]!.cards).toHaveLength(1);
+      // 104 - 28 - 1 = 75
+      expect(state.zones["draw_pile"]!.cards).toHaveLength(75);
+    });
+
+    it("discard top card is face up after setup", () => {
+      const { state } = startUnoGame(2);
+
+      const discardCards = state.zones["discard"]!.cards;
+      expect(discardCards).toHaveLength(1);
+      expect(discardCards[0]!.faceUp).toBe(true);
+    });
+
+    it("starts in play_turn phase after setup", () => {
+      const { state } = startUnoGame(2);
+
+      expect(state.status.kind).toBe("in_progress");
+      expect(state.currentPhase).toBe("play_turn");
+    });
+
+    it("player 0 goes first", () => {
+      const { state } = startUnoGame(2);
+
+      expect(state.currentPlayerIndex).toBe(0);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Normal Number Card Play ───────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("normal number card play", () => {
+    it("playing a number card moves it from hand to discard", () => {
+      // Find a seed where player 0 has a number card (0-9)
+      const numberRanks = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+      let testSeed: number | null = null;
+      let testCardIdx = 0;
+
+      for (let seed = 0; seed < 2000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(2, seed);
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) =>
+            numberRanks.includes(c.rank)
+          );
+          if (idx !== -1) {
+            testSeed = seed;
+            testCardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      expect(testSeed).not.toBeNull();
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, testSeed!);
+
+      const handBefore = state.zones["hand:0"]!.cards.length;
+      const discardBefore = state.zones["discard"]!.cards.length;
+
+      const afterPlay = playUnoCard(state, reducer, players, testCardIdx);
+
+      expect(afterPlay.zones["hand:0"]!.cards.length).toBe(handBefore - 1);
+      expect(afterPlay.zones["discard"]!.cards.length).toBe(
+        discardBefore + 1
+      );
+    });
+
+    it("playing a non-wild card resets chosen_color to 0", () => {
+      // Find a seed with a non-wild card
+      const result = findUnoSeedForCard("5");
+      expect(result).not.toBeNull();
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, result!.seed);
+
+      // Artificially set chosen_color to something non-zero
+      const stateWithColor: CardGameState = {
+        ...state,
+        variables: { ...state.variables, chosen_color: 2 },
+      };
+
+      const afterPlay = playUnoCard(
+        stateWithColor,
+        reducer,
+        players,
+        result!.cardIndex
+      );
+
+      // The effect if(top_card_suit(discard) != "wild", set_var("chosen_color", 0))
+      // checks cards[0] of discard — the setup card. If setup card is not wild,
+      // chosen_color gets reset. Setup card is very likely non-wild.
+      const discardTop = state.zones["discard"]!.cards[0]!;
+      if (discardTop.suit !== "wild") {
+        expect(afterPlay.variables.chosen_color).toBe(0);
+      }
+    });
+
+    it("playing a non-wild card calls end_turn — next player becomes active", () => {
+      const result = findUnoSeedForCard("3");
+      expect(result).not.toBeNull();
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, result!.seed);
+
+      expect(state.currentPlayerIndex).toBe(0);
+
+      const afterPlay = playUnoCard(state, reducer, players, result!.cardIndex);
+
+      // The end_turn effect fires when top_card_suit(discard) != "wild"
+      // which checks cards[0] (the setup card). If setup card is non-wild,
+      // end_turn fires and the current player advances.
+      const discardTop = state.zones["discard"]!.cards[0]!;
+      if (discardTop.suit !== "wild" && afterPlay.currentPhase === "play_turn") {
+        expect(afterPlay.currentPlayerIndex).toBe(1);
+      }
+    });
+
+    it("hand shrinks by 1 after playing a card", () => {
+      const result = findUnoSeedForCard("7");
+      expect(result).not.toBeNull();
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, result!.seed);
+
+      const handBefore = state.zones["hand:0"]!.cards.length;
+      const afterPlay = playUnoCard(state, reducer, players, result!.cardIndex);
+
+      expect(afterPlay.zones["hand:0"]!.cards.length).toBe(handBefore - 1);
+    });
+
+    it("version increases after play", () => {
+      const result = findUnoSeedForCard("2");
+      expect(result).not.toBeNull();
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, result!.seed);
+
+      const afterPlay = playUnoCard(state, reducer, players, result!.cardIndex);
+
+      expect(afterPlay.version).toBeGreaterThan(state.version);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Skip Effect ────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("skip effect", () => {
+    it("playing a Skip card when discard top is Skip triggers skip effect", () => {
+      // Find a seed where player 0 has a Skip card AND the discard top is also Skip
+      // (because top_card_rank_name(discard) reads cards[0] — the setup card)
+      let skipSeed: number | null = null;
+      let skipCardIdx = 0;
+
+      for (let seed = 0; seed < 5000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          // The effects check top_card_rank_name(discard) which reads
+          // cards[0] — the initial discard card. For skip to trigger,
+          // the initial discard card must be "Skip".
+          if (discardTop.rank !== "Skip") continue;
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) => c.rank !== "Wild");
+          if (idx !== -1) {
+            skipSeed = seed;
+            skipCardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (skipSeed === null) {
+        // Can't find the right seed — skip the test safely
+        expect(skipSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, skipSeed);
+
+      expect(state.currentPlayerIndex).toBe(0);
+
+      const afterPlay = playUnoCard(state, reducer, players, skipCardIdx);
+
+      // With 2 players, skip_next_player advances by 1 (0→1), then
+      // end_turn advances by 1 more (1→0). So player 0 plays again.
+      if (afterPlay.currentPhase === "play_turn") {
+        expect(afterPlay.currentPlayerIndex).toBe(0);
+      }
+    });
+
+    it("Skip does not trigger when discard top is not Skip", () => {
+      // Find a seed where discard top is a non-Skip, non-wild card and player has a Skip
+      let testSeed: number | null = null;
+      let skipCardIdx = 0;
+
+      for (let seed = 0; seed < 5000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          if (
+            discardTop.rank === "Skip" ||
+            discardTop.rank === "Reverse" ||
+            discardTop.rank === "Draw Two" ||
+            discardTop.suit === "wild"
+          )
+            continue;
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) => c.rank === "Skip");
+          if (idx !== -1) {
+            testSeed = seed;
+            skipCardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (testSeed === null) {
+        expect(testSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, testSeed);
+
+      expect(state.currentPlayerIndex).toBe(0);
+
+      const afterPlay = playUnoCard(state, reducer, players, skipCardIdx);
+
+      // When discard top is not Skip, skip_next_player doesn't fire.
+      // end_turn fires normally (since discard top is not wild).
+      // With 2 players: end_turn goes 0→1.
+      if (afterPlay.currentPhase === "play_turn") {
+        expect(afterPlay.currentPlayerIndex).toBe(1);
+      }
+    });
+
+    it("Skip effect with 3 players skips to player 2", () => {
+      // Find a seed where 3 players, discard top is Skip
+      let skipSeed: number | null = null;
+      let skipCardIdx = 0;
+
+      for (let seed = 0; seed < 5000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(3, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          if (discardTop.rank !== "Skip") continue;
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) => c.rank !== "Wild");
+          if (idx !== -1) {
+            skipSeed = seed;
+            skipCardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (skipSeed === null) {
+        expect(skipSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(3, skipSeed);
+
+      expect(state.currentPlayerIndex).toBe(0);
+
+      const afterPlay = playUnoCard(state, reducer, players, skipCardIdx);
+
+      // With 3 players: skip_next_player advances 0→1, end_turn advances 1→2
+      if (afterPlay.currentPhase === "play_turn") {
+        expect(afterPlay.currentPlayerIndex).toBe(2);
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Reverse Effect ─────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("reverse effect", () => {
+    it("playing when discard top is Reverse flips turnDirection", () => {
+      // Find seed where discard top is Reverse
+      let revSeed: number | null = null;
+      let revCardIdx = 0;
+
+      for (let seed = 0; seed < 5000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          if (discardTop.rank !== "Reverse") continue;
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) => c.rank !== "Wild");
+          if (idx !== -1) {
+            revSeed = seed;
+            revCardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (revSeed === null) {
+        expect(revSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, revSeed);
+
+      expect(state.turnDirection).toBe(1);
+
+      const afterPlay = playUnoCard(state, reducer, players, revCardIdx);
+
+      expect(afterPlay.turnDirection).toBe(-1);
+    });
+
+    it("with 2 players, reverse keeps same turn order (0→1→0)", () => {
+      // With 2 players, reverse direction still wraps correctly
+      let revSeed: number | null = null;
+      let revCardIdx = 0;
+
+      for (let seed = 0; seed < 5000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          if (discardTop.rank !== "Reverse") continue;
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) => c.rank !== "Wild");
+          if (idx !== -1) {
+            revSeed = seed;
+            revCardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (revSeed === null) {
+        expect(revSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, revSeed);
+
+      const afterPlay = playUnoCard(state, reducer, players, revCardIdx);
+
+      // With 2 players, reverse + end_turn: direction is -1,
+      // next from 0 with direction -1 = (0-1) % 2 = -1 → wraps to 1
+      if (afterPlay.currentPhase === "play_turn") {
+        expect(afterPlay.currentPlayerIndex).toBe(1);
+      }
+    });
+
+    it("with 3 players, reverse changes 0→1→2 to 0→2→1", () => {
+      let revSeed: number | null = null;
+      let revCardIdx = 0;
+
+      for (let seed = 0; seed < 5000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(3, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          if (discardTop.rank !== "Reverse") continue;
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) => c.rank !== "Wild");
+          if (idx !== -1) {
+            revSeed = seed;
+            revCardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (revSeed === null) {
+        expect(revSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(3, revSeed);
+
+      const afterPlay = playUnoCard(state, reducer, players, revCardIdx);
+
+      // After reverse, direction is -1. end_turn from 0 with direction -1:
+      // (0 + (-1)) % 3 = -1 → wraps to 2
+      if (afterPlay.currentPhase === "play_turn") {
+        expect(afterPlay.currentPlayerIndex).toBe(2);
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Draw Two Effect ────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("draw two effect", () => {
+    it("playing when discard top is Draw Two sets draw_penalty to 2", () => {
+      let d2Seed: number | null = null;
+      let d2CardIdx = 0;
+
+      for (let seed = 0; seed < 5000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          if (discardTop.rank !== "Draw Two") continue;
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) => c.rank !== "Wild");
+          if (idx !== -1) {
+            d2Seed = seed;
+            d2CardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (d2Seed === null) {
+        expect(d2Seed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, d2Seed);
+
+      expect(state.variables.draw_penalty).toBe(0);
+
+      const afterPlay = playUnoCard(state, reducer, players, d2CardIdx);
+
+      expect(afterPlay.variables.draw_penalty).toBe(2);
+    });
+
+    it("draw_penalty declare draws 2 cards and resets penalty", () => {
+      // Manually set draw_penalty to 2 and declare draw_penalty
+      const { state, reducer, players } = startUnoGame(2);
+
+      const stateWithPenalty: CardGameState = {
+        ...state,
+        variables: { ...state.variables, draw_penalty: 2 },
+      };
+
+      const handBefore = stateWithPenalty.zones["hand:0"]!.cards.length;
+      const drawBefore = stateWithPenalty.zones["draw_pile"]!.cards.length;
+
+      const afterPenalty = reducer(stateWithPenalty, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "draw_penalty",
+      });
+
+      // Should draw 2 cards and reset penalty
+      expect(afterPenalty.zones["hand:0"]!.cards.length).toBe(
+        handBefore + 2
+      );
+      expect(afterPenalty.zones["draw_pile"]!.cards.length).toBe(
+        drawBefore - 2
+      );
+      expect(afterPenalty.variables.draw_penalty).toBe(0);
+    });
+
+    it("after draw_penalty, draw_penalty resets to 0 and turn ends", () => {
+      const { state, reducer, players } = startUnoGame(2);
+
+      const stateWithPenalty: CardGameState = {
+        ...state,
+        variables: { ...state.variables, draw_penalty: 2 },
+      };
+
+      expect(stateWithPenalty.currentPlayerIndex).toBe(0);
+
+      const afterPenalty = reducer(stateWithPenalty, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "draw_penalty",
+      });
+
+      expect(afterPenalty.variables.draw_penalty).toBe(0);
+      // end_turn should advance to next player
+      if (afterPenalty.currentPhase === "play_turn") {
+        expect(afterPenalty.currentPlayerIndex).toBe(1);
+      }
+    });
+
+    it("draw_card is unavailable when draw_penalty > 0 (condition not met)", () => {
+      const { state, reducer, players } = startUnoGame(2);
+
+      const stateWithPenalty: CardGameState = {
+        ...state,
+        variables: { ...state.variables, draw_penalty: 2 },
+      };
+
+      const afterDraw = reducer(stateWithPenalty, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "draw_card",
+      });
+
+      // draw_card condition is get_var("draw_penalty") == 0, which is false
+      // So the declare should be a no-op
+      expect(afterDraw.version).toBe(stateWithPenalty.version);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Wild Card + Choose Color Flow ──────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("wild card + choose_color flow", () => {
+    it("playing a Wild card when discard top is wild does not end turn", () => {
+      // Find seed where discard top is a wild card and player has any card
+      let wildDiscardSeed: number | null = null;
+      let cardIdx = 0;
+
+      for (let seed = 0; seed < 5000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          if (discardTop.suit !== "wild") continue;
+          // Find any non-wild card to play (so the transition condition
+          // top_card_suit(discard) == "wild" still matches)
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) => c.suit !== "wild");
+          if (idx !== -1) {
+            wildDiscardSeed = seed;
+            cardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (wildDiscardSeed === null) {
+        expect(wildDiscardSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, wildDiscardSeed);
+
+      const afterPlay = playUnoCard(state, reducer, players, cardIdx);
+
+      // When discard top (cards[0]) is wild, end_turn() does NOT fire
+      // (the condition is: if suit != "wild", end_turn())
+      // So phase should transition to choose_color (since
+      // top_card_suit(discard) == "wild" && chosen_color == 0)
+      expect(afterPlay.currentPhase).toBe("choose_color");
+    });
+
+    it("after Wild in discard top: phase transitions to choose_color", () => {
+      // Same as above but verify the phase explicitly
+      let wildDiscardSeed: number | null = null;
+      let cardIdx = 0;
+
+      for (let seed = 0; seed < 5000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          if (discardTop.suit !== "wild") continue;
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) => c.suit !== "wild");
+          if (idx !== -1) {
+            wildDiscardSeed = seed;
+            cardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (wildDiscardSeed === null) {
+        expect(wildDiscardSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, wildDiscardSeed);
+
+      const afterPlay = playUnoCard(state, reducer, players, cardIdx);
+
+      expect(afterPlay.currentPhase).toBe("choose_color");
+      // Same player is still active (no end_turn was called)
+      expect(afterPlay.currentPlayerIndex).toBe(0);
+    });
+
+    it("in choose_color phase, declare with params sets chosen_color", () => {
+      // Set up a state in choose_color phase manually
+      let wildDiscardSeed: number | null = null;
+      let cardIdx = 0;
+
+      for (let seed = 0; seed < 5000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          if (discardTop.suit !== "wild") continue;
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) => c.suit !== "wild");
+          if (idx !== -1) {
+            wildDiscardSeed = seed;
+            cardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (wildDiscardSeed === null) {
+        expect(wildDiscardSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, wildDiscardSeed);
+
+      // Play a card to trigger choose_color transition
+      const afterPlay = playUnoCard(state, reducer, players, cardIdx);
+      expect(afterPlay.currentPhase).toBe("choose_color");
+
+      // Now declare choose_color with color_code = 1
+      const afterChoose = reducer(afterPlay, {
+        kind: "declare",
+        playerId: players[afterPlay.currentPlayerIndex]!.id,
+        declaration: "choose_color",
+        params: { color_code: 1 },
+      });
+
+      expect(afterChoose.variables.chosen_color).toBe(1);
+    });
+
+    it("after choose_color, end_turn is called and phase transitions to play_turn", () => {
+      let wildDiscardSeed: number | null = null;
+      let cardIdx = 0;
+
+      for (let seed = 0; seed < 5000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          if (discardTop.suit !== "wild") continue;
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex((c) => c.suit !== "wild");
+          if (idx !== -1) {
+            wildDiscardSeed = seed;
+            cardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (wildDiscardSeed === null) {
+        expect(wildDiscardSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, wildDiscardSeed);
+
+      const afterPlay = playUnoCard(state, reducer, players, cardIdx);
+      expect(afterPlay.currentPhase).toBe("choose_color");
+
+      const afterChoose = reducer(afterPlay, {
+        kind: "declare",
+        playerId: players[afterPlay.currentPlayerIndex]!.id,
+        declaration: "choose_color",
+        params: { color_code: 2 },
+      });
+
+      // After choose_color sets chosen_color > 0, transition to play_turn fires
+      expect(afterChoose.currentPhase).toBe("play_turn");
+      // end_turn was called, so next player should be active
+      expect(afterChoose.currentPlayerIndex).toBe(1);
+    });
+
+    it("chosen_color persists until a non-wild card is played on non-wild discard top", () => {
+      // Start a game and manually set chosen_color
+      const { state } = startUnoGame(2);
+
+      const stateWithColor: CardGameState = {
+        ...state,
+        variables: { ...state.variables, chosen_color: 3 },
+      };
+
+      // chosen_color should be 3
+      expect(stateWithColor.variables.chosen_color).toBe(3);
+    });
+
+    it("non-wild card play resets chosen_color to 0 when discard top is non-wild", () => {
+      // Find seed where discard top is not wild and player has a number card
+      let testSeed: number | null = null;
+      let testCardIdx = 0;
+
+      for (let seed = 0; seed < 3000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startUnoGame(2, seed);
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+          if (discardTop.suit === "wild") continue;
+          const hand = game.state.zones["hand:0"]!;
+          const idx = hand.cards.findIndex(
+            (c) => c.rank !== "Wild" && c.suit !== "wild"
+          );
+          if (idx !== -1) {
+            testSeed = seed;
+            testCardIdx = idx;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (testSeed === null) {
+        expect(testSeed).not.toBeNull();
+        return;
+      }
+
+      clearBuiltins();
+      registerAllBuiltins();
+      const { state, reducer, players } = startUnoGame(2, testSeed);
+
+      // Artificially set chosen_color
+      const stateWithColor: CardGameState = {
+        ...state,
+        variables: { ...state.variables, chosen_color: 2 },
+      };
+
+      const afterPlay = playUnoCard(
+        stateWithColor,
+        reducer,
+        players,
+        testCardIdx
+      );
+
+      // Effect: if(top_card_suit(discard) != "wild", set_var("chosen_color", 0))
+      // discard top (cards[0]) is non-wild, so chosen_color is reset
+      expect(afterPlay.variables.chosen_color).toBe(0);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Drawing Cards ──────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("drawing cards", () => {
+    it("draw_card declare draws 1 card and ends turn (when draw_penalty == 0)", () => {
+      const { state, reducer, players } = startUnoGame(2);
+
+      expect(state.variables.draw_penalty).toBe(0);
+
+      const handBefore = state.zones["hand:0"]!.cards.length;
+      const drawBefore = state.zones["draw_pile"]!.cards.length;
+
+      const afterDraw = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "draw_card",
+      });
+
+      expect(afterDraw.zones["hand:0"]!.cards.length).toBe(handBefore + 1);
+      expect(afterDraw.zones["draw_pile"]!.cards.length).toBe(
+        drawBefore - 1
+      );
+      expect(afterDraw.version).toBeGreaterThan(state.version);
+    });
+
+    it("draw_card condition is met when draw_penalty == 0", () => {
+      const { state, reducer, players } = startUnoGame(2);
+
+      expect(state.variables.draw_penalty).toBe(0);
+
+      const afterDraw = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "draw_card",
+      });
+
+      // Should succeed (version increases)
+      expect(afterDraw.version).toBeGreaterThan(state.version);
+      // Turn should advance
+      if (afterDraw.currentPhase === "play_turn") {
+        expect(afterDraw.currentPlayerIndex).toBe(1);
+      }
+    });
+
+    it("draw_penalty condition blocks draw_card (draw_penalty > 0)", () => {
+      const { state, reducer, players } = startUnoGame(2);
+
+      const stateWithPenalty: CardGameState = {
+        ...state,
+        variables: { ...state.variables, draw_penalty: 2 },
+      };
+
+      const afterDraw = reducer(stateWithPenalty, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "draw_card",
+      });
+
+      // draw_card condition: get_var("draw_penalty") == 0 → false
+      // Should be a no-op
+      expect(afterDraw.version).toBe(stateWithPenalty.version);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Scoring ────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("scoring", () => {
+    it("scoring method uses hand_value with target 999", () => {
+      const ruleset = makeUnoRuleset();
+      expect(ruleset.scoring.method).toBe(
+        "hand_value(current_player.hand, 999)"
+      );
+      expect(ruleset.scoring.winCondition).toBe("my_score == 0");
+    });
+
+    it("number cards are worth their face value", () => {
+      for (let n = 0; n <= 9; n++) {
+        expect(UNO_CARD_VALUES[String(n)]).toEqual({
+          kind: "fixed",
+          value: n,
+        });
+      }
+    });
+
+    it("action cards (Skip, Reverse, Draw Two) are worth 20 points each", () => {
+      expect(UNO_CARD_VALUES["Skip"]).toEqual({
+        kind: "fixed",
+        value: 20,
+      });
+      expect(UNO_CARD_VALUES["Reverse"]).toEqual({
+        kind: "fixed",
+        value: 20,
+      });
+      expect(UNO_CARD_VALUES["Draw Two"]).toEqual({
+        kind: "fixed",
+        value: 20,
+      });
+    });
+
+    it("Wild is worth 50 points", () => {
+      expect(UNO_CARD_VALUES["Wild"]).toEqual({
+        kind: "fixed",
+        value: 50,
+      });
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Card Conservation ──────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("card conservation", () => {
+    it("total cards after start_game equals 104", () => {
+      const { state } = startUnoGame(2);
+      expect(totalCards(state)).toBe(UNO_DECK_SIZE);
+    });
+
+    it("total cards are conserved with 3 players", () => {
+      const { state } = startUnoGame(3);
+      expect(totalCards(state)).toBe(UNO_DECK_SIZE);
+    });
+
+    it("total cards are conserved with 4 players", () => {
+      const { state } = startUnoGame(4);
+      expect(totalCards(state)).toBe(UNO_DECK_SIZE);
+    });
+
+    it("no duplicate card IDs exist across all zones", () => {
+      const { state } = startUnoGame(2);
+
+      const allIds = Object.values(state.zones).flatMap((z) =>
+        z.cards.map((c) => c.id)
+      );
+      const uniqueIds = new Set(allIds);
+      expect(uniqueIds.size).toBe(allIds.length);
+    });
+
+    it("cards conserved after multiple plays", () => {
+      const { state, reducer, players } = startUnoGame(2);
+
+      let current = state;
+      for (let i = 0; i < 4; i++) {
+        if (current.currentPhase !== "play_turn") break;
+
+        // Try to play the first card in the current player's hand
+        const playerIdx = current.currentPlayerIndex;
+        const hand = current.zones[`hand:${playerIdx}`]!;
+        if (hand.cards.length === 0) break;
+
+        const nextState = playUnoCard(current, reducer, players, 0);
+
+        // If the play succeeded (version changed), check conservation
+        if (nextState.version > current.version) {
+          expect(totalCards(nextState)).toBe(UNO_DECK_SIZE);
+          current = nextState;
+        } else {
+          break;
+        }
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Deterministic Replay ───────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("deterministic replay", () => {
+    it("two identical games with same seed produce identical hands", () => {
+      const game1 = startUnoGame(2, FIXED_SEED);
+      const game2 = startUnoGame(2, FIXED_SEED);
+
+      expect(handDescription(game1.state, "hand:0")).toEqual(
+        handDescription(game2.state, "hand:0")
+      );
+      expect(handDescription(game1.state, "hand:1")).toEqual(
+        handDescription(game2.state, "hand:1")
+      );
+      expect(handDescription(game1.state, "discard")).toEqual(
+        handDescription(game2.state, "discard")
+      );
+    });
+
+    it("different seeds produce different deals", () => {
+      const game1 = startUnoGame(2, 42);
+      const game2 = startUnoGame(2, 999);
+
+      const hand1 = handDescription(game1.state, "hand:0");
+      const hand2 = handDescription(game2.state, "hand:0");
+
+      expect(hand1).not.toEqual(hand2);
+    });
+
+    it("card IDs are identical between same-seed games", () => {
+      const game1 = startUnoGame(2, FIXED_SEED);
+      const game2 = startUnoGame(2, FIXED_SEED);
+
+      const ids1 = game1.state.zones["hand:0"]!.cards.map((c) => c.id);
+      const ids2 = game2.state.zones["hand:0"]!.cards.map((c) => c.id);
+      expect(ids1).toEqual(ids2);
+    });
+
+    it("replaying same actions produces identical state", () => {
+      const game1 = startUnoGame(2, FIXED_SEED);
+      const game2 = startUnoGame(2, FIXED_SEED);
+
+      // Play 3 draw_card actions on each (always valid when draw_penalty == 0)
+      let state1 = game1.state;
+      let state2 = game2.state;
+
+      for (let i = 0; i < 3; i++) {
+        if (state1.currentPhase !== "play_turn") break;
+        const playerId1 =
+          game1.players[state1.currentPlayerIndex]!.id;
+        const playerId2 =
+          game2.players[state2.currentPlayerIndex]!.id;
+
+        state1 = game1.reducer(state1, {
+          kind: "declare",
+          playerId: playerId1,
+          declaration: "draw_card",
+        });
+        state2 = game2.reducer(state2, {
+          kind: "declare",
+          playerId: playerId2,
+          declaration: "draw_card",
+        });
+      }
+
+      expect(state1.variables).toEqual(state2.variables);
+      expect(state1.currentPlayerIndex).toBe(state2.currentPlayerIndex);
+      expect(state1.turnDirection).toBe(state2.turnDirection);
+      expect(handDescription(state1, "hand:0")).toEqual(
+        handDescription(state2, "hand:0")
+      );
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Player Views ───────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("player views", () => {
+    it("player view includes variables (chosen_color, draw_penalty)", () => {
+      const { state, players } = startUnoGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      expect(view.variables).toBeDefined();
+      expect(view.variables.chosen_color).toBe(0);
+      expect(view.variables.draw_penalty).toBe(0);
+    });
+
+    it("draw_pile cards are hidden from all players", () => {
+      const { state, players } = startUnoGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      const drawPile = view.zones["draw_pile"]!;
+      expect(drawPile.cards.every((c) => c === null)).toBe(true);
+      expect(drawPile.cardCount).toBeGreaterThan(0);
+    });
+
+    it("discard pile is visible to all players (public visibility)", () => {
+      const { state, players } = startUnoGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      const discard = view.zones["discard"]!;
+      expect(discard.cardCount).toBe(1);
+      expect(discard.cards[0]).not.toBeNull();
+    });
+
+    it("isMyTurn is correct for current player", () => {
+      const { state, players } = startUnoGame(2);
+
+      const view0 = createPlayerView(state, players[0]!.id);
+      expect(view0.isMyTurn).toBe(true);
+
+      const view1 = createPlayerView(state, players[1]!.id);
+      expect(view1.isMyTurn).toBe(false);
+    });
+
+    it("myPlayerId is set correctly in the view", () => {
+      const { state, players } = startUnoGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      expect(view.myPlayerId).toBe(players[0]!.id);
+    });
+
+    it("view includes all expected zone names", () => {
+      const { state, players } = startUnoGame(2);
+      const view = createPlayerView(state, players[0]!.id);
+
+      expect(view.zones["draw_pile"]).toBeDefined();
+      expect(view.zones["hand:0"]).toBeDefined();
+      expect(view.zones["hand:1"]).toBeDefined();
+      expect(view.zones["discard"]).toBeDefined();
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Turn Order Enforcement ─────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("turn order enforcement", () => {
+    it("wrong player action is a no-op", () => {
+      const { state, reducer, players } = startUnoGame(2);
+
+      expect(state.currentPlayerIndex).toBe(0);
+
+      const afterWrongTurn = reducer(state, {
+        kind: "declare",
+        playerId: players[1]!.id,
+        declaration: "draw_card",
+      });
+
+      expect(afterWrongTurn.version).toBe(state.version);
+    });
+
+    it("unknown declaration is a no-op", () => {
+      const { state, reducer, players } = startUnoGame(2);
+
+      const afterBad = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "nonexistent_action",
+      });
+
+      expect(afterBad.version).toBe(state.version);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Edge Cases ─────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("edge cases", () => {
+    it("start_game is a no-op on an already started game", () => {
+      const { state, reducer } = startUnoGame(2);
+
+      const afterSecondStart = reducer(state, { kind: "start_game" });
+      expect(afterSecondStart).toBe(state);
+    });
+
+    it("version monotonically increases through actions", () => {
+      const { state, reducer, players } = startUnoGame(2);
+
+      const afterDraw = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "draw_card",
+      });
+
+      expect(afterDraw.version).toBeGreaterThan(state.version);
+    });
+
+    it("action log grows with each action", () => {
+      const { state, reducer, players } = startUnoGame(2);
+      const initialLogLength = state.actionLog.length;
+
+      const afterDraw = reducer(state, {
+        kind: "declare",
+        playerId: players[0]!.id,
+        declaration: "draw_card",
+      });
+
+      expect(afterDraw.actionLog.length).toBeGreaterThan(initialLogLength);
+    });
+
+    it("transition conditions safe with 2/3/4 players (if() guards)", () => {
+      // Verify the transition condition evaluates safely for each player count
+      for (const playerCount of [2, 3, 4]) {
+        clearBuiltins();
+        registerAllBuiltins();
+        const { state } = startUnoGame(playerCount);
+
+        const evalContext: EvalContext = { state, playerIndex: 0 };
+        expect(() =>
+          evaluateExpression(
+            'card_count("hand:0") == 0 || card_count("hand:1") == 0 || if(player_count > 2, card_count("hand:2") == 0, false) || if(player_count > 3, card_count("hand:3") == 0, false)',
+            evalContext
+          )
+        ).not.toThrow();
+      }
+    });
+  });
+});

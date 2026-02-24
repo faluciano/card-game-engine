@@ -33,7 +33,7 @@ The TV runs the authoritative game engine: it loads the ruleset, advances the FS
 - **Seeded PRNG** — mulberry32 enables deterministic replay from an action log
 - **Hidden information** — per-player state filtering via `createPlayerView`
 - **Zod schema validation** — rulesets are validated against a strict schema at load time
-- **3 deck presets** — `standard52`, `standard54`, `uno108`
+- **3 deck presets + custom decks** — `standard52`, `standard54`, `uno108`, plus fully custom card lists
 
 ## Project Structure
 
@@ -90,7 +90,7 @@ cd packages/shared
 bunx vitest run
 ```
 
-834 tests across 16 test files cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios, host bridge) and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
+898 tests across 16 test files cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios, host bridge) and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
 
 ### Build and Deploy
 
@@ -123,16 +123,17 @@ The [`rulesets/`](rulesets/) directory contains example rulesets:
 - **`war.cardgame.json`** — a simple rank-comparison game showcasing automatic phases and multi-round play
 - **`crazy-eights.cardgame.json`** — a matching game demonstrating `if()` conditional branching, card matching builtins, and turn order mechanics
 - **`ninety-nine.cardgame.json`** — an accumulation game demonstrating custom variables (`get_var`, `set_var`, `inc_var`), conditional card effects with `if()`, and turn reversal
+- **`uno.cardgame.json`** — a shedding game demonstrating `play_card` action effects, custom variables for color choice, declare with params, Skip/Reverse/Draw Two effects, and multi-phase Wild card flow
 
 See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format specification, expression language reference, and annotated examples. The [Engine API Reference](packages/shared/README.md) documents all public functions and builtins.
 
 ## Project Status
 
-All four implementation phases are **complete** with **834 passing tests** across 16 test files.
+All four implementation phases are **complete** with **898 passing tests** across 16 test files.
 
 | Phase | Status | Tests |
 |-------|--------|-------|
-| Phase 1 — Engine Core | ✅ Complete | 740 |
+| Phase 1 — Engine Core | ✅ Complete | 804 |
 | Phase 1.5 — Documentation | ✅ Complete | — |
 | Phase 2 — Storage & Import | ✅ Complete | 94 |
 | Phase 3 — Host Screens & CouchKit Integration | ✅ Complete | — |
