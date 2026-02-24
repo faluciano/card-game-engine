@@ -1,7 +1,7 @@
 // ─── Bridge Layer ──────────────────────────────────────────────────
 // Host-client bridge types and reducer — shared between host and client.
 
-export type { HostScreen, HostGameState, HostAction } from "./host-state";
+export type { HostScreen, HostGameState, HostAction, CatalogGame } from "./host-state";
 export {
   createHostInitialState,
   deriveStatus,

@@ -49,6 +49,8 @@ export function createHostInitialState(): HostGameState {
     players: {},
     screen: { tag: "ruleset_picker" },
     engineState: null,
+    installedSlugs: [],
+    pendingInstall: null,
   };
 }
 
@@ -92,6 +94,12 @@ export function hostReducerImpl(state: HostGameState, action: HostAction): HostG
 
     case "ADVANCE_PHASE":
       return handleAdvancePhase(state);
+
+    case "INSTALL_RULESET":
+      return handleInstallRuleset(state, action.ruleset, action.slug);
+
+    case "SET_INSTALLED_SLUGS":
+      return handleSetInstalledSlugs(state, action.slugs);
 
     default:
       return state;
@@ -209,5 +217,27 @@ function handleAdvancePhase(state: HostGameState): HostGameState {
     ...state,
     status: deriveStatus(state.screen, engineState),
     engineState,
+  };
+}
+
+function handleInstallRuleset(
+  state: HostGameState,
+  ruleset: CardGameRuleset,
+  slug: string,
+): HostGameState {
+  return {
+    ...state,
+    pendingInstall: { ruleset, slug },
+  };
+}
+
+function handleSetInstalledSlugs(
+  state: HostGameState,
+  slugs: readonly string[],
+): HostGameState {
+  return {
+    ...state,
+    installedSlugs: slugs,
+    pendingInstall: null,
   };
 }

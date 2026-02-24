@@ -11,6 +11,25 @@ import type {
   CardGameState,
 } from "../types/index";
 
+// ─── Catalog ───────────────────────────────────────────────────────
+
+/**
+ * A single game entry from the `catalog.json` served by GitHub Pages.
+ * Describes a published ruleset available for installation on the host TV.
+ */
+export interface CatalogGame {
+  readonly name: string;
+  readonly slug: string;
+  readonly version: string;
+  readonly author: string;
+  readonly description: string;
+  readonly tags: readonly string[];
+  readonly license: string;
+  readonly players: { readonly min: number; readonly max: number };
+  /** Relative path inside the catalog archive, e.g. "rulesets/blackjack.cardgame.json". */
+  readonly file: string;
+}
+
 // ─── Screen Navigation ─────────────────────────────────────────────
 
 /**
@@ -44,6 +63,10 @@ export interface HostGameState extends IGameState {
   readonly screen: HostScreen;
   /** Card engine state — null until game starts. */
   readonly engineState: CardGameState | null;
+  /** Slugs of rulesets currently installed on the host TV. */
+  readonly installedSlugs: readonly string[];
+  /** Transient: set by reducer when client requests install, cleared by host hook after I/O. */
+  readonly pendingInstall: { readonly ruleset: CardGameRuleset; readonly slug: string } | null;
 }
 
 // ─── Host Actions ──────────────────────────────────────────────────
@@ -58,4 +81,6 @@ export type HostAction =
   | { readonly type: "START_GAME"; readonly seed?: number }
   | { readonly type: "GAME_ACTION"; readonly action: CardGameAction }
   | { readonly type: "RESET_ROUND" }
-  | { readonly type: "ADVANCE_PHASE" };
+  | { readonly type: "ADVANCE_PHASE" }
+  | { readonly type: "INSTALL_RULESET"; readonly ruleset: CardGameRuleset; readonly slug: string }
+  | { readonly type: "SET_INSTALLED_SLUGS"; readonly slugs: readonly string[] };

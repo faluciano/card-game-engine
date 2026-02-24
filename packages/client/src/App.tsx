@@ -18,6 +18,7 @@ import {
 } from "@card-engine/shared";
 import { ConnectingScreen } from "./screens/ConnectingScreen.js";
 import { WaitingScreen } from "./screens/WaitingScreen.js";
+import { CatalogScreen } from "./screens/CatalogScreen.js";
 import { LobbyScreen } from "./screens/LobbyScreen.js";
 import { PlayingScreen } from "./screens/PlayingScreen.js";
 import { ResultScreen } from "./screens/ResultScreen.js";
@@ -59,7 +60,7 @@ export function App(): React.JSX.Element {
 
   // Route based on game status
   if (state.status === "ruleset_picker") {
-    return <WaitingScreen message="Host is selecting a game..." />;
+    return <CatalogScreen state={state} sendAction={sendAction} />;
   }
 
   if (state.status === "lobby") {

@@ -11,6 +11,8 @@ import { GameHostProvider, useExtractAssets, useGameHost } from "@couch-kit/host
 import type { AssetManifest } from "@couch-kit/host";
 import { hostReducer, createHostInitialState } from "./reducers/host-reducer";
 import type { HostAction, HostGameState } from "./types/host-state";
+import { useInstalledSlugs } from "./hooks/useInstalledSlugs";
+import { useRulesetInstaller } from "./hooks/useRulesetInstaller";
 import { RulesetPicker } from "./screens/RulesetPicker";
 import { Lobby } from "./screens/Lobby";
 import { GameTable } from "./screens/GameTable";
@@ -113,7 +115,11 @@ function ServerErrorGate({ children }: { readonly children: React.ReactNode }): 
  * never miss a screen variant.
  */
 function ScreenRouter(): React.JSX.Element {
-  const { state } = useGameHost<HostGameState, HostAction>();
+  const { state, dispatch } = useGameHost<HostGameState, HostAction>();
+
+  // ── Side-effect hooks ──────────────────────────────────────────
+  useInstalledSlugs(dispatch);
+  useRulesetInstaller(state.pendingInstall, dispatch);
 
   switch (state.screen.tag) {
     case "ruleset_picker":
