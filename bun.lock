@@ -55,10 +55,21 @@
         "vitest": "^3.2.1",
       },
     },
+    "packages/schema": {
+      "name": "@card-engine/schema",
+      "version": "0.1.0",
+      "dependencies": {
+        "zod": "^3.23.0",
+      },
+      "devDependencies": {
+        "typescript": "~5.9.2",
+      },
+    },
     "packages/shared": {
       "name": "@card-engine/shared",
       "version": "0.1.0",
       "dependencies": {
+        "@card-engine/schema": "workspace:*",
         "@couch-kit/core": "^0.8.0",
         "zod": "^3.23.0",
       },
@@ -260,6 +271,8 @@
     "@card-engine/client": ["@card-engine/client@workspace:packages/client"],
 
     "@card-engine/host": ["@card-engine/host@workspace:packages/host"],
+
+    "@card-engine/schema": ["@card-engine/schema@workspace:packages/schema"],
 
     "@card-engine/shared": ["@card-engine/shared@workspace:packages/shared"],
 

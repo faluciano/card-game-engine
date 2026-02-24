@@ -10,6 +10,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@card-engine/schema": "workspace:*",
     "@couch-kit/core": "^0.8.0",
     "zod": "^3.23.0"
   },
