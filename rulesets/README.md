@@ -11,6 +11,7 @@ This directory contains example `.cardgame.json` ruleset files that the Card Gam
 | `crazy-eights.cardgame.json` | Crazy Eights | Matching / shedding | 2–4 |
 | `ninety-nine.cardgame.json` | Ninety-Nine (99) | Accumulation / avoidance | 2–4 |
 | `uno.cardgame.json` | Uno (Simplified) | Shedding / color matching | 2–4 |
+| `hearts.cardgame.json` | Hearts | Trick-taking / avoidance | 4 |
 
 ## Catalog Fields
 

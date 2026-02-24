@@ -1,0 +1,171 @@
+{
+  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
+  "meta": {
+    "name": "Hearts",
+    "slug": "hearts",
+    "version": "1.0.0",
+    "author": "faluciano",
+    "players": {
+      "min": 4,
+      "max": 4
+    },
+    "description": "Classic trick-taking card game where players avoid taking hearts and the Queen of Spades",
+    "tags": ["trick-taking", "avoidance", "classic", "penalty"],
+    "license": "public-domain"
+  },
+  "deck": {
+    "preset": "standard_52",
+    "copies": 1,
+    "cardValues": {
+      "2":  { "kind": "fixed", "value": 2 },
+      "3":  { "kind": "fixed", "value": 3 },
+      "4":  { "kind": "fixed", "value": 4 },
+      "5":  { "kind": "fixed", "value": 5 },
+      "6":  { "kind": "fixed", "value": 6 },
+      "7":  { "kind": "fixed", "value": 7 },
+      "8":  { "kind": "fixed", "value": 8 },
+      "9":  { "kind": "fixed", "value": 9 },
+      "10": { "kind": "fixed", "value": 10 },
+      "J":  { "kind": "fixed", "value": 11 },
+      "Q":  { "kind": "fixed", "value": 12 },
+      "K":  { "kind": "fixed", "value": 13 },
+      "A":  { "kind": "fixed", "value": 14 }
+    }
+  },
+  "zones": [
+    {
+      "name": "draw_pile",
+      "visibility": { "kind": "hidden" },
+      "owners": []
+    },
+    {
+      "name": "hand",
+      "visibility": { "kind": "owner_only" },
+      "owners": ["player"]
+    },
+    {
+      "name": "trick",
+      "visibility": { "kind": "public" },
+      "owners": ["player"],
+      "maxCards": 1
+    },
+    {
+      "name": "won",
+      "visibility": { "kind": "hidden" },
+      "owners": ["player"]
+    }
+  ],
+  "roles": [
+    {
+      "name": "player",
+      "isHuman": true,
+      "count": "per_player"
+    }
+  ],
+  "initialVariables": {
+    "lead_player": 0,
+    "hearts_broken": 0,
+    "tricks_played": 0
+  },
+  "phases": [
+    {
+      "name": "setup",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "play_trick", "when": "all_hands_dealt" }
+      ],
+      "automaticSequence": [
+        "shuffle(draw_pile)",
+        "deal(draw_pile, hand, 13)",
+        "set_lead_player(0)"
+      ]
+    },
+    {
+      "name": "play_trick",
+      "kind": "turn_based",
+      "actions": [
+        {
+          "name": "play_card",
+          "label": "Play Card",
+          "effect": ["end_turn()"]
+        }
+      ],
+      "transitions": [
+        { "to": "resolve_trick", "when": "trick_card_count(\"trick\") == player_count" }
+      ],
+      "turnOrder": "clockwise"
+    },
+    {
+      "name": "resolve_trick",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "scoring", "when": "get_var(\"tricks_played\") >= 13" },
+        { "to": "play_trick", "when": "get_var(\"tricks_played\") < 13" }
+      ],
+      "automaticSequence": [
+        "if(count_cards_by_suit(\"trick:0\", \"hearts\") + count_cards_by_suit(\"trick:1\", \"hearts\") + count_cards_by_suit(\"trick:2\", \"hearts\") + count_cards_by_suit(\"trick:3\", \"hearts\") > 0, set_var(\"hearts_broken\", 1))",
+        "collect_trick(\"trick\", concat(\"won:\", trick_winner(\"trick\")))",
+        "set_lead_player(trick_winner(\"trick\"))",
+        "inc_var(\"tricks_played\", 1)"
+      ]
+    },
+    {
+      "name": "scoring",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "round_end", "when": "scores_calculated" }
+      ],
+      "automaticSequence": [
+        "calculate_scores()",
+        "determine_winners()",
+        "end_game()"
+      ]
+    },
+    {
+      "name": "round_end",
+      "kind": "all_players",
+      "actions": [
+        {
+          "name": "play_again",
+          "label": "Play Again",
+          "effect": [
+            "collect_all_to(draw_pile)",
+            "reset_round()"
+          ]
+        }
+      ],
+      "transitions": [
+        { "to": "setup", "when": "continue_game" }
+      ]
+    }
+  ],
+  "scoring": {
+    "method": "count_cards_by_suit(concat(\"won:\", current_player_index), \"hearts\") + if(has_card_with(concat(\"won:\", current_player_index), \"Q\", \"spades\"), 13, 0)",
+    "winCondition": "my_score == 0"
+  },
+  "visibility": [
+    {
+      "zone": "draw_pile",
+      "visibility": { "kind": "hidden" }
+    },
+    {
+      "zone": "hand",
+      "visibility": { "kind": "owner_only" }
+    },
+    {
+      "zone": "trick",
+      "visibility": { "kind": "public" }
+    },
+    {
+      "zone": "won",
+      "visibility": { "kind": "hidden" }
+    }
+  ],
+  "ui": {
+    "layout": "circle",
+    "tableColor": "felt_green"
+  }
+}

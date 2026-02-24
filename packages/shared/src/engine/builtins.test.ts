@@ -192,6 +192,16 @@ describe("builtins", () => {
       expect(names).toContain("skip_next_player");
       expect(names).toContain("set_next_player");
       expect(names).toContain("turn_direction");
+      expect(names).toContain("trick_winner");
+      expect(names).toContain("led_card_suit");
+      expect(names).toContain("trick_card_count");
+      expect(names).toContain("count_cards_by_suit");
+      expect(names).toContain("has_card_with");
+      expect(names).toContain("sum_zone_values_by_suit");
+      expect(names).toContain("collect_trick");
+      expect(names).toContain("set_lead_player");
+      expect(names).toContain("end_game");
+      expect(names).toContain("concat");
     });
 
     it("does not register while (handled as special form)", () => {
@@ -2380,6 +2390,463 @@ describe("builtins", () => {
         expect(() =>
           evaluateExpression('max_run_length("hand", 2)', ctx)
         ).toThrow("requires exactly 1 argument");
+      });
+    });
+  });
+
+  // ── G8 — Trick-Taking Builtins ──────────────────────────────────
+
+  describe("G8 — Trick-Taking Builtins", () => {
+    // Hearts-style card values where rank order matters for trick comparison
+    const HEARTS_CARD_VALUES: Readonly<Record<string, CardValue>> = {
+      "2": { kind: "fixed", value: 2 },
+      "3": { kind: "fixed", value: 3 },
+      "4": { kind: "fixed", value: 4 },
+      "5": { kind: "fixed", value: 5 },
+      "6": { kind: "fixed", value: 6 },
+      "7": { kind: "fixed", value: 7 },
+      "8": { kind: "fixed", value: 8 },
+      "9": { kind: "fixed", value: 9 },
+      "10": { kind: "fixed", value: 10 },
+      J: { kind: "fixed", value: 11 },
+      Q: { kind: "fixed", value: 12 },
+      K: { kind: "fixed", value: 13 },
+      A: { kind: "fixed", value: 14 },
+    };
+
+    function makeHeartsRuleset(): CardGameRuleset {
+      return {
+        meta: {
+          name: "Test Hearts",
+          slug: "test-hearts",
+          version: "1.0.0",
+          author: "test",
+          players: { min: 4, max: 4 },
+        },
+        deck: {
+          preset: "standard_52",
+          copies: 1,
+          cardValues: HEARTS_CARD_VALUES,
+        },
+        zones: [
+          { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+          { name: "hand", visibility: { kind: "owner_only" }, owners: ["player"] },
+          { name: "trick", visibility: { kind: "public" }, owners: ["player"] },
+          { name: "won", visibility: { kind: "hidden" }, owners: ["player"] },
+        ],
+        roles: [
+          { name: "player", isHuman: true, count: "per_player" },
+        ],
+        phases: [],
+        scoring: {
+          method: 'count_cards_by_suit(concat("won:", current_player_index), "hearts")',
+          winCondition: "my_score == 0",
+        },
+        visibility: [],
+        ui: { layout: "circle", tableColor: "felt_green" },
+      };
+    }
+
+    function makeHeartsGameState(
+      zones: Record<string, ZoneState>,
+      overrides: Partial<CardGameState> = {}
+    ): CardGameState {
+      return {
+        sessionId: makeSessionId("hearts-test"),
+        ruleset: makeHeartsRuleset(),
+        status: { kind: "in_progress", startedAt: Date.now() },
+        players: [
+          { id: makePlayerId("p0"), name: "Alice", role: "player", connected: true },
+          { id: makePlayerId("p1"), name: "Bob", role: "player", connected: true },
+          { id: makePlayerId("p2"), name: "Charlie", role: "player", connected: true },
+          { id: makePlayerId("p3"), name: "Diana", role: "player", connected: true },
+        ],
+        zones,
+        currentPhase: "play_trick",
+        currentPlayerIndex: 0,
+        turnNumber: 1,
+        scores: {},
+        variables: { lead_player: 0 },
+        actionLog: [],
+        turnsTakenThisPhase: 0,
+        turnDirection: 1,
+        version: 1,
+        ...overrides,
+      };
+    }
+
+    it("registers all G8 builtin names", () => {
+      const names = getRegisteredBuiltins();
+      expect(names).toContain("trick_winner");
+      expect(names).toContain("led_card_suit");
+      expect(names).toContain("trick_card_count");
+      expect(names).toContain("count_cards_by_suit");
+      expect(names).toContain("has_card_with");
+      expect(names).toContain("sum_zone_values_by_suit");
+      expect(names).toContain("collect_trick");
+      expect(names).toContain("set_lead_player");
+      expect(names).toContain("end_game");
+    });
+
+    // ── trick_winner ──────────────────────────────────────────────
+
+    describe("trick_winner", () => {
+      it("returns winner when highest led-suit card wins", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", [makeCard("10", "hearts")]),
+          "trick:1": makeZone("trick:1", [makeCard("K", "hearts")]),
+          "trick:2": makeZone("trick:2", [makeCard("5", "hearts")]),
+          "trick:3": makeZone("trick:3", [makeCard("A", "hearts")]),
+        });
+        const ctx = makeEvalContext(state);
+        // A(14) is highest hearts card → player 3 wins
+        const result = evaluateExpression('trick_winner("trick")', ctx);
+        expect(result).toEqual({ kind: "number", value: 3 });
+      });
+
+      it("off-suit cards don't win even with higher rank", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", [makeCard("10", "hearts")]),
+          "trick:1": makeZone("trick:1", [makeCard("K", "hearts")]),
+          "trick:2": makeZone("trick:2", [makeCard("A", "spades")]),
+          "trick:3": makeZone("trick:3", [makeCard("5", "hearts")]),
+        });
+        const ctx = makeEvalContext(state);
+        // Led suit is hearts (player 0 led). A♠ doesn't count. K♥(13) wins → player 1
+        const result = evaluateExpression('trick_winner("trick")', ctx);
+        expect(result).toEqual({ kind: "number", value: 1 });
+      });
+
+      it("returns -1 when lead_player not set", () => {
+        const state = makeHeartsGameState(
+          {
+            "trick:0": makeZone("trick:0", [makeCard("10", "hearts")]),
+            "trick:1": makeZone("trick:1", [makeCard("K", "hearts")]),
+            "trick:2": makeZone("trick:2", [makeCard("5", "hearts")]),
+            "trick:3": makeZone("trick:3", [makeCard("A", "hearts")]),
+          },
+          { variables: {} }
+        );
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('trick_winner("trick")', ctx);
+        expect(result).toEqual({ kind: "number", value: -1 });
+      });
+
+      it("returns -1 when lead zone is empty", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", []),
+          "trick:1": makeZone("trick:1", [makeCard("K", "hearts")]),
+          "trick:2": makeZone("trick:2", [makeCard("5", "hearts")]),
+          "trick:3": makeZone("trick:3", [makeCard("A", "hearts")]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('trick_winner("trick")', ctx);
+        expect(result).toEqual({ kind: "number", value: -1 });
+      });
+
+      it("trump suit overrides led suit", () => {
+        const state = makeHeartsGameState(
+          {
+            "trick:0": makeZone("trick:0", [makeCard("A", "hearts")]),
+            "trick:1": makeZone("trick:1", [makeCard("K", "hearts")]),
+            "trick:2": makeZone("trick:2", [makeCard("3", "spades")]),
+            "trick:3": makeZone("trick:3", [makeCard("5", "hearts")]),
+          },
+          { variables: { lead_player: 0, trump_suit: "spades" } }
+        );
+        const ctx = makeEvalContext(state);
+        // Trump is spades. Only player 2 played spades (3♠). Trump beats led suit.
+        const result = evaluateExpression('trick_winner("trick")', ctx);
+        expect(result).toEqual({ kind: "number", value: 2 });
+      });
+
+      it("highest trump wins among multiple trumps", () => {
+        const state = makeHeartsGameState(
+          {
+            "trick:0": makeZone("trick:0", [makeCard("A", "hearts")]),
+            "trick:1": makeZone("trick:1", [makeCard("K", "spades")]),
+            "trick:2": makeZone("trick:2", [makeCard("3", "spades")]),
+            "trick:3": makeZone("trick:3", [makeCard("5", "hearts")]),
+          },
+          { variables: { lead_player: 0, trump_suit: "spades" } }
+        );
+        const ctx = makeEvalContext(state);
+        // Two trumps: K♠(13) and 3♠(3). K♠ is higher → player 1 wins
+        const result = evaluateExpression('trick_winner("trick")', ctx);
+        expect(result).toEqual({ kind: "number", value: 1 });
+      });
+    });
+
+    // ── led_card_suit ─────────────────────────────────────────────
+
+    describe("led_card_suit", () => {
+      it("returns suit of lead player's card", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", [makeCard("10", "hearts")]),
+          "trick:1": makeZone("trick:1", [makeCard("K", "spades")]),
+          "trick:2": makeZone("trick:2", [makeCard("5", "clubs")]),
+          "trick:3": makeZone("trick:3", [makeCard("A", "diamonds")]),
+        });
+        const ctx = makeEvalContext(state);
+        // lead_player=0, trick:0 has 10♥ → led suit is "hearts"
+        const result = evaluateExpression('led_card_suit("trick")', ctx);
+        expect(result).toEqual({ kind: "string", value: "hearts" });
+      });
+
+      it("returns empty string when lead_player not set", () => {
+        const state = makeHeartsGameState(
+          {
+            "trick:0": makeZone("trick:0", [makeCard("10", "hearts")]),
+            "trick:1": makeZone("trick:1", [makeCard("K", "spades")]),
+            "trick:2": makeZone("trick:2", []),
+            "trick:3": makeZone("trick:3", []),
+          },
+          { variables: {} }
+        );
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('led_card_suit("trick")', ctx);
+        expect(result).toEqual({ kind: "string", value: "" });
+      });
+
+      it("returns empty string when lead zone is empty", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", []),
+          "trick:1": makeZone("trick:1", [makeCard("K", "spades")]),
+          "trick:2": makeZone("trick:2", []),
+          "trick:3": makeZone("trick:3", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('led_card_suit("trick")', ctx);
+        expect(result).toEqual({ kind: "string", value: "" });
+      });
+    });
+
+    // ── trick_card_count ──────────────────────────────────────────
+
+    describe("trick_card_count", () => {
+      it("returns total cards across all trick zones", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", [makeCard("10", "hearts")]),
+          "trick:1": makeZone("trick:1", [makeCard("K", "hearts")]),
+          "trick:2": makeZone("trick:2", [makeCard("5", "hearts")]),
+          "trick:3": makeZone("trick:3", [makeCard("A", "hearts")]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('trick_card_count("trick")', ctx);
+        expect(result).toEqual({ kind: "number", value: 4 });
+      });
+
+      it("returns 0 when all trick zones are empty", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", []),
+          "trick:1": makeZone("trick:1", []),
+          "trick:2": makeZone("trick:2", []),
+          "trick:3": makeZone("trick:3", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('trick_card_count("trick")', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("returns partial count when only some players have played", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", [makeCard("10", "hearts")]),
+          "trick:1": makeZone("trick:1", [makeCard("K", "hearts")]),
+          "trick:2": makeZone("trick:2", []),
+          "trick:3": makeZone("trick:3", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('trick_card_count("trick")', ctx);
+        expect(result).toEqual({ kind: "number", value: 2 });
+      });
+    });
+
+    // ── count_cards_by_suit ───────────────────────────────────────
+
+    describe("count_cards_by_suit", () => {
+      it("counts hearts in a won pile correctly", () => {
+        const state = makeHeartsGameState({
+          "won:0": makeZone("won:0", [
+            makeCard("2", "hearts"),
+            makeCard("5", "hearts"),
+            makeCard("K", "spades"),
+            makeCard("3", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_cards_by_suit("won:0", "hearts")', ctx);
+        expect(result).toEqual({ kind: "number", value: 3 });
+      });
+
+      it("returns 0 when no cards match the suit", () => {
+        const state = makeHeartsGameState({
+          "won:0": makeZone("won:0", [
+            makeCard("K", "spades"),
+            makeCard("Q", "clubs"),
+            makeCard("J", "diamonds"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_cards_by_suit("won:0", "hearts")', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("works with empty zone", () => {
+        const state = makeHeartsGameState({
+          "won:0": makeZone("won:0", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_cards_by_suit("won:0", "hearts")', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+    });
+
+    // ── has_card_with ─────────────────────────────────────────────
+
+    describe("has_card_with", () => {
+      it("returns true when zone has Q♠", () => {
+        const state = makeHeartsGameState({
+          "won:0": makeZone("won:0", [
+            makeCard("K", "hearts"),
+            makeCard("Q", "spades"),
+            makeCard("5", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_card_with("won:0", "Q", "spades")', ctx);
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("returns false when zone has Q♥ but not Q♠", () => {
+        const state = makeHeartsGameState({
+          "won:0": makeZone("won:0", [
+            makeCard("K", "hearts"),
+            makeCard("Q", "hearts"),
+            makeCard("5", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_card_with("won:0", "Q", "spades")', ctx);
+        expect(result).toEqual({ kind: "boolean", value: false });
+      });
+
+      it("returns false on empty zone", () => {
+        const state = makeHeartsGameState({
+          "won:0": makeZone("won:0", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_card_with("won:0", "Q", "spades")', ctx);
+        expect(result).toEqual({ kind: "boolean", value: false });
+      });
+    });
+
+    // ── sum_zone_values_by_suit ───────────────────────────────────
+
+    describe("sum_zone_values_by_suit", () => {
+      it("sums values correctly for hearts in a won pile", () => {
+        const state = makeHeartsGameState({
+          "won:0": makeZone("won:0", [
+            makeCard("2", "hearts"),
+            makeCard("5", "hearts"),
+            makeCard("A", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        // 2 + 5 + 14 = 21
+        const result = evaluateExpression('sum_zone_values_by_suit("won:0", "hearts")', ctx);
+        expect(result).toEqual({ kind: "number", value: 21 });
+      });
+
+      it("returns 0 when no cards of the suit exist", () => {
+        const state = makeHeartsGameState({
+          "won:0": makeZone("won:0", [
+            makeCard("K", "spades"),
+            makeCard("Q", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('sum_zone_values_by_suit("won:0", "hearts")', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("only sums matching suit in mixed-suit zone", () => {
+        const state = makeHeartsGameState({
+          "won:0": makeZone("won:0", [
+            makeCard("3", "hearts"),
+            makeCard("K", "spades"),
+            makeCard("7", "hearts"),
+            makeCard("Q", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        // Only hearts: 3 + 7 = 10
+        const result = evaluateExpression('sum_zone_values_by_suit("won:0", "hearts")', ctx);
+        expect(result).toEqual({ kind: "number", value: 10 });
+      });
+    });
+
+    // ── collect_trick (effect builtin) ────────────────────────────
+
+    describe("collect_trick", () => {
+      it("records a collect_trick effect with correct params", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", [makeCard("10", "hearts")]),
+          "trick:1": makeZone("trick:1", [makeCard("K", "hearts")]),
+          "trick:2": makeZone("trick:2", [makeCard("5", "hearts")]),
+          "trick:3": makeZone("trick:3", [makeCard("A", "hearts")]),
+          "won:0": makeZone("won:0", []),
+        });
+        const ctx = makeMutableContext(state);
+        evaluateExpression('collect_trick("trick", "won:0")', ctx);
+        expect(ctx.effects).toHaveLength(1);
+        expect(ctx.effects[0]).toEqual({
+          kind: "collect_trick",
+          params: { zonePrefix: "trick", targetZone: "won:0" },
+        });
+      });
+    });
+
+    // ── set_lead_player (effect builtin) ──────────────────────────
+
+    describe("set_lead_player", () => {
+      it("records a set_lead_player effect with correct params", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", []),
+        });
+        const ctx = makeMutableContext(state);
+        evaluateExpression("set_lead_player(2)", ctx);
+        expect(ctx.effects).toHaveLength(1);
+        expect(ctx.effects[0]).toEqual({
+          kind: "set_lead_player",
+          params: { playerIndex: 2 },
+        });
+      });
+    });
+
+    // ── end_game (effect builtin) ─────────────────────────────────
+
+    describe("end_game", () => {
+      it("records an end_game effect with empty params", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", []),
+        });
+        const ctx = makeMutableContext(state);
+        evaluateExpression("end_game()", ctx);
+        expect(ctx.effects).toHaveLength(1);
+        expect(ctx.effects[0]).toEqual({
+          kind: "end_game",
+          params: {},
+        });
+      });
+
+      it("throws when called with arguments", () => {
+        const state = makeHeartsGameState({
+          "trick:0": makeZone("trick:0", []),
+        });
+        const ctx = makeMutableContext(state);
+        expect(() =>
+          evaluateExpression("end_game(1)", ctx)
+        ).toThrow("takes no arguments");
       });
     });
   });

@@ -24,6 +24,7 @@ running example throughout.
 14. [Complete Blackjack Example](#14-complete-blackjack-example)
 15. [Validation](#15-validation)
 16. [Testing Your Ruleset](#16-testing-your-ruleset)
+17. [Trick-Taking Games](#17-trick-taking-games)
 
 ---
 
@@ -577,6 +578,13 @@ for player 1, and so on.
 | `has_straight(zone, length)` | boolean | True if consecutive rank sequence of given length exists. |
 | `count_runs(zone, min_length)` | number | Count consecutive rank sequences of at least min_length. |
 | `max_run_length(zone)` | number | Length of the longest consecutive rank sequence. |
+| `trick_winner(zone_prefix)` | number | Determines the winner of a trick. Compares face-up cards across all `{prefix}:{N}` zones. The led suit comes from the card in `{prefix}:{lead_player}`. If a `trump_suit` variable is set and any player played a trump, the highest trump wins. Otherwise, the highest led-suit card wins. Returns `-1` if no valid cards found. |
+| `led_card_suit(zone_prefix)` | string | Returns the suit string of the card played by the lead player. Reads `lead_player` from variables. Returns empty string if lead_player is not set or the zone is empty. |
+| `trick_card_count(zone_prefix)` | number | Returns the total number of cards across all `{prefix}:{N}` zones. Used to detect "trick complete" (count equals player_count). |
+| `count_cards_by_suit(zone, suit)` | number | Counts cards of a specific suit in a zone. E.g., `count_cards_by_suit("won:0", "hearts")`. |
+| `has_card_with(zone, rank, suit)` | boolean | True if the zone contains a card matching both the specified rank AND suit. E.g., `has_card_with("won:0", "Q", "spades")` for Queen of Spades detection. |
+| `sum_zone_values_by_suit(zone, suit)` | number | Sums card values for all cards of a specific suit in a zone. Uses `high` value for dual-value cards. |
+| `concat(a, b)` | string | Concatenates two values into a string. E.g., `concat("won:", trick_winner("trick"))` produces `"won:2"`. |
 | `all_players_done()` | boolean | True when all players have completed their turns. |
 | `all_hands_dealt()` | boolean | True after dealing is complete. |
 | `scores_calculated()` | boolean | True after scoring is complete. |
@@ -602,6 +610,9 @@ for player 1, and so on.
 | `reverse_turn_order()` | Flips turn direction (clockwise ↔ counterclockwise). Only valid when `effects` collector is available. |
 | `skip_next_player()` | Advances the player index by one extra step in the current direction. Only valid when `effects` collector is available. |
 | `set_next_player(index)` | Sets the next player to a specific index (0-based). Only valid when `effects` collector is available. |
+| `collect_trick(zone_prefix, target_zone)` | Moves all cards from every `{prefix}:{N}` zone into `target_zone`. Cards are set face-down. Used to collect a completed trick into the winner's won pile. |
+| `set_lead_player(player_index)` | Sets `variables.lead_player` AND `currentPlayerIndex` to the given player index. The trick winner leads the next trick. |
+| `end_game()` | Transitions the game status to `finished`. Derives the winner from `scores[result:N] === 1`. Call after `determine_winners()` in the scoring phase. |
 | `set_var(name, value)` | Sets a custom variable to the given numeric value. |
 | `inc_var(name, amount)` | Increments a custom variable by `amount` (can be negative). Creates the variable from 0 if it doesn't exist. |
 
@@ -1329,3 +1340,185 @@ it("allows a player to hit and draw a card", () => {
 - Check `state.scores` after the scoring phase runs to verify win/loss/tie
   results. Scores are keyed as `"player:0"`, `"player:1"`, `"dealer"`, and
   results as `"result:0"` (1 = win, 0 = push, -1 = loss).
+
+---
+
+## 17. Trick-Taking Games
+
+The engine supports trick-taking card games through a set of specialized
+builtins. These enable games like Hearts, Spades, Whist, Euchre, and other
+trick-based card games.
+
+### Core Concepts
+
+In a trick-taking game:
+1. Each player plays one card per trick
+2. Players must follow the led suit if they can (follow-suit obligation)
+3. The highest card in the led suit wins the trick (unless trumped)
+4. The trick winner collects the cards and leads the next trick
+
+### Zone Layout
+
+Trick-taking games typically use three per-player zone types:
+
+| Zone | Visibility | Purpose |
+|------|-----------|---------|
+| `hand` | owner_only | Player's cards |
+| `trick` | public | Current trick (0-1 cards) |
+| `won` | hidden | Collected trick cards |
+
+```json
+"zones": [
+  { "name": "draw_pile", "visibility": { "kind": "hidden" }, "owners": [] },
+  { "name": "hand", "visibility": { "kind": "owner_only" }, "owners": ["player"] },
+  { "name": "trick", "visibility": { "kind": "public" }, "owners": ["player"], "maxCards": 1 },
+  { "name": "won", "visibility": { "kind": "hidden" }, "owners": ["player"] }
+]
+```
+
+### Required Variables
+
+```json
+"initialVariables": {
+  "lead_player": 0,
+  "hearts_broken": 0,
+  "tricks_played": 0
+}
+```
+
+The `lead_player` variable is **required** -- it is read by `trick_winner()` and
+`led_card_suit()` to determine who led the trick.
+
+### Phase Pattern
+
+Trick-taking games use a three-phase loop:
+
+```
+setup → play_trick → resolve_trick → play_trick → ... → scoring
+```
+
+**setup** (automatic): Shuffle and deal all cards.
+
+```json
+{
+  "name": "setup",
+  "kind": "automatic",
+  "actions": [],
+  "transitions": [{ "to": "play_trick", "when": "all_hands_dealt" }],
+  "automaticSequence": [
+    "shuffle(draw_pile)",
+    "deal(draw_pile, hand, 13)",
+    "set_lead_player(0)"
+  ]
+}
+```
+
+**play_trick** (turn_based): Players play cards. The lead player goes first
+(set by `set_lead_player()`). Each player plays one card from their hand to
+their trick zone.
+
+```json
+{
+  "name": "play_trick",
+  "kind": "turn_based",
+  "actions": [{
+    "name": "play_card",
+    "label": "Play Card",
+    "effect": ["end_turn()"]
+  }],
+  "transitions": [
+    { "to": "resolve_trick", "when": "trick_card_count(\"trick\") == player_count" }
+  ],
+  "turnOrder": "clockwise"
+}
+```
+
+**resolve_trick** (automatic): Determine the winner, collect cards, set up the
+next trick.
+
+```json
+{
+  "name": "resolve_trick",
+  "kind": "automatic",
+  "actions": [],
+  "transitions": [
+    { "to": "scoring", "when": "get_var(\"tricks_played\") >= 13" },
+    { "to": "play_trick", "when": "get_var(\"tricks_played\") < 13" }
+  ],
+  "automaticSequence": [
+    "collect_trick(\"trick\", concat(\"won:\", trick_winner(\"trick\")))",
+    "set_lead_player(trick_winner(\"trick\"))",
+    "inc_var(\"tricks_played\", 1)"
+  ]
+}
+```
+
+The `collect_trick()` builtin moves all cards from `trick:0`, `trick:1`, etc.
+into the winner's `won` pile. The `set_lead_player()` builtin sets both the
+`lead_player` variable and `currentPlayerIndex`, so the winner leads next.
+
+### Trump Support
+
+To enable trump suits, set a `trump_suit` variable:
+
+```json
+"initialVariables": {
+  "lead_player": 0,
+  "trump_suit_code": 0,
+  "tricks_played": 0
+}
+```
+
+The `trick_winner()` builtin automatically checks for a `trump_suit` variable.
+If it exists and any player played a card of that suit, the highest trump card
+wins the trick instead of the highest led-suit card.
+
+### Scoring
+
+For avoidance games like Hearts, score penalty points:
+
+```json
+"scoring": {
+  "method": "count_cards_by_suit(concat(\"won:\", current_player_index), \"hearts\") + if(has_card_with(concat(\"won:\", current_player_index), \"Q\", \"spades\"), 13, 0)",
+  "winCondition": "my_score == 0"
+}
+```
+
+For point-based games like Spades, score positively based on tricks won.
+
+### Ending the Game
+
+Call `end_game()` in the scoring phase to properly terminate the game:
+
+```json
+{
+  "name": "scoring",
+  "kind": "automatic",
+  "automaticSequence": [
+    "calculate_scores()",
+    "determine_winners()",
+    "end_game()"
+  ]
+}
+```
+
+The `end_game()` builtin transitions the game status to `finished` and derives
+the winner from `scores[result:N]`. The `ResultScreen` on the client
+automatically displays when the game ends.
+
+### Limitations
+
+- **Follow-suit enforcement**: The engine does not yet validate individual card
+  selection against follow-suit rules (requires per-card validation, G7). The
+  `play_card` action is always available. True follow-suit must be enforced at
+  the UI level or via future per-card conditions.
+- **Card passing**: Pre-game card passing (e.g., Hearts pass phase) is not yet
+  supported. Requires a new action type for selecting multiple cards to pass.
+- **Multi-round scoring**: Accumulated scoring across rounds (e.g., Hearts to
+  100) is not yet supported (G9). Currently each game is a single round.
+
+### Complete Hearts Example
+
+See [`rulesets/hearts.cardgame.json`](../rulesets/hearts.cardgame.json) for a
+full working implementation. Hearts exercises: 4-player trick-taking, penalty
+scoring, hearts-broken tracking, and the `end_game()` lifecycle.

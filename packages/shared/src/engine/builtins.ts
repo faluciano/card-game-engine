@@ -951,6 +951,249 @@ const maxRunLengthBuiltin: BuiltinFunction = (args, context) => {
   return { kind: "number", value: runs.length > 0 ? Math.max(...runs) : 0 };
 };
 
+// ─── Trick-Taking Query Builtins ───────────────────────────────────
+
+/**
+ * Resolves the numeric value of a card's rank for trick comparison.
+ * For fixed values, returns `value`. For dual values, returns `high`
+ * (trick-taking always uses the high value).
+ */
+function resolveCardRankValue(
+  cardValues: Readonly<Record<string, CardValue>>,
+  rank: string
+): number {
+  const cv = getCardValue(cardValues, rank);
+  return cv.kind === "fixed" ? cv.value : cv.high;
+}
+
+/**
+ * trick_winner(zone_prefix) — Determines the winner of a trick.
+ * Compares face-up cards across all `{prefix}:{N}` zones.
+ * The led suit comes from the card in `{prefix}:{lead_player}`.
+ * If a `trump_suit` variable is set and any player played that suit,
+ * the highest trump wins. Otherwise, highest led-suit card wins.
+ * Returns -1 if no valid cards found.
+ */
+const trickWinnerBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("trick_winner", args, 1);
+  const prefix = requireString(args[0]!, "zone_prefix");
+  const { state } = context;
+  const playerCount = state.players.length;
+  const cardValues = state.ruleset.deck.cardValues;
+
+  const leadPlayer = state.variables.lead_player;
+  if (leadPlayer === undefined) {
+    return { kind: "number", value: -1 };
+  }
+
+  // Resolve led suit from the lead player's trick zone
+  const leadZoneName = `${prefix}:${leadPlayer}`;
+  const leadZone = state.zones[leadZoneName];
+  if (!leadZone || leadZone.cards.length === 0) {
+    return { kind: "number", value: -1 };
+  }
+  const ledSuit = leadZone.cards[0]!.suit;
+
+  // Check for trump suit
+  const trumpSuit =
+    state.variables.trump_suit !== undefined
+      ? String(state.variables.trump_suit)
+      : undefined;
+
+  // Collect all player cards with their indices
+  type TrickEntry = { playerIndex: number; card: Card };
+  const entries: TrickEntry[] = [];
+  for (let i = 0; i < playerCount; i++) {
+    const zoneName = `${prefix}:${i}`;
+    const zone = state.zones[zoneName];
+    if (zone && zone.cards.length > 0) {
+      entries.push({ playerIndex: i, card: zone.cards[0]! });
+    }
+  }
+
+  if (entries.length === 0) {
+    return { kind: "number", value: -1 };
+  }
+
+  // If trump suit exists and any player played it, trumps beat all
+  let trumpEntries: TrickEntry[] = [];
+  if (trumpSuit !== undefined) {
+    trumpEntries = entries.filter((e) => e.card.suit === trumpSuit);
+  }
+
+  if (trumpEntries.length > 0) {
+    // Highest trump wins
+    let best = trumpEntries[0]!;
+    for (let i = 1; i < trumpEntries.length; i++) {
+      const entry = trumpEntries[i]!;
+      if (
+        resolveCardRankValue(cardValues, entry.card.rank) >
+        resolveCardRankValue(cardValues, best.card.rank)
+      ) {
+        best = entry;
+      }
+    }
+    return { kind: "number", value: best.playerIndex };
+  }
+
+  // No trumps — highest card in the led suit wins
+  const ledSuitEntries = entries.filter((e) => e.card.suit === ledSuit);
+  if (ledSuitEntries.length === 0) {
+    return { kind: "number", value: -1 };
+  }
+
+  let best = ledSuitEntries[0]!;
+  for (let i = 1; i < ledSuitEntries.length; i++) {
+    const entry = ledSuitEntries[i]!;
+    if (
+      resolveCardRankValue(cardValues, entry.card.rank) >
+      resolveCardRankValue(cardValues, best.card.rank)
+    ) {
+      best = entry;
+    }
+  }
+  return { kind: "number", value: best.playerIndex };
+};
+
+/**
+ * led_card_suit(zone_prefix) — Returns the suit of the card played by
+ * the lead player. Reads `lead_player` from variables. Returns empty
+ * string if the zone is empty or lead_player is not set.
+ */
+const ledCardSuitBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("led_card_suit", args, 1);
+  const prefix = requireString(args[0]!, "zone_prefix");
+  const { state } = context;
+
+  const leadPlayer = state.variables.lead_player;
+  if (leadPlayer === undefined) {
+    return { kind: "string", value: "" };
+  }
+
+  const zoneName = `${prefix}:${leadPlayer}`;
+  const zone = state.zones[zoneName];
+  if (!zone || zone.cards.length === 0) {
+    return { kind: "string", value: "" };
+  }
+
+  return { kind: "string", value: zone.cards[0]!.suit };
+};
+
+/**
+ * trick_card_count(zone_prefix) — Returns the total number of cards
+ * across all `{prefix}:{N}` zones. Used to detect "trick complete"
+ * (count == player_count).
+ */
+const trickCardCountBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("trick_card_count", args, 1);
+  const prefix = requireString(args[0]!, "zone_prefix");
+  const { state } = context;
+  const playerCount = state.players.length;
+
+  let total = 0;
+  for (let i = 0; i < playerCount; i++) {
+    const zoneName = `${prefix}:${i}`;
+    const zone = state.zones[zoneName];
+    if (zone) {
+      total += zone.cards.length;
+    }
+  }
+  return { kind: "number", value: total };
+};
+
+/**
+ * count_cards_by_suit(zone, suit) — Counts cards of a specific suit
+ * in a zone. E.g., `count_cards_by_suit("won:0", "hearts")`.
+ */
+const countCardsBySuitBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("count_cards_by_suit", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const suit = requireString(args[1]!, "suit");
+  const zone = getZone(context.state, zoneName);
+  const count = zone.cards.filter((card) => card.suit === suit).length;
+  return { kind: "number", value: count };
+};
+
+/**
+ * has_card_with(zone, rank, suit) — Returns boolean: does the zone
+ * contain a card matching both the specified rank AND suit?
+ * Used for Q♠ detection in Hearts.
+ */
+const hasCardWithBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("has_card_with", args, 3);
+  const zoneName = resolveZoneName(args[0]!);
+  const rank = requireString(args[1]!, "rank");
+  const suit = requireString(args[2]!, "suit");
+  const zone = getZone(context.state, zoneName);
+  const found = zone.cards.some(
+    (card) => card.rank === rank && card.suit === suit
+  );
+  return { kind: "boolean", value: found };
+};
+
+/**
+ * sum_zone_values_by_suit(zone, suit) — Sums card values for cards
+ * of a specific suit. Uses `cardValues` from the ruleset.
+ * For dual-value cards, uses the `high` value.
+ */
+const sumZoneValuesBySuitBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("sum_zone_values_by_suit", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const suit = requireString(args[1]!, "suit");
+  const zone = getZone(context.state, zoneName);
+  const cardValues = context.state.ruleset.deck.cardValues;
+  let total = 0;
+  for (const card of zone.cards) {
+    if (card.suit === suit) {
+      total += resolveCardRankValue(cardValues, card.rank);
+    }
+  }
+  return { kind: "number", value: total };
+};
+
+// ─── Trick-Taking Effect Builtins ──────────────────────────────────
+
+/**
+ * collect_trick(zone_prefix, target_zone) — Records a collect_trick effect.
+ * Moves all cards from every `{prefix}:{N}` zone into the target zone,
+ * setting them face-down.
+ */
+const collectTrickBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("collect_trick", args, 2);
+  const zonePrefix = requireString(args[0]!, "zone_prefix");
+  const targetZone = resolveZoneName(args[1]!);
+  pushEffect(context, {
+    kind: "collect_trick",
+    params: { zonePrefix, targetZone },
+  });
+};
+
+/**
+ * set_lead_player(player_index) — Records a set_lead_player effect.
+ * Sets `variables.lead_player` AND `currentPlayerIndex` to the given index.
+ */
+const setLeadPlayerBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("set_lead_player", args, 1);
+  const playerIndex = requireNumber(args[0]!, "player_index");
+  pushEffect(context, {
+    kind: "set_lead_player",
+    params: { playerIndex },
+  });
+};
+
+/**
+ * end_game() — Records an end_game effect.
+ * Transitions the game status to `{ kind: "finished" }`.
+ */
+const endGameBuiltin: BuiltinFunction = (args, context) => {
+  if (args.length !== 0) {
+    throw new ExpressionError(
+      `end_game() takes no arguments, got ${args.length}`
+    );
+  }
+  pushEffect(context, { kind: "end_game", params: {} });
+};
+
 /**
  * set_var(name, value) — Records a set_var effect.
  * Sets a custom variable to the given numeric value.
@@ -972,6 +1215,38 @@ const incVarBuiltin: BuiltinFunction = (args, context) => {
   const amount = requireNumber(args[1]!, "amount");
   pushEffect(context, { kind: "inc_var", params: { name, amount } });
 };
+
+// ─── String Builtins ───────────────────────────────────────────────
+
+/**
+ * concat(a, b) — Concatenates two values into a string.
+ * Both arguments are coerced to strings: numbers become their decimal
+ * representation, strings are used as-is, booleans become "true"/"false".
+ */
+const concatBuiltin: BuiltinFunction = (args, _context) => {
+  assertArgCount("concat", args, 2);
+  const a = coerceToString(args[0]!);
+  const b = coerceToString(args[1]!);
+  return { kind: "string", value: a + b };
+};
+
+/**
+ * Coerces an EvalResult to a string for concat operations.
+ */
+function coerceToString(arg: EvalResult): string {
+  switch (arg.kind) {
+    case "string":
+      return arg.value;
+    case "number":
+      return String(arg.value);
+    case "boolean":
+      return String(arg.value);
+    default:
+      throw new ExpressionError(
+        `Cannot coerce ${arg.kind} to string`
+      );
+  }
+}
 
 // ─── Registration ──────────────────────────────────────────────────
 
@@ -1012,6 +1287,15 @@ export function registerAllBuiltins(): void {
   registerBuiltin("has_straight", hasStraightBuiltin);
   registerBuiltin("count_runs", countRunsBuiltin);
   registerBuiltin("max_run_length", maxRunLengthBuiltin);
+  registerBuiltin("trick_winner", trickWinnerBuiltin);
+  registerBuiltin("led_card_suit", ledCardSuitBuiltin);
+  registerBuiltin("trick_card_count", trickCardCountBuiltin);
+  registerBuiltin("count_cards_by_suit", countCardsBySuitBuiltin);
+  registerBuiltin("has_card_with", hasCardWithBuiltin);
+  registerBuiltin("sum_zone_values_by_suit", sumZoneValuesBySuitBuiltin);
+
+  // String builtins
+  registerBuiltin("concat", concatBuiltin);
 
   // Effect builtins
   registerBuiltin("shuffle", shuffleBuiltin);
@@ -1030,6 +1314,9 @@ export function registerAllBuiltins(): void {
   registerBuiltin("reverse_turn_order", reverseTurnOrderBuiltin);
   registerBuiltin("skip_next_player", skipNextPlayerBuiltin);
   registerBuiltin("set_next_player", setNextPlayerBuiltin);
+  registerBuiltin("collect_trick", collectTrickBuiltin);
+  registerBuiltin("set_lead_player", setLeadPlayerBuiltin);
+  registerBuiltin("end_game", endGameBuiltin);
   registerBuiltin("turn_direction", turnDirectionBuiltin);
   registerBuiltin("set_var", setVarBuiltin);
   registerBuiltin("inc_var", incVarBuiltin);

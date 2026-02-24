@@ -680,6 +680,12 @@ function applySingleEffect(
       return applySetVarEffect(state, effect.params);
     case "inc_var":
       return applyIncVarEffect(state, effect.params);
+    case "collect_trick":
+      return applyCollectTrickEffect(state, effect.params);
+    case "set_lead_player":
+      return applySetLeadPlayerEffect(state, effect.params);
+    case "end_game":
+      return applyEndGameEffect(state);
     default:
       // Unknown effects are ignored — forward compatible
       return state;
@@ -1144,6 +1150,82 @@ function applySetNextPlayerEffect(
   return {
     ...state,
     currentPlayerIndex: playerIndex,
+  };
+}
+
+/**
+ * Collects all cards from every `{prefix}:{N}` zone into a target zone.
+ * Cards are set face-down (they go into a won pile, not displayed).
+ * Source zones are emptied.
+ */
+function applyCollectTrickEffect(
+  state: CardGameState,
+  params: Record<string, unknown>
+): CardGameState {
+  const zonePrefix = params.zonePrefix as string;
+  const targetZoneName = params.targetZone as string;
+  const playerCount = state.players.length;
+
+  const zones = { ...state.zones };
+  const collected: Card[] = [];
+
+  for (let i = 0; i < playerCount; i++) {
+    const zoneName = `${zonePrefix}:${i}`;
+    const zone = zones[zoneName];
+    if (!zone) continue;
+    collected.push(...zone.cards.map((card) => ({ ...card, faceUp: false })));
+    zones[zoneName] = { ...zone, cards: [] };
+  }
+
+  const target = zones[targetZoneName];
+  if (target) {
+    zones[targetZoneName] = {
+      ...target,
+      cards: [...target.cards, ...collected],
+    };
+  }
+
+  return { ...state, zones };
+}
+
+/**
+ * Sets `variables.lead_player` to the given player index AND sets
+ * `currentPlayerIndex` to that player, so the trick winner leads next.
+ */
+function applySetLeadPlayerEffect(
+  state: CardGameState,
+  params: Record<string, unknown>
+): CardGameState {
+  const playerIndex = params.playerIndex as number;
+  return {
+    ...state,
+    variables: { ...state.variables, lead_player: playerIndex },
+    currentPlayerIndex: playerIndex,
+  };
+}
+
+/**
+ * Transitions the game status to `{ kind: "finished" }`.
+ * The winnerId is derived from scores: the player with `result:N === 1`.
+ * If no clear winner, winnerId is null.
+ */
+function applyEndGameEffect(state: CardGameState): CardGameState {
+  let winnerId: PlayerId | null = null;
+
+  for (let i = 0; i < state.players.length; i++) {
+    if (state.scores[`result:${i}`] === 1) {
+      winnerId = state.players[i]!.id;
+      break;
+    }
+  }
+
+  return {
+    ...state,
+    status: {
+      kind: "finished",
+      finishedAt: Date.now(),
+      winnerId,
+    },
   };
 }
 

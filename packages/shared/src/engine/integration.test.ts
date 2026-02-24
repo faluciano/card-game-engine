@@ -5654,3 +5654,715 @@ describe("Uno Integration — Full Game Lifecycle", () => {
     });
   });
 });
+
+// ══════════════════════════════════════════════════════════════════
+// ── Hearts Integration Tests ───────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+
+const HEARTS_CARD_VALUES: Readonly<Record<string, CardValue>> = {
+  "2": { kind: "fixed", value: 2 },
+  "3": { kind: "fixed", value: 3 },
+  "4": { kind: "fixed", value: 4 },
+  "5": { kind: "fixed", value: 5 },
+  "6": { kind: "fixed", value: 6 },
+  "7": { kind: "fixed", value: 7 },
+  "8": { kind: "fixed", value: 8 },
+  "9": { kind: "fixed", value: 9 },
+  "10": { kind: "fixed", value: 10 },
+  J: { kind: "fixed", value: 11 },
+  Q: { kind: "fixed", value: 12 },
+  K: { kind: "fixed", value: 13 },
+  A: { kind: "fixed", value: 14 },
+};
+
+const HEARTS_RULESET_PATH = resolve(
+  import.meta.dirname ?? __dirname,
+  "../../../../rulesets/hearts.cardgame.json"
+);
+
+function makeHeartsRuleset(): CardGameRuleset {
+  return {
+    meta: {
+      name: "Hearts",
+      slug: "hearts",
+      version: "1.0.0",
+      author: "faluciano",
+      players: { min: 4, max: 4 },
+    },
+    deck: {
+      preset: "standard_52",
+      copies: 1,
+      cardValues: HEARTS_CARD_VALUES,
+    },
+    zones: [
+      { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+      { name: "hand", visibility: { kind: "owner_only" }, owners: ["player"] },
+      {
+        name: "trick",
+        visibility: { kind: "public" },
+        owners: ["player"],
+        maxCards: 1,
+      },
+      { name: "won", visibility: { kind: "hidden" }, owners: ["player"] },
+    ],
+    roles: [{ name: "player", isHuman: true, count: "per_player" }],
+    initialVariables: {
+      lead_player: 0,
+      hearts_broken: 0,
+      tricks_played: 0,
+    },
+    phases: [
+      {
+        name: "setup",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "play_trick", when: "all_hands_dealt" }],
+        automaticSequence: [
+          "shuffle(draw_pile)",
+          "deal(draw_pile, hand, 13)",
+          "set_lead_player(0)",
+        ],
+      },
+      {
+        name: "play_trick",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play_card",
+            label: "Play Card",
+            effect: ["end_turn()"],
+          },
+        ],
+        transitions: [
+          {
+            to: "resolve_trick",
+            when: 'trick_card_count("trick") == player_count',
+          },
+        ],
+        turnOrder: "clockwise",
+      },
+      {
+        name: "resolve_trick",
+        kind: "automatic",
+        actions: [],
+        transitions: [
+          { to: "scoring", when: 'get_var("tricks_played") >= 13' },
+          { to: "play_trick", when: 'get_var("tricks_played") < 13' },
+        ],
+        automaticSequence: [
+          'if(count_cards_by_suit("trick:0", "hearts") + count_cards_by_suit("trick:1", "hearts") + count_cards_by_suit("trick:2", "hearts") + count_cards_by_suit("trick:3", "hearts") > 0, set_var("hearts_broken", 1))',
+          'collect_trick("trick", concat("won:", trick_winner("trick")))',
+          'set_lead_player(trick_winner("trick"))',
+          'inc_var("tricks_played", 1)',
+        ],
+      },
+      {
+        name: "scoring",
+        kind: "automatic",
+        actions: [],
+        transitions: [{ to: "round_end", when: "scores_calculated" }],
+        automaticSequence: [
+          "calculate_scores()",
+          "determine_winners()",
+          "end_game()",
+        ],
+      },
+      {
+        name: "round_end",
+        kind: "all_players",
+        actions: [
+          {
+            name: "play_again",
+            label: "Play Again",
+            effect: ["collect_all_to(draw_pile)", "reset_round()"],
+          },
+        ],
+        transitions: [{ to: "setup", when: "continue_game" }],
+      },
+    ],
+    scoring: {
+      method:
+        'count_cards_by_suit(concat("won:", current_player_index), "hearts") + if(has_card_with(concat("won:", current_player_index), "Q", "spades"), 13, 0)',
+      winCondition: "my_score == 0",
+    },
+    visibility: [
+      { zone: "draw_pile", visibility: { kind: "hidden" } },
+      { zone: "hand", visibility: { kind: "owner_only" } },
+      { zone: "trick", visibility: { kind: "public" } },
+      { zone: "won", visibility: { kind: "hidden" } },
+    ],
+    ui: { layout: "circle", tableColor: "felt_green" },
+  };
+}
+
+function startHeartsGame(
+  seed: number = FIXED_SEED
+): { state: CardGameState; reducer: GameReducer; players: Player[] } {
+  clearBuiltins();
+  registerAllBuiltins();
+
+  const heartsRuleset = makeHeartsRuleset();
+  const players: Player[] = [
+    { id: pid("p0"), name: "Alice", role: "player", connected: true },
+    { id: pid("p1"), name: "Bob", role: "player", connected: true },
+    { id: pid("p2"), name: "Charlie", role: "player", connected: true },
+    { id: pid("p3"), name: "Diana", role: "player", connected: true },
+  ];
+  const reducer = createReducer(heartsRuleset, seed);
+  const initial = createInitialState(
+    heartsRuleset,
+    sid("hearts-test-session"),
+    players,
+    seed
+  );
+  const state = reducer(initial, { kind: "start_game" });
+  return { state, reducer, players };
+}
+
+/**
+ * Plays one complete trick: each player plays their first available card
+ * from their hand to their trick zone. Returns the state after the trick
+ * is resolved (cards collected, lead_player updated, tricks_played incremented).
+ */
+function playOneTrick(
+  state: CardGameState,
+  reducer: GameReducer,
+  players: Player[]
+): CardGameState {
+  let current = state;
+  for (let i = 0; i < 4; i++) {
+    const playerIdx = current.currentPlayerIndex;
+    const hand = current.zones[`hand:${playerIdx}`];
+    if (!hand || hand.cards.length === 0) break;
+
+    const card = hand.cards[0]!;
+    current = reducer(current, {
+      kind: "play_card",
+      playerId: players[playerIdx]!.id,
+      cardId: card.id,
+      fromZone: `hand:${playerIdx}`,
+      toZone: `trick:${playerIdx}`,
+    });
+  }
+  return current;
+}
+
+// ─── Hearts Tests ─────────────────────────────────────────────────
+
+describe("Hearts — Trick-Taking Integration", () => {
+  beforeEach(() => {
+    clearBuiltins();
+    registerAllBuiltins();
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Schema Validation ─────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("schema validation", () => {
+    it("loads and validates the hearts ruleset from disk", () => {
+      const raw = JSON.parse(readFileSync(HEARTS_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      expect(jsonRuleset.meta.name).toBe("Hearts");
+      expect(jsonRuleset.meta.slug).toBe("hearts");
+      expect(jsonRuleset.deck.preset).toBe("standard_52");
+      expect(jsonRuleset.phases).toHaveLength(5);
+      expect(jsonRuleset.roles).toHaveLength(1);
+      expect(jsonRuleset.zones).toHaveLength(4);
+    });
+
+    it("validates schema with parseRuleset without throwing", () => {
+      const raw = JSON.parse(readFileSync(HEARTS_RULESET_PATH, "utf-8"));
+      expect(() => parseRuleset(raw)).not.toThrow();
+    });
+
+    it("JSON ruleset contains all 5 expected phases", () => {
+      const raw = JSON.parse(readFileSync(HEARTS_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      const phaseNames = jsonRuleset.phases.map((p) => p.name);
+      expect(phaseNames).toEqual([
+        "setup",
+        "play_trick",
+        "resolve_trick",
+        "scoring",
+        "round_end",
+      ]);
+    });
+
+    it("JSON ruleset contains initialVariables for trick tracking", () => {
+      const raw = JSON.parse(readFileSync(HEARTS_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      expect(jsonRuleset.initialVariables).toEqual({
+        lead_player: 0,
+        hearts_broken: 0,
+        tricks_played: 0,
+      });
+    });
+
+    it("JSON ruleset scoring method uses count_cards_by_suit and has_card_with", () => {
+      const raw = JSON.parse(readFileSync(HEARTS_RULESET_PATH, "utf-8"));
+      const jsonRuleset = loadRuleset(raw);
+
+      expect(jsonRuleset.scoring.method).toContain("count_cards_by_suit");
+      expect(jsonRuleset.scoring.method).toContain("has_card_with");
+      expect(jsonRuleset.scoring.winCondition).toBe("my_score == 0");
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Game Setup ────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("game setup", () => {
+    it("deals 13 cards to each of 4 players", () => {
+      const { state } = startHeartsGame();
+
+      for (let i = 0; i < 4; i++) {
+        const hand = state.zones[`hand:${i}`];
+        expect(hand).toBeDefined();
+        expect(hand!.cards).toHaveLength(13);
+      }
+    });
+
+    it("draw_pile is empty after deal", () => {
+      const { state } = startHeartsGame();
+      expect(state.zones["draw_pile"]!.cards).toHaveLength(0);
+    });
+
+    it("starts in play_trick phase", () => {
+      const { state } = startHeartsGame();
+      expect(state.currentPhase).toBe("play_trick");
+    });
+
+    it("player 0 leads first trick", () => {
+      const { state } = startHeartsGame();
+      expect(state.currentPlayerIndex).toBe(0);
+      expect(state.variables.lead_player).toBe(0);
+    });
+
+    it("all 52 cards are distributed across zones", () => {
+      const { state } = startHeartsGame();
+      expect(totalCards(state)).toBe(DECK_SIZE);
+    });
+
+    it("trick zones and won piles start empty", () => {
+      const { state } = startHeartsGame();
+      for (let i = 0; i < 4; i++) {
+        expect(state.zones[`trick:${i}`]!.cards).toHaveLength(0);
+        expect(state.zones[`won:${i}`]!.cards).toHaveLength(0);
+      }
+    });
+
+    it("initial variables are set correctly", () => {
+      const { state } = startHeartsGame();
+      expect(state.variables.hearts_broken).toBe(0);
+      expect(state.variables.tricks_played).toBe(0);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Trick Mechanics ───────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("trick mechanics", () => {
+    it("allows current player to play a card to their trick zone", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      const hand = state.zones["hand:0"]!;
+      const card = hand.cards[0]!;
+
+      const afterPlay = reducer(state, {
+        kind: "play_card",
+        playerId: players[0]!.id,
+        cardId: card.id,
+        fromZone: "hand:0",
+        toZone: "trick:0",
+      });
+
+      // Card moved from hand to trick zone
+      expect(afterPlay.zones["hand:0"]!.cards).toHaveLength(12);
+      expect(afterPlay.zones["trick:0"]!.cards).toHaveLength(1);
+      expect(afterPlay.zones["trick:0"]!.cards[0]!.id).toBe(card.id);
+    });
+
+    it("advances to next player after each play", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      const hand = state.zones["hand:0"]!;
+      const card = hand.cards[0]!;
+
+      const afterPlay = reducer(state, {
+        kind: "play_card",
+        playerId: players[0]!.id,
+        cardId: card.id,
+        fromZone: "hand:0",
+        toZone: "trick:0",
+      });
+
+      // Turn advances to player 1 (end_turn effect in play_card action)
+      expect(afterPlay.currentPlayerIndex).toBe(1);
+    });
+
+    it("transitions to resolve_trick after all 4 players play", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      const afterTrick = playOneTrick(state, reducer, players);
+
+      // After resolve_trick automatic phase runs, we should be back
+      // in play_trick (since tricks_played < 13 after the first trick)
+      expect(afterTrick.currentPhase).toBe("play_trick");
+    });
+
+    it("trick winner collects cards to their won pile", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      const afterTrick = playOneTrick(state, reducer, players);
+
+      // All trick zones should be empty after collection
+      for (let i = 0; i < 4; i++) {
+        expect(afterTrick.zones[`trick:${i}`]!.cards).toHaveLength(0);
+      }
+
+      // Exactly one won pile should have 4 cards
+      let totalWonCards = 0;
+      for (let i = 0; i < 4; i++) {
+        totalWonCards += afterTrick.zones[`won:${i}`]!.cards.length;
+      }
+      expect(totalWonCards).toBe(4);
+    });
+
+    it("trick winner leads next trick", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      const afterTrick = playOneTrick(state, reducer, players);
+
+      // The current player should be the lead_player (trick winner)
+      expect(afterTrick.currentPlayerIndex).toBe(
+        afterTrick.variables.lead_player
+      );
+    });
+
+    it("tricks_played increments after each trick", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      expect(state.variables.tricks_played).toBe(0);
+
+      const afterTrick1 = playOneTrick(state, reducer, players);
+      expect(afterTrick1.variables.tricks_played).toBe(1);
+
+      const afterTrick2 = playOneTrick(afterTrick1, reducer, players);
+      expect(afterTrick2.variables.tricks_played).toBe(2);
+    });
+
+    it("total cards remain 52 after each trick", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      const afterTrick1 = playOneTrick(state, reducer, players);
+      expect(totalCards(afterTrick1)).toBe(DECK_SIZE);
+
+      const afterTrick2 = playOneTrick(afterTrick1, reducer, players);
+      expect(totalCards(afterTrick2)).toBe(DECK_SIZE);
+    });
+
+    it("each player has one fewer card after a trick", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      const afterTrick = playOneTrick(state, reducer, players);
+
+      for (let i = 0; i < 4; i++) {
+        expect(afterTrick.zones[`hand:${i}`]!.cards).toHaveLength(12);
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Scoring ───────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("scoring", () => {
+    it("scoring expression evaluates correctly for hearts in won pile", () => {
+      const { state } = startHeartsGame();
+
+      // Create a state where player 0 has hearts and Q♠ in their won pile
+      const wonCards = [
+        { id: `h2_test` as any, suit: "hearts", rank: "2", faceUp: false },
+        { id: `h5_test` as any, suit: "hearts", rank: "5", faceUp: false },
+        { id: `qs_test` as any, suit: "spades", rank: "Q", faceUp: false },
+        { id: `s3_test` as any, suit: "spades", rank: "3", faceUp: false },
+      ];
+
+      const scoringState: CardGameState = {
+        ...state,
+        zones: {
+          ...state.zones,
+          "won:0": {
+            ...state.zones["won:0"]!,
+            cards: wonCards,
+          },
+        },
+      };
+
+      const evalContext: EvalContext = {
+        state: scoringState,
+        playerIndex: 0,
+      };
+
+      // 2 hearts + Q♠(13) = 15 penalty points
+      const result = evaluateExpression(
+        scoringState.ruleset.scoring.method,
+        evalContext
+      );
+      expect(result).toEqual({ kind: "number", value: 15 });
+    });
+
+    it("hearts count as 1 penalty point each", () => {
+      const { state } = startHeartsGame();
+
+      const wonCards = [
+        { id: `h3_test` as any, suit: "hearts", rank: "3", faceUp: false },
+        { id: `h7_test` as any, suit: "hearts", rank: "7", faceUp: false },
+        { id: `hk_test` as any, suit: "hearts", rank: "K", faceUp: false },
+        { id: `s5_test` as any, suit: "spades", rank: "5", faceUp: false },
+      ];
+
+      const scoringState: CardGameState = {
+        ...state,
+        zones: {
+          ...state.zones,
+          "won:1": {
+            ...state.zones["won:1"]!,
+            cards: wonCards,
+          },
+        },
+      };
+
+      const evalContext: EvalContext = {
+        state: scoringState,
+        playerIndex: 1,
+      };
+
+      // 3 hearts, no Q♠ → 3 penalty points
+      const result = evaluateExpression(
+        scoringState.ruleset.scoring.method,
+        evalContext
+      );
+      expect(result).toEqual({ kind: "number", value: 3 });
+    });
+
+    it("queen of spades counts as 13 penalty points", () => {
+      const { state } = startHeartsGame();
+
+      const wonCards = [
+        { id: `qs_test` as any, suit: "spades", rank: "Q", faceUp: false },
+        { id: `c5_test` as any, suit: "clubs", rank: "5", faceUp: false },
+      ];
+
+      const scoringState: CardGameState = {
+        ...state,
+        zones: {
+          ...state.zones,
+          "won:2": {
+            ...state.zones["won:2"]!,
+            cards: wonCards,
+          },
+        },
+      };
+
+      const evalContext: EvalContext = {
+        state: scoringState,
+        playerIndex: 2,
+      };
+
+      // 0 hearts + Q♠ = 13 penalty points
+      const result = evaluateExpression(
+        scoringState.ruleset.scoring.method,
+        evalContext
+      );
+      expect(result).toEqual({ kind: "number", value: 13 });
+    });
+
+    it("no penalty cards gives score of 0", () => {
+      const { state } = startHeartsGame();
+
+      const wonCards = [
+        { id: `s5_test` as any, suit: "spades", rank: "5", faceUp: false },
+        { id: `c9_test` as any, suit: "clubs", rank: "9", faceUp: false },
+        { id: `d3_test` as any, suit: "diamonds", rank: "3", faceUp: false },
+      ];
+
+      const scoringState: CardGameState = {
+        ...state,
+        zones: {
+          ...state.zones,
+          "won:3": {
+            ...state.zones["won:3"]!,
+            cards: wonCards,
+          },
+        },
+      };
+
+      const evalContext: EvalContext = {
+        state: scoringState,
+        playerIndex: 3,
+      };
+
+      // 0 hearts, no Q♠ → 0 penalty points
+      const result = evaluateExpression(
+        scoringState.ruleset.scoring.method,
+        evalContext
+      );
+      expect(result).toEqual({ kind: "number", value: 0 });
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── End Game ──────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("end game", () => {
+    it("game transitions to scoring phase after 13 tricks", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      let current = state;
+      for (let trick = 0; trick < 13; trick++) {
+        expect(current.currentPhase).toBe("play_trick");
+        current = playOneTrick(current, reducer, players);
+      }
+
+      // After 13 tricks, the game should have ended (scoring → end_game)
+      expect(current.status.kind).toBe("finished");
+    });
+
+    it("all hands are empty after 13 tricks", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      let current = state;
+      for (let trick = 0; trick < 13; trick++) {
+        current = playOneTrick(current, reducer, players);
+      }
+
+      for (let i = 0; i < 4; i++) {
+        expect(current.zones[`hand:${i}`]!.cards).toHaveLength(0);
+      }
+    });
+
+    it("all 52 cards end up in won piles after 13 tricks", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      let current = state;
+      for (let trick = 0; trick < 13; trick++) {
+        current = playOneTrick(current, reducer, players);
+      }
+
+      let totalWon = 0;
+      for (let i = 0; i < 4; i++) {
+        totalWon += current.zones[`won:${i}`]!.cards.length;
+      }
+      expect(totalWon).toBe(DECK_SIZE);
+    });
+
+    it("game status becomes finished after scoring", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      let current = state;
+      for (let trick = 0; trick < 13; trick++) {
+        current = playOneTrick(current, reducer, players);
+      }
+
+      expect(current.status.kind).toBe("finished");
+      if (current.status.kind === "finished") {
+        expect(current.status.finishedAt).toBeGreaterThan(0);
+      }
+    });
+
+    it("tricks_played equals 13 at game end", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      let current = state;
+      for (let trick = 0; trick < 13; trick++) {
+        current = playOneTrick(current, reducer, players);
+      }
+
+      expect(current.variables.tricks_played).toBe(13);
+    });
+
+    it("engine survives a full game without errors", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      let current = state;
+      expect(() => {
+        for (let trick = 0; trick < 13; trick++) {
+          current = playOneTrick(current, reducer, players);
+        }
+      }).not.toThrow();
+
+      expect(current.status.kind).toBe("finished");
+      expect(totalCards(current)).toBe(DECK_SIZE);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Edge Cases ────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("edge cases", () => {
+    it("start_game is a no-op on an already started game", () => {
+      const { state, reducer } = startHeartsGame();
+
+      const afterSecondStart = reducer(state, { kind: "start_game" });
+      expect(afterSecondStart).toBe(state);
+    });
+
+    it("wrong player action is a no-op", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      expect(state.currentPlayerIndex).toBe(0);
+
+      const hand = state.zones["hand:1"]!;
+      const card = hand.cards[0]!;
+
+      const afterWrongTurn = reducer(state, {
+        kind: "play_card",
+        playerId: players[1]!.id,
+        cardId: card.id,
+        fromZone: "hand:1",
+        toZone: "trick:1",
+      });
+
+      // Should be a no-op — version unchanged
+      expect(afterWrongTurn.version).toBe(state.version);
+    });
+
+    it("version monotonically increases through actions", () => {
+      const { state, reducer, players } = startHeartsGame();
+
+      const hand = state.zones["hand:0"]!;
+      const card = hand.cards[0]!;
+
+      const afterPlay = reducer(state, {
+        kind: "play_card",
+        playerId: players[0]!.id,
+        cardId: card.id,
+        fromZone: "hand:0",
+        toZone: "trick:0",
+      });
+
+      expect(afterPlay.version).toBeGreaterThan(state.version);
+    });
+
+    it("deterministic with same seed", () => {
+      const game1 = startHeartsGame(123);
+      const game2 = startHeartsGame(123);
+
+      // Same hands dealt
+      for (let i = 0; i < 4; i++) {
+        const hand1 = handDescription(game1.state, `hand:${i}`);
+        const hand2 = handDescription(game2.state, `hand:${i}`);
+        expect(hand1).toEqual(hand2);
+      }
+    });
+  });
+});
