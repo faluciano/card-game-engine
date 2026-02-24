@@ -25,7 +25,13 @@ function getEffectiveVisibility(
   visibilityRules: readonly VisibilityRule[],
   currentPhase: string
 ): ZoneVisibility {
-  const rule = visibilityRules.find((r) => r.zone === zoneName);
+  const baseName = zoneName.replace(/:(\d+)$/, "");
+  // Exact name match takes priority over base name match
+  const rule =
+    visibilityRules.find((r) => r.zone === zoneName) ??
+    (baseName !== zoneName
+      ? visibilityRules.find((r) => r.zone === baseName)
+      : undefined);
   if (rule?.phaseOverride && rule.phaseOverride.phase === currentPhase) {
     return rule.phaseOverride.visibility;
   }
@@ -72,6 +78,7 @@ export function createPlayerView(
       zoneState.cards,
       effectiveVisibility,
       player.role,
+      playerIndex,
       zoneState.definition.owners
     );
   }
@@ -125,9 +132,13 @@ function filterZone(
   cards: readonly Card[],
   visibility: ZoneVisibility,
   playerRole: string,
+  playerIndex: number,
   zoneOwners: readonly string[]
 ): FilteredZoneState {
-  const isOwner = zoneOwners.includes(playerRole);
+  const perPlayerMatch = name.match(/:(\d+)$/);
+  const isOwner = perPlayerMatch
+    ? Number(perPlayerMatch[1]) === playerIndex
+    : zoneOwners.includes(playerRole);
 
   switch (visibility.kind) {
     case "public":

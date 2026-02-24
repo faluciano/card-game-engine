@@ -1,14 +1,20 @@
 // ─── Hand Viewer ───────────────────────────────────────────────────
 // Renders the player's hand zones and other visible zones.
 // Groups cards by zone, showing the player's own hand first.
+// When onCardSelect is provided, cards in the player's own zones become
+// interactive — enabling card selection for play_card actions.
 
-import React from "react";
+import React, { useCallback } from "react";
 import type { CSSProperties } from "react";
-import type { PlayerView } from "@card-engine/shared";
+import type { PlayerView, CardInstanceId } from "@card-engine/shared";
 import { CardMini } from "./CardMini.js";
 
 interface HandViewerProps {
   readonly playerView: PlayerView;
+  /** Called when the player taps a card in their own zone. */
+  readonly onCardSelect?: (cardId: CardInstanceId, zoneName: string) => void;
+  /** The currently selected card ID (highlighted in the UI). */
+  readonly selectedCardId?: CardInstanceId;
 }
 
 const containerStyle: CSSProperties = {
@@ -60,6 +66,8 @@ function formatZoneName(zoneName: string): string {
 
 export function HandViewer({
   playerView,
+  onCardSelect,
+  selectedCardId,
 }: HandViewerProps): React.JSX.Element {
   const { zones, myPlayerId, players } = playerView;
 
@@ -83,6 +91,14 @@ export function HandViewer({
 
   const hasAnyCards = myZones.length > 0 || otherZones.length > 0;
 
+  // Stable callback that captures the zone name for each card selection
+  const makeSelectHandler = useCallback(
+    (zoneName: string) => (cardId: CardInstanceId) => {
+      onCardSelect?.(cardId, zoneName);
+    },
+    [onCardSelect],
+  );
+
   if (!hasAnyCards) {
     return (
       <div style={containerStyle}>
@@ -93,7 +109,7 @@ export function HandViewer({
 
   return (
     <div style={containerStyle}>
-      {/* Player's personal zones — always shown first */}
+      {/* Player's personal zones — always shown first, interactive when onCardSelect provided */}
       {myZones.map(([name, zone]) => (
         <div key={name} style={zoneStyle}>
           <p style={zoneLabelStyle}>{formatZoneName(name)}</p>
@@ -102,13 +118,15 @@ export function HandViewer({
               <CardMini
                 key={card?.id ?? `hidden-${name}-${index}`}
                 card={card}
+                selected={card?.id === selectedCardId}
+                onSelect={onCardSelect ? makeSelectHandler(name) : undefined}
               />
             ))}
           </div>
         </div>
       ))}
 
-      {/* Other visible zones */}
+      {/* Other visible zones — not interactive */}
       {otherZones.map(([name, zone]) => (
         <div key={name} style={zoneStyle}>
           <p style={zoneLabelStyle}>{formatZoneName(name)}</p>

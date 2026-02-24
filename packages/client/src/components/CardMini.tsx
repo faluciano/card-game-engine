@@ -2,13 +2,18 @@
 // Compact card display for phone screens.
 // Shows rank + suit face-up, patterned back for face-down/hidden cards.
 // A null card means it is hidden from this player.
+// When onSelect is provided, cards become interactive with selection state.
 
-import React from "react";
+import React, { useCallback } from "react";
 import type { CSSProperties } from "react";
-import type { Card } from "@card-engine/shared";
+import type { Card, CardInstanceId } from "@card-engine/shared";
 
 interface CardMiniProps {
   readonly card: Card | null;
+  /** Whether this card is currently selected. */
+  readonly selected?: boolean;
+  /** Called when the card is tapped. Presence enables interactivity. */
+  readonly onSelect?: (cardId: CardInstanceId) => void;
 }
 
 const SUIT_SYMBOLS: Readonly<Record<string, string>> = {
@@ -32,12 +37,25 @@ const baseCardStyle: CSSProperties = {
   fontWeight: 700,
   lineHeight: 1.2,
   flexShrink: 0,
+  transition: "transform 0.1s ease-out, box-shadow 0.1s ease-out",
 };
 
 const faceUpStyle: CSSProperties = {
   ...baseCardStyle,
   backgroundColor: "#fff",
   border: "1px solid #ddd",
+};
+
+const faceUpSelectedStyle: CSSProperties = {
+  ...baseCardStyle,
+  backgroundColor: "#fff",
+  border: "2px solid var(--color-accent)",
+  boxShadow: "0 0 8px var(--color-accent-dim)",
+  transform: "translateY(-4px)",
+};
+
+const faceUpInteractiveStyle: CSSProperties = {
+  cursor: "pointer",
 };
 
 const faceDownStyle: CSSProperties = {
@@ -53,7 +71,16 @@ const rankStyle: CSSProperties = {
   fontWeight: 800,
 };
 
-export function CardMini({ card }: CardMiniProps): React.JSX.Element {
+export function CardMini({
+  card,
+  selected = false,
+  onSelect,
+}: CardMiniProps): React.JSX.Element {
+  const handleClick = useCallback(() => {
+    if (!card || !onSelect) return;
+    onSelect(card.id);
+  }, [card, onSelect]);
+
   // Null card = hidden from this player by visibility rules.
   // Non-null card = player is allowed to see it (visibility already enforced
   // by createPlayerView). Show face-up regardless of card.faceUp property.
@@ -65,10 +92,30 @@ export function CardMini({ card }: CardMiniProps): React.JSX.Element {
   const textColor = isRed ? "var(--color-card-red)" : "#1a1a2e";
   const suitSymbol = SUIT_SYMBOLS[card.suit] ?? card.suit;
 
+  const isInteractive = onSelect !== undefined;
+  const cardStyle: CSSProperties = {
+    ...(selected ? faceUpSelectedStyle : faceUpStyle),
+    ...(isInteractive ? faceUpInteractiveStyle : {}),
+  };
+
   return (
     <div
-      style={faceUpStyle}
-      aria-label={`${card.rank} of ${card.suit}`}
+      style={cardStyle}
+      role={isInteractive ? "button" : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+      aria-label={`${card.rank} of ${card.suit}${selected ? " (selected)" : ""}`}
+      aria-pressed={isInteractive ? selected : undefined}
+      onClick={isInteractive ? handleClick : undefined}
+      onKeyDown={
+        isInteractive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleClick();
+              }
+            }
+          : undefined
+      }
     >
       <span style={{ ...rankStyle, color: textColor }}>{card.rank}</span>
       <span style={{ color: textColor }}>{suitSymbol}</span>

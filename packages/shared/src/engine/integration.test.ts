@@ -573,20 +573,16 @@ describe("Blackjack Integration — Full Game Lifecycle", () => {
       expect(dealerHand.cards[1]).toBeNull();
     });
 
-    it("per-player hand zones use owner_only visibility based on role", () => {
-      // NOTE: The current state-filter uses role-based ownership, not
-      // per-player-index ownership. Since all players share the "player"
-      // role, the owner_only check passes for all player-owned zones.
-      // This documents the actual engine behavior.
+    it("per-player hand zones use owner_only visibility based on player index", () => {
       const { state, players } = startGame(ruleset, 2);
       const view = createPlayerView(state, players[0]!.id);
 
       const myHand = view.zones["hand:0"]!;
       const otherHand = view.zones["hand:1"]!;
 
-      // Both are visible because both share the "player" role
+      // Own hand is visible, opponent's hand is hidden (null placeholders)
       expect(myHand.cards.every((c) => c !== null)).toBe(true);
-      expect(otherHand.cards.every((c) => c !== null)).toBe(true);
+      expect(otherHand.cards.every((c) => c === null)).toBe(true);
     });
 
     it("isMyTurn is correct for current player", () => {

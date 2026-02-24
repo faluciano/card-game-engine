@@ -6,7 +6,6 @@
 import React, { useMemo, useState, useCallback } from "react";
 import {
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -31,6 +30,12 @@ const SUIT_SYMBOLS: Readonly<Record<string, string>> = {
 };
 
 const RED_SUITS = new Set(["hearts", "diamonds"]);
+
+/** Maximum face-up cards rendered before showing a "+N more" indicator. */
+const MAX_VISIBLE_CARDS = 12;
+
+/** Threshold above which an all-face-down zone collapses to a stacked icon. */
+const STACK_COLLAPSE_THRESHOLD = 6;
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -63,14 +68,11 @@ export function GameTable(): React.JSX.Element {
     <View style={styles.container}>
       <StatusBar engineState={engineState} />
 
-      <ScrollView
-        style={styles.tableScroll}
-        contentContainerStyle={styles.tableContent}
-      >
+      <View style={styles.tableLayout}>
         <SharedZones engineState={engineState} />
         <PlayerZones engineState={engineState} />
         <ScoreBoard engineState={engineState} />
-      </ScrollView>
+      </View>
 
       {(isFinished || isRoundEnd) && (
         <ResultsOverlay engineState={engineState} dispatch={dispatch} />
@@ -188,23 +190,79 @@ function ZoneDisplay({
   readonly name: string;
   readonly zone: ZoneState;
 }): React.JSX.Element {
+  const { cards } = zone;
+  const allFaceDown =
+    cards.length > 0 && cards.every((card) => !card.faceUp);
+  const shouldCollapse =
+    allFaceDown && cards.length > STACK_COLLAPSE_THRESHOLD;
+
   return (
     <View style={styles.zone}>
       <Text style={styles.zoneName}>
-        {formatZoneName(name)} ({zone.cards.length} cards)
+        {formatZoneName(name)} ({cards.length} cards)
       </Text>
       <View style={styles.cardRow}>
-        {zone.cards.length === 0 ? (
+        {cards.length === 0 ? (
           <View style={styles.emptyZone}>
             <Text style={styles.emptyZoneText}>Empty</Text>
           </View>
+        ) : shouldCollapse ? (
+          <StackedDeck count={cards.length} />
         ) : (
-          zone.cards.map((card) => (
-            <CardView key={card.id} card={card} />
-          ))
+          <CappedCardList cards={cards} />
         )}
       </View>
     </View>
+  );
+}
+
+// ─── Stacked Deck (collapsed face-down pile) ──────────────────────
+
+function StackedDeck({
+  count,
+}: {
+  readonly count: number;
+}): React.JSX.Element {
+  return (
+    <View style={styles.stackedDeck}>
+      {/* Bottom shadow card */}
+      <View style={[styles.card, styles.cardBack, styles.stackShadow2]} />
+      {/* Middle shadow card */}
+      <View style={[styles.card, styles.cardBack, styles.stackShadow1]} />
+      {/* Top card */}
+      <View style={[styles.card, styles.cardBack, styles.stackTop]}>
+        <Text style={styles.cardBackText}>🂠</Text>
+      </View>
+      {/* Count badge */}
+      <View style={styles.stackBadge}>
+        <Text style={styles.stackBadgeText}>{count}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Capped Card List (with "+N more" overflow) ───────────────────
+
+function CappedCardList({
+  cards,
+}: {
+  readonly cards: readonly Card[];
+}): React.JSX.Element {
+  const hiddenCount = cards.length - MAX_VISIBLE_CARDS;
+  const visibleCards =
+    hiddenCount > 0 ? cards.slice(-MAX_VISIBLE_CARDS) : cards;
+
+  return (
+    <>
+      {hiddenCount > 0 && (
+        <View style={styles.moreIndicator}>
+          <Text style={styles.moreIndicatorText}>+{hiddenCount} more</Text>
+        </View>
+      )}
+      {visibleCards.map((card) => (
+        <CardView key={card.id} card={card} />
+      ))}
+    </>
   );
 }
 
@@ -594,16 +652,16 @@ const styles = StyleSheet.create({
   },
 
   // Table layout
-  tableScroll: {
+  tableLayout: {
     flex: 1,
-  },
-  tableContent: {
+    justifyContent: "space-between",
     padding: 32,
     paddingBottom: 48,
   },
 
   // Sections
   section: {
+    flex: 1,
     marginBottom: 28,
   },
   sectionTitle: {
@@ -686,6 +744,59 @@ const styles = StyleSheet.create({
   },
   cardRed: {
     color: "#d32f2f",
+  },
+
+  // Stacked deck (collapsed face-down pile)
+  stackedDeck: {
+    width: 62,
+    height: 82,
+    position: "relative",
+  },
+  stackShadow2: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    opacity: 0.4,
+  },
+  stackShadow1: {
+    position: "absolute",
+    top: 5,
+    left: 5,
+    opacity: 0.7,
+  },
+  stackTop: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+  },
+  stackBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: "#ffd54f",
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  stackBadgeText: {
+    color: "#1a1a1a",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
+  // Overflow indicator
+  moreIndicator: {
+    height: 72,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  moreIndicatorText: {
+    color: "#81c784",
+    fontSize: 14,
+    fontWeight: "700",
   },
 
   // Player sections
