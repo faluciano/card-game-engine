@@ -13,6 +13,7 @@ import { hostReducer, createHostInitialState } from "./reducers/host-reducer";
 import type { HostAction, HostGameState } from "./types/host-state";
 import { useInstalledSlugs } from "./hooks/useInstalledSlugs";
 import { useRulesetInstaller } from "./hooks/useRulesetInstaller";
+import { useRulesetUninstaller } from "./hooks/useRulesetUninstaller";
 import { RulesetPicker } from "./screens/RulesetPicker";
 import { Lobby } from "./screens/Lobby";
 import { GameTable } from "./screens/GameTable";
@@ -120,6 +121,7 @@ function ScreenRouter(): React.JSX.Element {
   // ── Side-effect hooks ──────────────────────────────────────────
   useInstalledSlugs(dispatch);
   useRulesetInstaller(state.pendingInstall, dispatch);
+  useRulesetUninstaller(state.pendingUninstall, dispatch);
 
   switch (state.screen.tag) {
     case "ruleset_picker":

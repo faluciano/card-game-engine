@@ -3,7 +3,7 @@ import {
   createHostInitialState,
   hostReducer,
 } from "../host-reducer";
-import type { HostAction, HostGameState } from "../host-state";
+import type { HostAction, HostGameState, InstalledGame } from "../host-state";
 import type { CardGameRuleset, CardGameState } from "../../types/index";
 
 // ─── Fixtures ──────────────────────────────────────────────────────
@@ -80,6 +80,7 @@ function makeGameTableState(): HostGameState {
     engineState: stubEngineState,
     installedSlugs: [],
     pendingInstall: null,
+    pendingUninstall: null,
   };
 }
 
@@ -99,6 +100,11 @@ describe("catalog actions (host reducer)", () => {
     it("includes pendingInstall as null", () => {
       const state = createHostInitialState();
       expect(state.pendingInstall).toBeNull();
+    });
+
+    it("includes pendingUninstall as null", () => {
+      const state = createHostInitialState();
+      expect(state.pendingUninstall).toBeNull();
     });
   });
 
@@ -162,14 +168,18 @@ describe("catalog actions (host reducer)", () => {
   describe("SET_INSTALLED_SLUGS", () => {
     it("updates installedSlugs from the action payload", () => {
       const state = createHostInitialState();
+      const slugs: InstalledGame[] = [
+        { slug: "blackjack", version: "1.0.0" },
+        { slug: "poker", version: "2.1.0" },
+      ];
       const action: HostAction = {
         type: "SET_INSTALLED_SLUGS",
-        slugs: ["blackjack", "poker"],
+        slugs,
       };
 
       const next = hostReducer(state, action);
 
-      expect(next.installedSlugs).toEqual(["blackjack", "poker"]);
+      expect(next.installedSlugs).toEqual(slugs);
     });
 
     it("clears pendingInstall to null even if it was previously set", () => {
@@ -182,7 +192,7 @@ describe("catalog actions (host reducer)", () => {
 
       const action: HostAction = {
         type: "SET_INSTALLED_SLUGS",
-        slugs: ["test-game"],
+        slugs: [{ slug: "test-game", version: "1.0.0" }],
       };
 
       const next = hostReducer(stateWithPending, action);
@@ -190,11 +200,28 @@ describe("catalog actions (host reducer)", () => {
       expect(next.pendingInstall).toBeNull();
     });
 
+    it("clears pendingUninstall to null even if it was previously set", () => {
+      const stateWithPending: HostGameState = {
+        ...createHostInitialState(),
+        installedSlugs: [{ slug: "test-game", version: "1.0.0" }],
+        pendingUninstall: "test-game",
+      };
+
+      const action: HostAction = {
+        type: "SET_INSTALLED_SLUGS",
+        slugs: [],
+      };
+
+      const next = hostReducer(stateWithPending, action);
+
+      expect(next.pendingUninstall).toBeNull();
+    });
+
     it("does NOT change screen, status, or engineState", () => {
       const state = createHostInitialState();
       const action: HostAction = {
         type: "SET_INSTALLED_SLUGS",
-        slugs: ["blackjack"],
+        slugs: [{ slug: "blackjack", version: "1.0.0" }],
       };
 
       const next = hostReducer(state, action);
@@ -210,7 +237,7 @@ describe("catalog actions (host reducer)", () => {
   // ══════════════════════════════════════════════════════════════════
 
   describe("round-trip flow", () => {
-    it("INSTALL_RULESET → SET_INSTALLED_SLUGS transitions correctly", () => {
+    it("INSTALL_RULESET -> SET_INSTALLED_SLUGS transitions correctly", () => {
       const ruleset = makeTestRuleset();
 
       // Start at initial state
@@ -230,9 +257,9 @@ describe("catalog actions (host reducer)", () => {
       // Step 2: dispatch SET_INSTALLED_SLUGS (host hook completed I/O)
       state = hostReducer(state, {
         type: "SET_INSTALLED_SLUGS",
-        slugs: ["test-game"],
+        slugs: [{ slug: "test-game", version: "1.0.0" }],
       });
-      expect(state.installedSlugs).toEqual(["test-game"]);
+      expect(state.installedSlugs).toEqual([{ slug: "test-game", version: "1.0.0" }]);
       expect(state.pendingInstall).toBeNull();
     });
   });
@@ -246,17 +273,20 @@ describe("catalog actions (host reducer)", () => {
       // Arrange: state that already has slugs installed
       const stateWithSlugs: HostGameState = {
         ...createHostInitialState(),
-        installedSlugs: ["a", "b"],
+        installedSlugs: [
+          { slug: "a", version: "1.0.0" },
+          { slug: "b", version: "1.0.0" },
+        ],
       };
 
       const action: HostAction = {
         type: "SET_INSTALLED_SLUGS",
-        slugs: ["c"],
+        slugs: [{ slug: "c", version: "2.0.0" }],
       };
 
       const next = hostReducer(stateWithSlugs, action);
 
-      expect(next.installedSlugs).toEqual(["c"]);
+      expect(next.installedSlugs).toEqual([{ slug: "c", version: "2.0.0" }]);
     });
   });
 
@@ -288,6 +318,101 @@ describe("catalog actions (host reducer)", () => {
       expect(next.engineState).toBe(gameState.engineState);
       expect(next.status).toBe(gameState.status);
       expect(next.players).toEqual(gameState.players);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── UNINSTALL_RULESET ────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("UNINSTALL_RULESET", () => {
+    it("sets pendingUninstall when slug is installed and on ruleset_picker screen", () => {
+      const state: HostGameState = {
+        ...createHostInitialState(),
+        installedSlugs: [{ slug: "test-game", version: "1.0.0" }],
+      };
+
+      const next = hostReducer(state, {
+        type: "UNINSTALL_RULESET",
+        slug: "test-game",
+      });
+
+      expect(next.pendingUninstall).toBe("test-game");
+    });
+
+    it("does NOT set pendingUninstall when slug is NOT installed", () => {
+      const state = createHostInitialState();
+
+      const next = hostReducer(state, {
+        type: "UNINSTALL_RULESET",
+        slug: "nonexistent",
+      });
+
+      expect(next.pendingUninstall).toBeNull();
+      expect(next).toBe(state);
+    });
+
+    it("does NOT set pendingUninstall when NOT on ruleset_picker screen", () => {
+      const gameState = makeGameTableState();
+      const stateWithInstalled: HostGameState = {
+        ...gameState,
+        installedSlugs: [{ slug: "test-game", version: "1.0.0" }],
+      };
+
+      const next = hostReducer(stateWithInstalled, {
+        type: "UNINSTALL_RULESET",
+        slug: "test-game",
+      });
+
+      expect(next.pendingUninstall).toBeNull();
+      expect(next).toBe(stateWithInstalled);
+    });
+
+    it("does NOT change screen, status, engineState, or installedSlugs", () => {
+      const state: HostGameState = {
+        ...createHostInitialState(),
+        installedSlugs: [{ slug: "test-game", version: "1.0.0" }],
+      };
+
+      const next = hostReducer(state, {
+        type: "UNINSTALL_RULESET",
+        slug: "test-game",
+      });
+
+      expect(next.screen).toEqual(state.screen);
+      expect(next.status).toBe(state.status);
+      expect(next.engineState).toBe(state.engineState);
+      expect(next.installedSlugs).toEqual(state.installedSlugs);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Uninstall round-trip flow ────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("uninstall round-trip flow", () => {
+    it("UNINSTALL_RULESET -> SET_INSTALLED_SLUGS transitions correctly", () => {
+      // Start with an installed game
+      let state: HostGameState = {
+        ...createHostInitialState(),
+        installedSlugs: [{ slug: "test-game", version: "1.0.0" }],
+      };
+
+      // Step 1: dispatch UNINSTALL_RULESET
+      state = hostReducer(state, {
+        type: "UNINSTALL_RULESET",
+        slug: "test-game",
+      });
+      expect(state.pendingUninstall).toBe("test-game");
+      expect(state.installedSlugs).toEqual([{ slug: "test-game", version: "1.0.0" }]);
+
+      // Step 2: dispatch SET_INSTALLED_SLUGS (host hook completed I/O)
+      state = hostReducer(state, {
+        type: "SET_INSTALLED_SLUGS",
+        slugs: [],
+      });
+      expect(state.installedSlugs).toEqual([]);
+      expect(state.pendingUninstall).toBeNull();
     });
   });
 });

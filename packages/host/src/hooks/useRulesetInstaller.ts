@@ -1,7 +1,7 @@
 // ─── Ruleset Installer Hook ────────────────────────────────────────
 // Watches pendingInstall in host state. When set, validates and saves
 // the ruleset to FileRulesetStore, then dispatches SET_INSTALLED_SLUGS
-// to sync all clients.
+// to sync all clients. Handles updates by deleting the old version first.
 
 import { useEffect, useRef } from "react";
 import { FileRulesetStore } from "../storage/file-ruleset-store";
@@ -10,8 +10,9 @@ import type { HostAction, HostGameState } from "../types/host-state";
 
 /**
  * Watches `state.pendingInstall` and saves the ruleset to disk when
- * a client requests an install. Dispatches updated slugs after saving.
- * Reducer stays pure — all I/O happens here.
+ * a client requests an install. If the slug already exists, deletes
+ * the old entry first (enabling seamless updates). Dispatches updated
+ * slugs after saving. Reducer stays pure — all I/O happens here.
  */
 export function useRulesetInstaller(
   pendingInstall: HostGameState["pendingInstall"],
@@ -37,18 +38,22 @@ export function useRulesetInstaller(
           return;
         }
 
-        // Check if already installed
+        // If slug already exists, delete the old entry first (update path)
         const existing = await store.getBySlug(slug);
         if (existing) {
-          console.log("[RulesetInstaller] Already installed:", slug);
-        } else {
-          await store.saveWithSlug(ruleset, slug);
-          console.log("[RulesetInstaller] Installed:", slug);
+          await store.delete(existing.id);
+          console.log("[RulesetInstaller] Replacing existing:", slug);
         }
 
-        // Refresh the full slug list
+        await store.saveWithSlug(ruleset, slug);
+        console.log("[RulesetInstaller] Installed:", slug);
+
+        // Refresh the full slug + version list
         const rulesets = await store.list();
-        const slugs = rulesets.map((r) => r.ruleset.meta.slug);
+        const slugs = rulesets.map((r) => ({
+          slug: r.ruleset.meta.slug,
+          version: r.ruleset.meta.version,
+        }));
         dispatch({ type: "SET_INSTALLED_SLUGS", slugs });
       } catch (err) {
         console.error("[RulesetInstaller] Install failed:", err);

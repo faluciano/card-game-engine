@@ -27,10 +27,20 @@ export function useCatalog(): CatalogState {
         const data: unknown = await res.json();
         if (cancelled) return;
 
-        // Basic shape check — catalog.json is an array of CatalogGame
-        if (!Array.isArray(data)) throw new Error("Invalid catalog format");
+        // Parse catalog envelope — catalog.json has shape { generatedAt, games[] }
+        if (
+          typeof data !== "object" ||
+          data === null ||
+          !("games" in data) ||
+          !Array.isArray((data as { games: unknown }).games)
+        ) {
+          throw new Error("Invalid catalog format");
+        }
 
-        setState({ tag: "loaded", games: data as readonly CatalogGame[] });
+        setState({
+          tag: "loaded",
+          games: (data as { games: readonly CatalogGame[] }).games,
+        });
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : "Unknown error";

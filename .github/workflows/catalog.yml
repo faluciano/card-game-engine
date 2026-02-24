@@ -59,7 +59,8 @@ jobs:
         run: |
           mkdir -p _site
           cp catalog.json _site/
-          cp rulesets/*.cardgame.json _site/
+          mkdir -p _site/rulesets
+          cp rulesets/*.cardgame.json _site/rulesets/
           cat > _site/index.html << 'HTMLEOF'
           <!DOCTYPE html>
           <html lang="en">

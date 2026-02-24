@@ -11,6 +11,14 @@ import type {
   CardGameState,
 } from "../types/index";
 
+// ─── Installed Game ────────────────────────────────────────────────
+
+/** A slug + version pair for a locally installed ruleset. */
+export interface InstalledGame {
+  readonly slug: string;
+  readonly version: string;
+}
+
 // ─── Catalog ───────────────────────────────────────────────────────
 
 /**
@@ -22,9 +30,9 @@ export interface CatalogGame {
   readonly slug: string;
   readonly version: string;
   readonly author: string;
-  readonly description: string;
-  readonly tags: readonly string[];
-  readonly license: string;
+  readonly description?: string;
+  readonly tags?: readonly string[];
+  readonly license?: string;
   readonly players: { readonly min: number; readonly max: number };
   /** Relative path inside the catalog archive, e.g. "rulesets/blackjack.cardgame.json". */
   readonly file: string;
@@ -63,10 +71,12 @@ export interface HostGameState extends IGameState {
   readonly screen: HostScreen;
   /** Card engine state — null until game starts. */
   readonly engineState: CardGameState | null;
-  /** Slugs of rulesets currently installed on the host TV. */
-  readonly installedSlugs: readonly string[];
+  /** Rulesets currently installed on the host TV (slug + version). */
+  readonly installedSlugs: readonly InstalledGame[];
   /** Transient: set by reducer when client requests install, cleared by host hook after I/O. */
   readonly pendingInstall: { readonly ruleset: CardGameRuleset; readonly slug: string } | null;
+  /** Transient: set by reducer when client requests uninstall, cleared by host hook after I/O. */
+  readonly pendingUninstall: string | null;
 }
 
 // ─── Host Actions ──────────────────────────────────────────────────
@@ -83,4 +93,5 @@ export type HostAction =
   | { readonly type: "RESET_ROUND" }
   | { readonly type: "ADVANCE_PHASE" }
   | { readonly type: "INSTALL_RULESET"; readonly ruleset: CardGameRuleset; readonly slug: string }
-  | { readonly type: "SET_INSTALLED_SLUGS"; readonly slugs: readonly string[] };
+  | { readonly type: "UNINSTALL_RULESET"; readonly slug: string }
+  | { readonly type: "SET_INSTALLED_SLUGS"; readonly slugs: readonly InstalledGame[] };

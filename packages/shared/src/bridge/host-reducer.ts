@@ -13,7 +13,7 @@ import type {
   PlayerId,
   GameSessionId,
 } from "../types/index";
-import type { HostAction, HostGameState, HostScreen } from "./host-state";
+import type { HostAction, HostGameState, HostScreen, InstalledGame } from "./host-state";
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
@@ -51,6 +51,7 @@ export function createHostInitialState(): HostGameState {
     engineState: null,
     installedSlugs: [],
     pendingInstall: null,
+    pendingUninstall: null,
   };
 }
 
@@ -97,6 +98,9 @@ export function hostReducerImpl(state: HostGameState, action: HostAction): HostG
 
     case "INSTALL_RULESET":
       return handleInstallRuleset(state, action.ruleset, action.slug);
+
+    case "UNINSTALL_RULESET":
+      return handleUninstallRuleset(state, action.slug);
 
     case "SET_INSTALLED_SLUGS":
       return handleSetInstalledSlugs(state, action.slugs);
@@ -233,11 +237,29 @@ function handleInstallRuleset(
 
 function handleSetInstalledSlugs(
   state: HostGameState,
-  slugs: readonly string[],
+  slugs: readonly InstalledGame[],
 ): HostGameState {
   return {
     ...state,
     installedSlugs: slugs,
     pendingInstall: null,
+    pendingUninstall: null,
+  };
+}
+
+function handleUninstallRuleset(
+  state: HostGameState,
+  slug: string,
+): HostGameState {
+  // Guard: can only uninstall from the ruleset picker screen
+  if (state.screen.tag !== "ruleset_picker") return state;
+
+  // Guard: slug must be in the installed list
+  const isInstalled = state.installedSlugs.some((ig) => ig.slug === slug);
+  if (!isInstalled) return state;
+
+  return {
+    ...state,
+    pendingUninstall: slug,
   };
 }

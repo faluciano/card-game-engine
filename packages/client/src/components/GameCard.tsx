@@ -9,8 +9,11 @@ import type { CatalogGame } from "@card-engine/shared";
 interface GameCardProps {
   readonly game: CatalogGame;
   readonly isInstalled: boolean;
+  readonly isUpdateAvailable?: boolean;
   readonly isPending: boolean;
+  readonly isUninstalling?: boolean;
   readonly onInstall: (game: CatalogGame) => void;
+  readonly onUninstall?: () => void;
 }
 
 // ─── Styles ────────────────────────────────────────────────────────
@@ -90,6 +93,25 @@ const baseButtonStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+const removeButtonStyle: CSSProperties = {
+  background: "none",
+  border: "none",
+  padding: "4px 8px",
+  fontSize: 12,
+  color: "var(--color-text-muted)",
+  cursor: "pointer",
+  opacity: 0.7,
+  transition: "opacity 0.15s",
+};
+
+const actionColumnStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 4,
+  flexShrink: 0,
+};
+
 // ─── Component ─────────────────────────────────────────────────────
 
 function formatPlayerRange(min: number, max: number): string {
@@ -100,47 +122,121 @@ function formatPlayerRange(min: number, max: number): string {
 export function GameCard({
   game,
   isInstalled,
+  isUpdateAvailable = false,
   isPending,
+  isUninstalling = false,
   onInstall,
+  onUninstall,
 }: GameCardProps): React.JSX.Element {
-  const buttonStyle: CSSProperties = isInstalled
-    ? {
+  // ── Derive button appearance ───────────────────────────────────
+  const renderAction = (): React.JSX.Element => {
+    // Uninstalling takes priority — show disabled "Removing..." text
+    if (isUninstalling) {
+      const style: CSSProperties = {
+        ...baseButtonStyle,
+        backgroundColor: "var(--color-surface-raised)",
+        color: "var(--color-text-muted)",
+        cursor: "wait",
+        opacity: 0.7,
+      };
+      return (
+        <div style={actionColumnStyle}>
+          <button type="button" style={style} disabled>
+            {"Removing\u2026"}
+          </button>
+        </div>
+      );
+    }
+
+    // Installing in progress
+    if (isPending) {
+      const style: CSSProperties = {
+        ...baseButtonStyle,
+        backgroundColor: "var(--color-surface-raised)",
+        color: "var(--color-text-muted)",
+        cursor: "wait",
+        opacity: 0.7,
+      };
+      return (
+        <div style={actionColumnStyle}>
+          <button type="button" style={style} disabled>
+            {"Installing\u2026"}
+          </button>
+        </div>
+      );
+    }
+
+    // Installed with update available
+    if (isInstalled && isUpdateAvailable) {
+      const updateStyle: CSSProperties = {
+        ...baseButtonStyle,
+        backgroundColor: "var(--color-accent)",
+        color: "#fff",
+      };
+      return (
+        <div style={actionColumnStyle}>
+          <button type="button" style={updateStyle} onClick={() => onInstall(game)}>
+            Update
+          </button>
+          {onUninstall && (
+            <button type="button" style={removeButtonStyle} onClick={onUninstall}>
+              Remove
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // Installed, no update
+    if (isInstalled) {
+      const installedStyle: CSSProperties = {
         ...baseButtonStyle,
         backgroundColor: "var(--color-success)",
         color: "#fff",
         cursor: "default",
         opacity: 0.8,
-      }
-    : isPending
-      ? {
-          ...baseButtonStyle,
-          backgroundColor: "var(--color-surface-raised)",
-          color: "var(--color-text-muted)",
-          cursor: "wait",
-          opacity: 0.7,
-        }
-      : {
-          ...baseButtonStyle,
-          backgroundColor: "var(--color-accent)",
-          color: "#fff",
-        };
+      };
+      return (
+        <div style={actionColumnStyle}>
+          <button type="button" style={installedStyle} disabled>
+            {"Installed \u2713"}
+          </button>
+          {onUninstall && (
+            <button type="button" style={removeButtonStyle} onClick={onUninstall}>
+              Remove
+            </button>
+          )}
+        </div>
+      );
+    }
 
-  const buttonLabel = isInstalled
-    ? "Installed \u2713"
-    : isPending
-      ? "Installing\u2026"
-      : "Get";
+    // Not installed — "Get" button
+    const getStyle: CSSProperties = {
+      ...baseButtonStyle,
+      backgroundColor: "var(--color-accent)",
+      color: "#fff",
+    };
+    return (
+      <div style={actionColumnStyle}>
+        <button type="button" style={getStyle} onClick={() => onInstall(game)}>
+          Get
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div style={cardStyle}>
       <div style={infoStyle}>
         <span style={nameStyle}>{game.name}</span>
-        <span style={descriptionStyle}>{game.description}</span>
+        <span style={descriptionStyle}>
+          {game.description ?? "No description"}
+        </span>
         <div style={metaRowStyle}>
           <span style={badgeStyle}>
             {formatPlayerRange(game.players.min, game.players.max)}
           </span>
-          {game.tags.map((tag) => (
+          {(game.tags ?? []).map((tag) => (
             <span key={tag} style={tagStyle}>
               {tag}
             </span>
@@ -148,14 +244,7 @@ export function GameCard({
         </div>
       </div>
 
-      <button
-        type="button"
-        style={buttonStyle}
-        disabled={isInstalled || isPending}
-        onClick={() => onInstall(game)}
-      >
-        {buttonLabel}
-      </button>
+      {renderAction()}
     </div>
   );
 }
