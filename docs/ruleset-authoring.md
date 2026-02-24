@@ -15,12 +15,13 @@ running example throughout.
 7. [Actions](#7-actions)
 8. [Expressions](#8-expressions)
 9. [Turn Order](#9-turn-order)
-10. [Scoring](#10-scoring)
-11. [Visibility](#11-visibility)
-12. [UI Hints](#12-ui-hints)
-13. [Complete Blackjack Example](#13-complete-blackjack-example)
-14. [Validation](#14-validation)
-15. [Testing Your Ruleset](#15-testing-your-ruleset)
+10. [Custom Variables](#10-custom-variables)
+11. [Scoring](#11-scoring)
+12. [Visibility](#12-visibility)
+13. [UI Hints](#13-ui-hints)
+14. [Complete Blackjack Example](#14-complete-blackjack-example)
+15. [Validation](#15-validation)
+16. [Testing Your Ruleset](#16-testing-your-ruleset)
 
 ---
 
@@ -69,6 +70,7 @@ sections:
   },
   "roles": ["...array of role definitions"],
   "zones": ["...array of zone definitions"],
+  "initialVariables": { "...optional name-to-number mappings" },
   "phases": ["...array of phase definitions (the FSM)"],
   "scoring": {
     "method": "expression",
@@ -226,7 +228,7 @@ Each zone definition has:
 | Field | Type | Description |
 |---|---|---|
 | `name` | `string` | Unique identifier. Used in expressions and effect functions. |
-| `visibility` | `object` | Default visibility for this zone (see [Visibility](#10-visibility)). |
+| `visibility` | `object` | Default visibility for this zone (see [Visibility](#12-visibility)). |
 | `owners` | `string[]` | Role names that own this zone. An empty array means the zone is shared ("house"). |
 | `maxCards` | `number?` | Optional card limit for the zone. |
 
@@ -478,6 +480,7 @@ for player 1, and so on.
 | `card_matches_top(hand_zone, card_index, target_zone)` | boolean | True if the card at `card_index` in `hand_zone` matches the top card of `target_zone` by suit **or** rank. |
 | `has_playable_card(hand_zone, target_zone)` | boolean | True if `hand_zone` has any card matching the top card of `target_zone` by suit or rank. Useful for enabling/disabling a "draw" action. |
 | `turn_direction()` | number | Returns the current turn direction: `1` (clockwise) or `-1` (counterclockwise). |
+| `get_var(name)` | number | Returns the value of a custom variable. Throws if the variable does not exist. |
 | `all_players_done()` | boolean | True when all players have completed their turns. |
 | `all_hands_dealt()` | boolean | True after dealing is complete. |
 | `scores_calculated()` | boolean | True after scoring is complete. |
@@ -503,6 +506,8 @@ for player 1, and so on.
 | `reverse_turn_order()` | Flips turn direction (clockwise ↔ counterclockwise). Only valid when `effects` collector is available. |
 | `skip_next_player()` | Advances the player index by one extra step in the current direction. Only valid when `effects` collector is available. |
 | `set_next_player(index)` | Sets the next player to a specific index (0-based). Only valid when `effects` collector is available. |
+| `set_var(name, value)` | Sets a custom variable to the given numeric value. |
+| `inc_var(name, amount)` | Increments a custom variable by `amount` (can be negative). Creates the variable from 0 if it doesn't exist. |
 
 #### Special Forms
 
@@ -599,7 +604,110 @@ if(turn_direction() == -1, "counterclockwise", "clockwise")
 
 ---
 
-## 10. Scoring
+## 10. Custom Variables
+
+Custom variables let rulesets store numeric state that doesn't live in card zones.
+Use them for running totals, bid amounts, round counters, or any game-specific
+numeric tracking.
+
+### Declaring Initial Variables
+
+Add an optional `initialVariables` field to the top level of your ruleset:
+
+```json
+{
+  "initialVariables": {
+    "running_total": 0,
+    "bust_player": -1
+  }
+}
+```
+
+Variables are numeric only (`number` type). They are initialized when the game
+starts and reset to their initial values on `reset_round()`.
+
+### Reading Variables
+
+Two ways to read a variable:
+
+1. **`get_var(name)` builtin** — explicitly reads a variable by name:
+   ```
+   get_var("running_total") > 99
+   ```
+
+2. **Identifier binding** — variable names resolve directly in expressions:
+   ```
+   running_total > 99
+   ```
+   Note: if a variable name collides with a zone name or score key, the zone
+   or score takes precedence.
+
+### Writing Variables
+
+Two effect builtins modify variables:
+
+| Builtin | Description |
+|---------|-------------|
+| `set_var(name, value)` | Sets a variable to an exact numeric value. |
+| `inc_var(name, amount)` | Adds `amount` to the current value. Use negative amounts to subtract. If the variable doesn't exist, starts from 0. |
+
+### Example: Ninety-Nine Running Total
+
+In Ninety-Nine (99), the running total is the core mechanic:
+
+```json
+"initialVariables": {
+  "running_total": 0,
+  "bust_player": -1
+}
+```
+
+Card effects update the total in the declare action's effect array:
+
+```json
+"effect": [
+  "set_var(\"bust_player\", current_player_index)",
+  "if(card_rank_name(current_player.hand, 0) == \"9\", set_var(\"running_total\", 99))",
+  "if(card_rank_name(current_player.hand, 0) == \"10\", inc_var(\"running_total\", -10))",
+  "if(card_rank_name(current_player.hand, 0) == \"K\", inc_var(\"running_total\", 0))",
+  "..."
+]
+```
+
+Phase transitions use `get_var()` to check the bust condition:
+
+```json
+{ "to": "scoring", "when": "get_var(\"running_total\") > 99" }
+```
+
+### Variables in Scoring
+
+Variables can appear in scoring expressions:
+
+```json
+"scoring": {
+  "method": "if(current_player_index == get_var(\"bust_player\"), 0, 1)",
+  "winCondition": "my_score > 0"
+}
+```
+
+### Variables in Player Views
+
+All variables are included in `PlayerView` — they are global game state visible
+to all players. The client can display them (e.g., showing the running total on
+the TV screen).
+
+### Reset Behavior
+
+Variables reset to their `initialVariables` values when:
+- `reset_round()` is called
+- A new round begins via the `handleResetRound` action
+
+If no `initialVariables` are defined, the variables map is empty `{}`.
+
+---
+
+## 11. Scoring
 
 The `scoring` section defines how winners are determined.
 
@@ -631,7 +739,7 @@ below the target.
 
 ---
 
-## 11. Visibility
+## 12. Visibility
 
 Visibility rules control what each player can see. This is how hidden
 information works -- other players' hands are hidden, the draw pile is hidden,
@@ -698,7 +806,7 @@ network.
 
 ---
 
-## 12. UI Hints
+## 13. UI Hints
 
 The `ui` section provides optional layout hints for the client renderer.
 
@@ -721,7 +829,7 @@ These are hints only -- the client can interpret or override them.
 
 ---
 
-## 13. Complete Blackjack Example
+## 14. Complete Blackjack Example
 
 Below is the full `blackjack.cardgame.json` with annotations explaining each
 section.
@@ -935,7 +1043,7 @@ section.
 
 ---
 
-## 14. Validation
+## 15. Validation
 
 Rulesets are validated at load time using two complementary systems:
 
@@ -1008,7 +1116,7 @@ You can reference it in your `.cardgame.json` files for editor support:
 
 ---
 
-## 15. Testing Your Ruleset
+## 16. Testing Your Ruleset
 
 You can write tests for your ruleset using the engine's public API. Tests run
 with [Vitest](https://vitest.dev/) and use the same engine that runs on the

@@ -300,6 +300,7 @@ Pure functions that read state without side effects.
 | `card_matches_top(hand, index, target)` | zone, number, zone | `boolean` | True if card matches target's top by suit or rank |
 | `has_playable_card(hand, target)`| zone, zone          | `boolean` | True if hand has any card matching target's top      |
 | `turn_direction()`               | none                | `number`  | Current turn direction (1=clockwise, -1=counter)     |
+| `get_var(name)`                  | string              | `number`  | Returns the value of a custom variable. Throws if not found. |
 
 ### Effect Builtins
 
@@ -320,16 +321,18 @@ Mutating functions that record effect descriptions for the interpreter to apply.
 | `reverse_turn_order()`              | none                       | Flip turn direction (clockwise ↔ counterclockwise) |
 | `skip_next_player()`                | none                       | Advance player index by one extra step             |
 | `set_next_player(index)`            | number                     | Set next player to a specific 0-based index        |
+| `set_var(name, value)`              | string, number             | Sets a custom variable to the given value                  |
+| `inc_var(name, amount)`             | string, number             | Increments a custom variable by amount (can be negative)   |
 
 ## Key Types
 
 ### `CardGameRuleset`
 
-The top-level type for a fully parsed `.cardgame.json` file. Contains: `meta`, `deck`, `zones`, `roles`, `phases`, `scoring`, `visibility`, `ui`. Immutable by design.
+The top-level type for a fully parsed `.cardgame.json` file. Contains: `meta`, `deck`, `zones`, `roles`, `initialVariables?`, `phases`, `scoring`, `visibility`, `ui`. Immutable by design.
 
 ### `CardGameState`
 
-Complete, serializable state of a game at a point in time. Designed for snapshot + action-log persistence. Includes `sessionId`, `ruleset`, `status`, `players`, `zones`, `currentPhase`, `currentPlayerIndex`, `turnNumber`, `scores`, `actionLog`, and a monotonically increasing `version` for optimistic concurrency.
+Complete, serializable state of a game at a point in time. Designed for snapshot + action-log persistence. Includes `sessionId`, `ruleset`, `status`, `players`, `zones`, `currentPhase`, `currentPlayerIndex`, `turnNumber`, `scores`, `variables`, `actionLog`, and a monotonically increasing `version` for optimistic concurrency.
 
 ### `CardGameAction`
 
@@ -343,7 +346,7 @@ type GameReducer = (state: CardGameState, action: CardGameAction) => CardGameSta
 
 ### `PlayerView`
 
-Filtered projection of game state for a specific player. Hidden cards are replaced with `null` to prevent information leaks. Includes `isMyTurn`, `myPlayerId`, `validActions`, and filtered `zones`.
+Filtered projection of game state for a specific player. Hidden cards are replaced with `null` to prevent information leaks. Includes `isMyTurn`, `myPlayerId`, `validActions`, `variables`, and filtered `zones`.
 
 ### `Card` and `CardInstanceId`
 
@@ -367,7 +370,7 @@ A zone where hidden cards are replaced with `null` placeholders. Contains `name`
 
 ## Testing
 
-602 tests across 8 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, and integration scenarios.
+682 tests across 8 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, and integration scenarios.
 
 ```sh
 # Run all tests
