@@ -1832,4 +1832,555 @@ describe("builtins", () => {
       expect(() => evaluateExpression("get_param(123)", ctx)).toThrow();
     });
   });
+
+  // ── Pattern Matching Builtins ──
+
+  describe("Pattern Matching Builtins", () => {
+    // Card values that give each rank a unique numeric value for straight detection
+    const POKER_CARD_VALUES: Readonly<Record<string, CardValue>> = {
+      A: { kind: "dual", low: 1, high: 14 },
+      "2": { kind: "fixed", value: 2 },
+      "3": { kind: "fixed", value: 3 },
+      "4": { kind: "fixed", value: 4 },
+      "5": { kind: "fixed", value: 5 },
+      "6": { kind: "fixed", value: 6 },
+      "7": { kind: "fixed", value: 7 },
+      "8": { kind: "fixed", value: 8 },
+      "9": { kind: "fixed", value: 9 },
+      "10": { kind: "fixed", value: 10 },
+      J: { kind: "fixed", value: 11 },
+      Q: { kind: "fixed", value: 12 },
+      K: { kind: "fixed", value: 13 },
+    };
+
+    function makePokerRuleset(): CardGameRuleset {
+      return {
+        ...makeMinimalRuleset(),
+        deck: {
+          preset: "standard_52",
+          copies: 1,
+          cardValues: POKER_CARD_VALUES,
+        },
+      };
+    }
+
+    function makePokerGameState(
+      zones: Record<string, ZoneState>,
+      overrides: Partial<CardGameState> = {}
+    ): CardGameState {
+      return {
+        ...makeGameState(zones, overrides),
+        ruleset: makePokerRuleset(),
+      };
+    }
+
+    // ── Registration ──
+
+    it("registers all pattern matching builtin names", () => {
+      const names = getRegisteredBuiltins();
+      expect(names).toContain("count_sets");
+      expect(names).toContain("max_set_size");
+      expect(names).toContain("has_flush");
+      expect(names).toContain("has_straight");
+      expect(names).toContain("count_runs");
+      expect(names).toContain("max_run_length");
+    });
+
+    // ── count_sets ──
+
+    describe("count_sets", () => {
+      it("counts pairs in a hand", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("K", "hearts"),
+            makeCard("7", "clubs"),
+            makeCard("3", "diamonds"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        // One pair (K×2), min_size=2 → 1 set
+        const result = evaluateExpression('count_sets("hand", 2)', ctx);
+        expect(result).toEqual({ kind: "number", value: 1 });
+      });
+
+      it("counts two pairs", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("K", "hearts"),
+            makeCard("7", "clubs"),
+            makeCard("7", "diamonds"),
+            makeCard("3", "spades"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_sets("hand", 2)', ctx);
+        expect(result).toEqual({ kind: "number", value: 2 });
+      });
+
+      it("counts three-of-a-kind as a set of min_size 3", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("K", "hearts"),
+            makeCard("K", "clubs"),
+            makeCard("7", "diamonds"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_sets("hand", 3)', ctx);
+        expect(result).toEqual({ kind: "number", value: 1 });
+      });
+
+      it("four-of-a-kind also counts as set of min_size 2", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("K", "hearts"),
+            makeCard("K", "clubs"),
+            makeCard("K", "diamonds"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_sets("hand", 2)', ctx);
+        expect(result).toEqual({ kind: "number", value: 1 });
+      });
+
+      it("returns 0 when no sets meet min_size", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("Q", "hearts"),
+            makeCard("7", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_sets("hand", 2)', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("returns 0 for empty zone", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_sets("hand", 2)', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("throws on wrong arg count", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression('count_sets("hand")', ctx)).toThrow(
+          "requires exactly 2 argument"
+        );
+      });
+
+      it("throws on unknown zone", () => {
+        const state = makePokerGameState({});
+        const ctx = makeEvalContext(state);
+        expect(() =>
+          evaluateExpression('count_sets("nonexistent", 2)', ctx)
+        ).toThrow("Unknown zone");
+      });
+    });
+
+    // ── max_set_size ──
+
+    describe("max_set_size", () => {
+      it("returns 4 for four-of-a-kind", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("K", "spades"),
+            makeCard("K", "hearts"),
+            makeCard("K", "clubs"),
+            makeCard("K", "diamonds"),
+            makeCard("3", "spades"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('max_set_size("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 4 });
+      });
+
+      it("returns 3 for three-of-a-kind", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("7", "spades"),
+            makeCard("7", "hearts"),
+            makeCard("7", "clubs"),
+            makeCard("Q", "diamonds"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('max_set_size("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 3 });
+      });
+
+      it("returns 2 for a pair", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("Q", "spades"),
+            makeCard("Q", "hearts"),
+            makeCard("7", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('max_set_size("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 2 });
+      });
+
+      it("returns 1 for all unique ranks", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("A", "spades"),
+            makeCard("K", "hearts"),
+            makeCard("Q", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('max_set_size("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 1 });
+      });
+
+      it("returns 0 for empty zone", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('max_set_size("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("throws on wrong arg count", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() =>
+          evaluateExpression('max_set_size("hand", 2)', ctx)
+        ).toThrow("requires exactly 1 argument");
+      });
+    });
+
+    // ── has_flush ──
+
+    describe("has_flush", () => {
+      it("returns true when 5 cards share a suit", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("A", "hearts"),
+            makeCard("K", "hearts"),
+            makeCard("Q", "hearts"),
+            makeCard("J", "hearts"),
+            makeCard("9", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_flush("hand", 5)', ctx);
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("returns false when no suit has enough cards", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("A", "hearts"),
+            makeCard("K", "hearts"),
+            makeCard("Q", "spades"),
+            makeCard("J", "clubs"),
+            makeCard("9", "diamonds"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_flush("hand", 5)', ctx);
+        expect(result).toEqual({ kind: "boolean", value: false });
+      });
+
+      it("returns true for a smaller flush threshold", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("A", "hearts"),
+            makeCard("K", "hearts"),
+            makeCard("Q", "hearts"),
+            makeCard("J", "spades"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_flush("hand", 3)', ctx);
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("returns false for empty zone", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_flush("hand", 1)', ctx);
+        expect(result).toEqual({ kind: "boolean", value: false });
+      });
+
+      it("throws on wrong arg count", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression('has_flush("hand")', ctx)).toThrow(
+          "requires exactly 2 argument"
+        );
+      });
+    });
+
+    // ── has_straight ──
+
+    describe("has_straight", () => {
+      it("detects a 5-card straight (5-6-7-8-9)", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("5", "hearts"),
+            makeCard("6", "spades"),
+            makeCard("7", "clubs"),
+            makeCard("8", "diamonds"),
+            makeCard("9", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_straight("hand", 5)', ctx);
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("detects ace-low straight (A-2-3-4-5)", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("A", "hearts"),
+            makeCard("2", "spades"),
+            makeCard("3", "clubs"),
+            makeCard("4", "diamonds"),
+            makeCard("5", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_straight("hand", 5)', ctx);
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("detects ace-high straight (10-J-Q-K-A)", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("10", "hearts"),
+            makeCard("J", "spades"),
+            makeCard("Q", "clubs"),
+            makeCard("K", "diamonds"),
+            makeCard("A", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_straight("hand", 5)', ctx);
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("returns false when no straight of required length", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("2", "hearts"),
+            makeCard("4", "spades"),
+            makeCard("6", "clubs"),
+            makeCard("8", "diamonds"),
+            makeCard("10", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_straight("hand", 3)', ctx);
+        expect(result).toEqual({ kind: "boolean", value: false });
+      });
+
+      it("detects partial straight in a larger hand", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("3", "hearts"),
+            makeCard("4", "spades"),
+            makeCard("5", "clubs"),
+            makeCard("9", "diamonds"),
+            makeCard("K", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_straight("hand", 3)', ctx);
+        expect(result).toEqual({ kind: "boolean", value: true });
+      });
+
+      it("returns false for empty zone", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('has_straight("hand", 3)', ctx);
+        expect(result).toEqual({ kind: "boolean", value: false });
+      });
+
+      it("throws on wrong arg count", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression('has_straight("hand")', ctx)).toThrow(
+          "requires exactly 2 argument"
+        );
+      });
+    });
+
+    // ── count_runs ──
+
+    describe("count_runs", () => {
+      it("counts two distinct runs", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("2", "hearts"),
+            makeCard("3", "spades"),
+            makeCard("4", "clubs"),
+            makeCard("8", "diamonds"),
+            makeCard("9", "hearts"),
+            makeCard("10", "spades"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        // Run 1: 2-3-4 (length 3), Run 2: 8-9-10 (length 3)
+        const result = evaluateExpression('count_runs("hand", 3)', ctx);
+        expect(result).toEqual({ kind: "number", value: 2 });
+      });
+
+      it("counts only runs meeting min_length threshold", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("2", "hearts"),
+            makeCard("3", "spades"),
+            makeCard("4", "clubs"),
+            makeCard("8", "diamonds"),
+            makeCard("9", "hearts"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        // Run 1: 2-3-4 (length 3), Run 2: 8-9 (length 2)
+        // min_length=3 → only 1 qualifies
+        const result = evaluateExpression('count_runs("hand", 3)', ctx);
+        expect(result).toEqual({ kind: "number", value: 1 });
+      });
+
+      it("returns 0 when no runs meet min_length", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("2", "hearts"),
+            makeCard("5", "spades"),
+            makeCard("9", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_runs("hand", 2)', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("returns 0 for empty zone", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('count_runs("hand", 2)', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("throws on wrong arg count", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression('count_runs("hand")', ctx)).toThrow(
+          "requires exactly 2 argument"
+        );
+      });
+    });
+
+    // ── max_run_length ──
+
+    describe("max_run_length", () => {
+      it("returns length of longest run", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("2", "hearts"),
+            makeCard("3", "spades"),
+            makeCard("4", "clubs"),
+            makeCard("5", "diamonds"),
+            makeCard("9", "hearts"),
+            makeCard("10", "spades"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        // Run 1: 2-3-4-5 (length 4), Run 2: 9-10 (length 2)
+        const result = evaluateExpression('max_run_length("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 4 });
+      });
+
+      it("returns 1 for non-consecutive cards", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("2", "hearts"),
+            makeCard("5", "spades"),
+            makeCard("9", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('max_run_length("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 1 });
+      });
+
+      it("returns 0 for empty zone", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression('max_run_length("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("handles ace as both low and high in run calculation", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("A", "hearts"),
+            makeCard("2", "spades"),
+            makeCard("3", "clubs"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        // Ace is 1 and 14; values: {1, 2, 3, 14} → run: 1-2-3 (length 3)
+        const result = evaluateExpression('max_run_length("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 3 });
+      });
+
+      it("handles duplicate ranks (only unique values matter)", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", [
+            makeCard("5", "hearts"),
+            makeCard("5", "spades"),
+            makeCard("6", "clubs"),
+            makeCard("7", "diamonds"),
+          ]),
+        });
+        const ctx = makeEvalContext(state);
+        // Unique values: {5, 6, 7} → run of 3
+        const result = evaluateExpression('max_run_length("hand")', ctx);
+        expect(result).toEqual({ kind: "number", value: 3 });
+      });
+
+      it("throws on wrong arg count", () => {
+        const state = makePokerGameState({
+          hand: makeZone("hand", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() =>
+          evaluateExpression('max_run_length("hand", 2)', ctx)
+        ).toThrow("requires exactly 1 argument");
+      });
+    });
+  });
 });

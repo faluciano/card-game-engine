@@ -158,6 +158,72 @@ function assertArgCount(
   }
 }
 
+// ─── Pattern Matching Helpers ──────────────────────────────────────
+
+/**
+ * Groups cards in a zone by rank. Returns a map of rank → card count.
+ */
+function groupByRank(cards: readonly Card[]): Map<string, number> {
+  const groups = new Map<string, number>();
+  for (const card of cards) {
+    groups.set(card.rank, (groups.get(card.rank) ?? 0) + 1);
+  }
+  return groups;
+}
+
+/**
+ * Groups cards in a zone by suit. Returns a map of suit → card count.
+ */
+function groupBySuit(cards: readonly Card[]): Map<string, number> {
+  const groups = new Map<string, number>();
+  for (const card of cards) {
+    groups.set(card.suit, (groups.get(card.suit) ?? 0) + 1);
+  }
+  return groups;
+}
+
+/**
+ * Gets the numeric value of a card for ordering purposes.
+ * For fixed-value cards, returns the value.
+ * For dual-value cards (e.g., Ace), returns BOTH positions as an array.
+ * This enables Ace to be both low (1) and high (14 or whatever high is) in straights.
+ */
+function getCardNumericValues(
+  rank: string,
+  cardValues: Readonly<Record<string, CardValue>>
+): number[] {
+  const cv = cardValues[rank];
+  if (!cv) return [];
+  if (cv.kind === "fixed") return [cv.value];
+  // Dual-value: return both positions for straight detection
+  return [cv.low, cv.high];
+}
+
+/**
+ * Finds all consecutive runs in a sorted set of unique numeric values.
+ * Returns an array of run lengths.
+ *
+ * Example: [1, 2, 3, 7, 8] → [3, 2] (run of 3 and run of 2)
+ */
+function findConsecutiveRuns(sortedValues: number[]): number[] {
+  if (sortedValues.length === 0) return [];
+
+  const runs: number[] = [];
+  let currentRun = 1;
+
+  for (let i = 1; i < sortedValues.length; i++) {
+    if (sortedValues[i] === sortedValues[i - 1]! + 1) {
+      currentRun++;
+    } else {
+      runs.push(currentRun);
+      currentRun = 1;
+    }
+  }
+  runs.push(currentRun);
+
+  return runs;
+}
+
 // ─── Blackjack Hand Value Computation ──────────────────────────────
 
 /**
@@ -765,6 +831,126 @@ const getParamBuiltin: BuiltinFunction = (args, context) => {
   return { kind: "string", value };
 };
 
+// ─── Pattern Matching Query Builtins ───────────────────────────────
+
+/**
+ * count_sets(zone, min_size) — Count groups of cards with the same rank
+ * that have at least `min_size` cards.
+ */
+const countSetsBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("count_sets", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const minSize = requireNumber(args[1]!, "min_size");
+  const zone = getZone(context.state, zoneName);
+  const groups = groupByRank(zone.cards);
+  let count = 0;
+  for (const size of groups.values()) {
+    if (size >= minSize) count++;
+  }
+  return { kind: "number", value: count };
+};
+
+/**
+ * max_set_size(zone) — Size of the largest rank group
+ * (e.g., 4 for four-of-a-kind).
+ */
+const maxSetSizeBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("max_set_size", args, 1);
+  const zoneName = resolveZoneName(args[0]!);
+  const zone = getZone(context.state, zoneName);
+  const groups = groupByRank(zone.cards);
+  let max = 0;
+  for (const size of groups.values()) {
+    if (size > max) max = size;
+  }
+  return { kind: "number", value: max };
+};
+
+/**
+ * has_flush(zone, min_size) — True if any suit has at least `min_size`
+ * cards in the zone.
+ */
+const hasFlushBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("has_flush", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const minSize = requireNumber(args[1]!, "min_size");
+  const zone = getZone(context.state, zoneName);
+  const groups = groupBySuit(zone.cards);
+  for (const size of groups.values()) {
+    if (size >= minSize) return { kind: "boolean", value: true };
+  }
+  return { kind: "boolean", value: false };
+};
+
+/**
+ * has_straight(zone, length) — True if there's a consecutive sequence
+ * of ranks of the given length. Uses `cardValues` from ruleset for
+ * rank ordering.
+ */
+const hasStraightBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("has_straight", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const length = requireNumber(args[1]!, "length");
+  const zone = getZone(context.state, zoneName);
+  const cardValues = context.state.ruleset.deck.cardValues;
+
+  // Collect all unique numeric positions for ranks present in the zone
+  const valueSet = new Set<number>();
+  for (const card of zone.cards) {
+    for (const v of getCardNumericValues(card.rank, cardValues)) {
+      valueSet.add(v);
+    }
+  }
+
+  const sorted = [...valueSet].sort((a, b) => a - b);
+  const runs = findConsecutiveRuns(sorted);
+  return { kind: "boolean", value: runs.some((r) => r >= length) };
+};
+
+/**
+ * count_runs(zone, min_length) — Count distinct consecutive rank
+ * sequences of at least `min_length`.
+ */
+const countRunsBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("count_runs", args, 2);
+  const zoneName = resolveZoneName(args[0]!);
+  const minLength = requireNumber(args[1]!, "min_length");
+  const zone = getZone(context.state, zoneName);
+  const cardValues = context.state.ruleset.deck.cardValues;
+
+  const valueSet = new Set<number>();
+  for (const card of zone.cards) {
+    for (const v of getCardNumericValues(card.rank, cardValues)) {
+      valueSet.add(v);
+    }
+  }
+
+  const sorted = [...valueSet].sort((a, b) => a - b);
+  const runs = findConsecutiveRuns(sorted);
+  return { kind: "number", value: runs.filter((r) => r >= minLength).length };
+};
+
+/**
+ * max_run_length(zone) — Length of the longest consecutive rank sequence.
+ */
+const maxRunLengthBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("max_run_length", args, 1);
+  const zoneName = resolveZoneName(args[0]!);
+  const zone = getZone(context.state, zoneName);
+  const cardValues = context.state.ruleset.deck.cardValues;
+
+  const valueSet = new Set<number>();
+  for (const card of zone.cards) {
+    for (const v of getCardNumericValues(card.rank, cardValues)) {
+      valueSet.add(v);
+    }
+  }
+
+  const sorted = [...valueSet].sort((a, b) => a - b);
+  const runs = findConsecutiveRuns(sorted);
+  return { kind: "number", value: runs.length > 0 ? Math.max(...runs) : 0 };
+};
+
 /**
  * set_var(name, value) — Records a set_var effect.
  * Sets a custom variable to the given numeric value.
@@ -820,6 +1006,12 @@ export function registerAllBuiltins(): void {
   registerBuiltin("prefer_high_under", preferHighUnderBuiltin);
   registerBuiltin("get_var", getVarBuiltin);
   registerBuiltin("get_param", getParamBuiltin);
+  registerBuiltin("count_sets", countSetsBuiltin);
+  registerBuiltin("max_set_size", maxSetSizeBuiltin);
+  registerBuiltin("has_flush", hasFlushBuiltin);
+  registerBuiltin("has_straight", hasStraightBuiltin);
+  registerBuiltin("count_runs", countRunsBuiltin);
+  registerBuiltin("max_run_length", maxRunLengthBuiltin);
 
   // Effect builtins
   registerBuiltin("shuffle", shuffleBuiltin);

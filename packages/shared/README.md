@@ -303,6 +303,12 @@ Pure functions that read state without side effects.
 | `turn_direction()`               | none                | `number`  | Current turn direction (1=clockwise, -1=counter)     |
 | `get_var(name)`                  | string              | `number`  | Returns the value of a custom variable. Throws if not found. |
 | `get_param(name)`                | string              | `string\|number` | Returns the value of an action parameter. Returns 0 if not found. Booleans as 1/0. |
+| `count_sets(zone, min_size)`     | zone name, number   | `number`  | Count rank groups with at least min_size cards           |
+| `max_set_size(zone)`             | zone name           | `number`  | Size of the largest rank group (e.g., 4 for four-of-a-kind) |
+| `has_flush(zone, min_size)`      | zone name, number   | `boolean` | True if any suit has at least min_size cards             |
+| `has_straight(zone, length)`     | zone name, number   | `boolean` | True if consecutive rank sequence of given length exists |
+| `count_runs(zone, min_length)`   | zone name, number   | `number`  | Count consecutive rank sequences of at least min_length  |
+| `max_run_length(zone)`           | zone name           | `number`  | Length of the longest consecutive rank sequence          |
 
 ### Effect Builtins
 
@@ -372,7 +378,7 @@ A zone where hidden cards are replaced with `null` placeholders. Contains `name`
 
 ## Testing
 
-702 tests across 8 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, and integration scenarios.
+740 tests across 8 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, and integration scenarios.
 
 ```sh
 # Run all tests

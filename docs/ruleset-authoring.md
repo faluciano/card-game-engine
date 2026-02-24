@@ -558,6 +558,12 @@ for player 1, and so on.
 | `turn_direction()` | number | Returns the current turn direction: `1` (clockwise) or `-1` (counterclockwise). |
 | `get_var(name)` | number | Returns the value of a custom variable. Throws if the variable does not exist. |
 | `get_param(name)` | string\|number | Returns the value of an action parameter. Returns 0 if not found. Booleans as 1/0. |
+| `count_sets(zone, min_size)` | number | Count rank groups with at least min_size cards. |
+| `max_set_size(zone)` | number | Size of the largest rank group (e.g., 4 for four-of-a-kind). |
+| `has_flush(zone, min_size)` | boolean | True if any suit has at least min_size cards. |
+| `has_straight(zone, length)` | boolean | True if consecutive rank sequence of given length exists. |
+| `count_runs(zone, min_length)` | number | Count consecutive rank sequences of at least min_length. |
+| `max_run_length(zone)` | number | Length of the longest consecutive rank sequence. |
 | `all_players_done()` | boolean | True when all players have completed their turns. |
 | `all_hands_dealt()` | boolean | True after dealing is complete. |
 | `scores_calculated()` | boolean | True after scoring is complete. |
