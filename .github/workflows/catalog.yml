@@ -55,10 +55,55 @@ jobs:
       - name: Build catalog
         run: bun run scripts/build-catalog.ts
 
+      - name: Prepare Pages directory
+        run: |
+          mkdir -p _site
+          cp catalog.json _site/
+          cp rulesets/*.cardgame.json _site/
+          cat > _site/index.html << 'HTMLEOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Card Game Engine — Catalog</title>
+            <style>
+              *{margin:0;padding:0;box-sizing:border-box}
+              body{font-family:system-ui,sans-serif;background:#0d1117;color:#e6edf3;padding:2rem;max-width:800px;margin:0 auto}
+              h1{margin-bottom:.5rem} p.sub{color:#8b949e;margin-bottom:2rem}
+              .game{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.25rem;margin-bottom:1rem}
+              .game h2{font-size:1.1rem;margin-bottom:.25rem}
+              .game .desc{color:#8b949e;font-size:.9rem;margin-bottom:.5rem}
+              .tags{display:flex;gap:.4rem;flex-wrap:wrap}
+              .tag{background:#1f6feb22;color:#58a6ff;font-size:.75rem;padding:2px 8px;border-radius:12px;border:1px solid #1f6feb44}
+              .meta{color:#8b949e;font-size:.8rem;margin-top:.5rem}
+              a{color:#58a6ff;text-decoration:none} a:hover{text-decoration:underline}
+            </style>
+          </head>
+          <body>
+            <h1>🃏 Card Game Engine</h1>
+            <p class="sub">Browse available game rulesets — <a href="catalog.json">catalog.json</a></p>
+            <div id="games"></div>
+            <script>
+              fetch('catalog.json').then(r=>r.json()).then(({games})=>{
+                document.getElementById('games').innerHTML=games.map(g=>`
+                  <div class="game">
+                    <h2>${g.name}</h2>
+                    ${g.description?`<p class="desc">${g.description}</p>`:''}
+                    ${g.tags?.length?`<div class="tags">${g.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>`:''}
+                    <p class="meta">${g.players.min}–${g.players.max} players · v${g.version} · <a href="${g.file}">${g.slug}.cardgame.json</a></p>
+                  </div>
+                `).join('');
+              });
+            </script>
+          </body>
+          </html>
+          HTMLEOF
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment
