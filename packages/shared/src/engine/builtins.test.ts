@@ -1769,4 +1769,67 @@ describe("builtins", () => {
       );
     });
   });
+
+  // ── get_param ────────────────────────────────────────────────────
+
+  describe("get_param", () => {
+    it("returns string param value", () => {
+      const state = makeGameState({});
+      const ctx = { ...makeEvalContext(state), actionParams: { color: "red" } };
+      const result = evaluateExpression('get_param("color")', ctx);
+      expect(result).toEqual({ kind: "string", value: "red" });
+    });
+
+    it("returns number param value", () => {
+      const state = makeGameState({});
+      const ctx = { ...makeEvalContext(state), actionParams: { count: 5 } };
+      const result = evaluateExpression('get_param("count")', ctx);
+      expect(result).toEqual({ kind: "number", value: 5 });
+    });
+
+    it("returns 1 for true boolean param", () => {
+      const state = makeGameState({});
+      const ctx = { ...makeEvalContext(state), actionParams: { active: true } };
+      const result = evaluateExpression('get_param("active")', ctx);
+      expect(result).toEqual({ kind: "number", value: 1 });
+    });
+
+    it("returns 0 for false boolean param", () => {
+      const state = makeGameState({});
+      const ctx = {
+        ...makeEvalContext(state),
+        actionParams: { active: false },
+      };
+      const result = evaluateExpression('get_param("active")', ctx);
+      expect(result).toEqual({ kind: "number", value: 0 });
+    });
+
+    it("returns 0 when param key is not found", () => {
+      const state = makeGameState({});
+      const ctx = { ...makeEvalContext(state), actionParams: { other: 1 } };
+      const result = evaluateExpression('get_param("missing")', ctx);
+      expect(result).toEqual({ kind: "number", value: 0 });
+    });
+
+    it("returns 0 when actionParams is undefined", () => {
+      const state = makeGameState({});
+      const ctx = makeEvalContext(state);
+      const result = evaluateExpression('get_param("anything")', ctx);
+      expect(result).toEqual({ kind: "number", value: 0 });
+    });
+
+    it("throws with wrong arg count", () => {
+      const state = makeGameState({});
+      const ctx = makeEvalContext(state);
+      expect(() => evaluateExpression("get_param()", ctx)).toThrow(
+        "requires exactly 1 argument"
+      );
+    });
+
+    it("throws with non-string argument", () => {
+      const state = makeGameState({});
+      const ctx = makeEvalContext(state);
+      expect(() => evaluateExpression("get_param(123)", ctx)).toThrow();
+    });
+  });
 });

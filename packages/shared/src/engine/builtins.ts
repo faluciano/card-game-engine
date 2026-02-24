@@ -43,6 +43,9 @@ export interface MutableEvalContext extends EvalContext {
     state: CardGameState,
     effects: EffectDescription[]
   ) => CardGameState;
+
+  /** Parameters passed from a declare action, readable via the get_param() builtin. */
+  readonly actionParams?: Readonly<Record<string, string | number | boolean>>;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────
@@ -740,6 +743,29 @@ const getVarBuiltin: BuiltinFunction = (args, context) => {
 };
 
 /**
+ * get_param(name) — Returns the value of an action parameter.
+ * Reads from the actionParams context provided by a declare action.
+ * Returns 0 if the param doesn't exist or actionParams is undefined.
+ * Booleans are returned as 1 (true) or 0 (false).
+ */
+const getParamBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("get_param", args, 1);
+  const name = requireString(args[0]!, "name");
+  const params = context.actionParams;
+  if (!params || !(name in params)) {
+    return { kind: "number", value: 0 };
+  }
+  const value = params[name]!;
+  if (typeof value === "boolean") {
+    return { kind: "number", value: value ? 1 : 0 };
+  }
+  if (typeof value === "number") {
+    return { kind: "number", value };
+  }
+  return { kind: "string", value };
+};
+
+/**
  * set_var(name, value) — Records a set_var effect.
  * Sets a custom variable to the given numeric value.
  */
@@ -793,6 +819,7 @@ export function registerAllBuiltins(): void {
   registerBuiltin("sum_card_values", sumCardValuesBuiltin);
   registerBuiltin("prefer_high_under", preferHighUnderBuiltin);
   registerBuiltin("get_var", getVarBuiltin);
+  registerBuiltin("get_param", getParamBuiltin);
 
   // Effect builtins
   registerBuiltin("shuffle", shuffleBuiltin);

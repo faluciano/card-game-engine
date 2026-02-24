@@ -88,6 +88,7 @@ export type CardGameAction =
       readonly kind: "declare";
       readonly playerId: PlayerId;
       readonly declaration: string;
+      readonly params?: Readonly<Record<string, string | number | boolean>>;
     }
   | { readonly kind: "end_turn"; readonly playerId: PlayerId }
   | { readonly kind: "advance_phase" }

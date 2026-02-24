@@ -1117,4 +1117,145 @@ describe("Action Validator", () => {
       expect(effects).toEqual([]);
     });
   });
+
+  // ── play_card phase action validation ───────────────────────────
+
+  describe("play_card phase action validation", () => {
+    const PLAY_CARD_PHASE: PhaseDefinition = {
+      name: "play_turn",
+      kind: "turn_based",
+      actions: [
+        {
+          name: "play_card",
+          label: "Play Card",
+          effect: ['inc_var("cards_played", 1)'],
+        },
+        {
+          name: "choose",
+          label: "Choose",
+          effect: ['set_var("val", get_param("x"))'],
+        },
+      ],
+      transitions: [],
+      turnOrder: "clockwise",
+    };
+
+    const PLAY_CARD_PHASE_COND_FALSE: PhaseDefinition = {
+      ...PLAY_CARD_PHASE,
+      name: "play_turn",
+      actions: [
+        {
+          name: "play_card",
+          label: "Play Card",
+          condition: "false",
+          effect: ['inc_var("cards_played", 1)'],
+        },
+      ],
+    };
+
+    const PLAY_CARD_PHASE_COND_TRUE: PhaseDefinition = {
+      ...PLAY_CARD_PHASE,
+      name: "play_turn",
+      actions: [
+        {
+          name: "play_card",
+          label: "Play Card",
+          condition: "true",
+          effect: ['inc_var("cards_played", 1)'],
+        },
+      ],
+    };
+
+    const PLAY_CARD_PHASE_NO_COND: PhaseDefinition = {
+      ...PLAY_CARD_PHASE,
+      name: "play_turn",
+      actions: [
+        {
+          name: "play_card",
+          label: "Play Card",
+          effect: ['inc_var("cards_played", 1)'],
+        },
+      ],
+    };
+
+    it("executePhaseAction passes actionParams to context", () => {
+      const pcMachine = new PhaseMachine([PLAY_CARD_PHASE]);
+      const state = makeGameState(makeDefaultZones(), {
+        currentPhase: "play_turn",
+        variables: { val: 0 },
+      });
+
+      const effects = executePhaseAction(state, "choose", 0, pcMachine, {
+        x: 7,
+      });
+
+      expect(effects).toContainEqual({
+        kind: "set_var",
+        params: { name: "val", value: 7 },
+      });
+    });
+
+    it("validatePlayCard rejects when play_card condition is false", () => {
+      const pcMachine = new PhaseMachine([PLAY_CARD_PHASE_COND_FALSE]);
+      const zones = makeDefaultZones();
+      const card = zones["hand"]!.cards[0]!;
+      const state = makeGameState(zones, {
+        currentPhase: "play_turn",
+        variables: { cards_played: 0 },
+      });
+
+      const action: CardGameAction = {
+        kind: "play_card",
+        playerId: makePlayerId("p1"),
+        cardId: card.id,
+        fromZone: "hand",
+        toZone: "discard",
+      };
+
+      const result = validateAction(state, action, pcMachine);
+      expect(result.valid).toBe(false);
+    });
+
+    it("validatePlayCard passes when play_card action has no condition", () => {
+      const pcMachine = new PhaseMachine([PLAY_CARD_PHASE_NO_COND]);
+      const zones = makeDefaultZones();
+      const card = zones["hand"]!.cards[0]!;
+      const state = makeGameState(zones, {
+        currentPhase: "play_turn",
+        variables: { cards_played: 0 },
+      });
+
+      const action: CardGameAction = {
+        kind: "play_card",
+        playerId: makePlayerId("p1"),
+        cardId: card.id,
+        fromZone: "hand",
+        toZone: "discard",
+      };
+
+      const result = validateAction(state, action, pcMachine);
+      expect(result.valid).toBe(true);
+    });
+
+    it("validatePlayCard passes when play_card condition is true", () => {
+      const pcMachine = new PhaseMachine([PLAY_CARD_PHASE_COND_TRUE]);
+      const zones = makeDefaultZones();
+      const card = zones["hand"]!.cards[0]!;
+      const state = makeGameState(zones, {
+        currentPhase: "play_turn",
+        variables: { cards_played: 0 },
+      });
+
+      const action: CardGameAction = {
+        kind: "play_card",
+        playerId: makePlayerId("p1"),
+        cardId: card.id,
+        fromZone: "hand",
+        toZone: "discard",
+      };
+
+      const result = validateAction(state, action, pcMachine);
+      expect(result.valid).toBe(true);
+    });
+  });
 });

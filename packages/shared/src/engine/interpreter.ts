@@ -147,7 +147,7 @@ export function createReducer(
       case "declare":
         return handleDeclare(state, action, phaseMachine, rng);
       case "play_card":
-        return handlePlayCard(state, action, phaseMachine);
+        return handlePlayCard(state, action, phaseMachine, rng);
       case "draw_card":
         return handleDrawCard(state, action, phaseMachine);
       case "end_turn":
@@ -295,7 +295,8 @@ function handleDeclare(
     state,
     action.declaration,
     playerIndex,
-    phaseMachine
+    phaseMachine,
+    action.params
   );
 
   let newState = applyEffects(state, effects, rng);
@@ -333,16 +334,20 @@ function handleDeclare(
 }
 
 /**
- * Handles a "play_card" action — moves a specific card between zones.
+ * Handles a "play_card" action — moves a specific card between zones,
+ * then executes any "play_card" phase action effects, checks auto-end-turn,
+ * and runs transitions.
  */
 function handlePlayCard(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "play_card" }>,
-  phaseMachine: PhaseMachine
+  phaseMachine: PhaseMachine,
+  rng: SeededRng
 ): CardGameState {
   const validation = validateAction(state, action, phaseMachine);
   if (!validation.valid) return state;
 
+  // ── Move the card between zones ────────────────────────────────
   const zones = { ...state.zones };
   const fromZone = zones[action.fromZone]!;
   const toZone = zones[action.toZone]!;
@@ -357,15 +362,62 @@ function handlePlayCard(
   zones[action.fromZone] = { ...fromZone, cards: newFromCards };
   zones[action.toZone] = { ...toZone, cards: newToCards };
 
-  return {
-    ...state,
-    zones,
-    version: state.version + 1,
+  let newState: CardGameState = { ...state, zones };
+
+  // ── Execute phase action effects (if "play_card" action exists) ─
+  const playerIndex = state.players.findIndex(
+    (p) => p.id === action.playerId
+  );
+
+  let phase;
+  try {
+    phase = phaseMachine.getPhase(state.currentPhase);
+  } catch {
+    phase = undefined;
+  }
+
+  const playCardAction = phase?.actions.find((a) => a.name === "play_card");
+
+  if (playCardAction) {
+    const effects = executePhaseAction(
+      newState,
+      "play_card",
+      playerIndex,
+      phaseMachine
+    );
+
+    newState = applyEffects(newState, effects, rng);
+
+    // ── Auto-end turn via expression ─────────────────────────────
+    const { autoEndTurnCondition } = newState.ruleset.scoring;
+    if (
+      autoEndTurnCondition &&
+      !effects.some((e) => e.kind === "end_turn") &&
+      newState.currentPlayerIndex === state.currentPlayerIndex
+    ) {
+      const ctx: EvalContext = { state: newState, playerIndex };
+      if (evaluateCondition(autoEndTurnCondition, ctx)) {
+        newState = applyEndTurnEffect(newState);
+      }
+    }
+  }
+
+  // Bump version and log
+  newState = {
+    ...newState,
+    version: newState.version + 1,
     actionLog: [
-      ...state.actionLog,
-      { action, timestamp: Date.now(), version: state.version + 1 },
+      ...newState.actionLog,
+      { action, timestamp: Date.now(), version: newState.version + 1 },
     ],
   };
+
+  // Check transitions after the action
+  if (playCardAction) {
+    newState = checkTransitionsAndRunAuto(newState, phaseMachine, rng);
+  }
+
+  return newState;
 }
 
 /**

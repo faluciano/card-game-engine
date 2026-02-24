@@ -27,7 +27,7 @@ The TV runs the authoritative game engine: it loads the ruleset, advances the FS
 
 - **Declarative JSON rulesets** — define game logic without writing code
 - **Safe expression language** — conditions and effects use a constrained (non-Turing-complete) evaluator with `if()` conditional branching and `while()` loops
-- **19 query builtins + 15 effect builtins** — covering common card game mechanics (draw, discard, shuffle, score, card matching, turn order, etc.)
+- **20 query builtins + 15 effect builtins** — covering common card game mechanics (draw, discard, shuffle, score, card matching, turn order, etc.)
 - **Phase-based FSM** — supports automatic, player_action, and simultaneous phase types
 - **Turn order mechanics** — clockwise/counterclockwise direction, reverse, skip, and set-next-player effects
 - **Seeded PRNG** — mulberry32 enables deterministic replay from an action log
@@ -90,7 +90,7 @@ cd packages/shared
 bunx vitest run
 ```
 
-776 tests across 16 test files cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios, host bridge) and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
+796 tests across 16 test files cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios, host bridge) and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
 
 ### Build and Deploy
 
@@ -128,11 +128,11 @@ See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format
 
 ## Project Status
 
-All four implementation phases are **complete** with **776 passing tests** across 16 test files.
+All four implementation phases are **complete** with **796 passing tests** across 16 test files.
 
 | Phase | Status | Tests |
 |-------|--------|-------|
-| Phase 1 — Engine Core | ✅ Complete | 682 |
+| Phase 1 — Engine Core | ✅ Complete | 702 |
 | Phase 1.5 — Documentation | ✅ Complete | — |
 | Phase 2 — Storage & Import | ✅ Complete | 94 |
 | Phase 3 — Host Screens & CouchKit Integration | ✅ Complete | — |

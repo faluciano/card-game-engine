@@ -117,7 +117,8 @@ executePhaseAction(
   state: CardGameState,
   actionName: string,
   playerIndex: number,
-  phaseMachine: PhaseMachine
+  phaseMachine: PhaseMachine,
+  actionParams?: Readonly<Record<string, string | number | boolean>>
 ): EffectDescription[]
 ```
 
@@ -301,6 +302,7 @@ Pure functions that read state without side effects.
 | `has_playable_card(hand, target)`| zone, zone          | `boolean` | True if hand has any card matching target's top      |
 | `turn_direction()`               | none                | `number`  | Current turn direction (1=clockwise, -1=counter)     |
 | `get_var(name)`                  | string              | `number`  | Returns the value of a custom variable. Throws if not found. |
+| `get_param(name)`                | string              | `string\|number` | Returns the value of an action parameter. Returns 0 if not found. Booleans as 1/0. |
 
 ### Effect Builtins
 
@@ -336,7 +338,7 @@ Complete, serializable state of a game at a point in time. Designed for snapshot
 
 ### `CardGameAction`
 
-Discriminated union of 9 action variants: `join`, `leave`, `start_game`, `play_card`, `draw_card`, `declare`, `end_turn`, `advance_phase`, `reset_round`. Each variant carries exactly the data needed with no optional fields.
+Discriminated union of 9 action variants: `join`, `leave`, `start_game`, `play_card`, `draw_card`, `declare`, `end_turn`, `advance_phase`, `reset_round`. Each variant carries exactly the data needed with no optional fields. The `declare` variant supports an optional `params` object for passing player choices to effects (e.g., `{ kind: "declare", declaration: "choose_color", params: { color: "red" } }`). Effects can read these values via `get_param("name")`.
 
 ### `GameReducer`
 
@@ -370,7 +372,7 @@ A zone where hidden cards are replaced with `null` placeholders. Contains `name`
 
 ## Testing
 
-682 tests across 8 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, and integration scenarios.
+702 tests across 8 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, and integration scenarios.
 
 ```sh
 # Run all tests

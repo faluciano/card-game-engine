@@ -107,6 +107,8 @@ export interface EvalContext {
     readonly roleName: string;
     readonly zoneMap: Readonly<Record<string, string>>;
   };
+  /** Parameters passed from a declare action, readable via the get_param() builtin. */
+  readonly actionParams?: Readonly<Record<string, string | number | boolean>>;
 }
 
 /** Error thrown when an expression is malformed or references unknown bindings. */

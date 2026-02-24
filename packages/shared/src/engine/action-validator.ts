@@ -246,7 +246,8 @@ function validateDeclareAction(
 }
 
 /**
- * Validates a "play_card" action: player exists, turn check, card exists.
+ * Validates a "play_card" action: player exists, turn check, card exists,
+ * and if a "play_card" phase action is defined, its condition is met.
  */
 function validatePlayCard(
   state: CardGameState,
@@ -273,6 +274,40 @@ function validatePlayCard(
   // Verify toZone exists
   if (!(action.toZone in state.zones)) {
     return { valid: false, reason: `Zone '${action.toZone}' not found` };
+  }
+
+  // If the current phase has a "play_card" action with a condition, validate it
+  let phase;
+  try {
+    phase = machine.getPhase(state.currentPhase);
+  } catch {
+    // If phase can't be resolved, skip phase action condition check
+    return { valid: true };
+  }
+
+  const playCardAction = phase.actions.find((a) => a.name === "play_card");
+  if (playCardAction?.condition) {
+    const playerIndex = state.players.findIndex(
+      (p) => p.id === action.playerId
+    );
+    const ctx: EvalContext = { state, playerIndex };
+    try {
+      const conditionMet = evaluateCondition(playCardAction.condition, ctx);
+      if (!conditionMet) {
+        return {
+          valid: false,
+          reason: `Action condition not met: ${playCardAction.condition}`,
+        };
+      }
+    } catch (error) {
+      if (error instanceof ExpressionError) {
+        return {
+          valid: false,
+          reason: `Action condition not met: ${playCardAction.condition}`,
+        };
+      }
+      throw error;
+    }
   }
 
   return { valid: true };
@@ -360,6 +395,7 @@ function validatePlayerTurn(
  * @param actionName - Name of the phase action to execute.
  * @param playerIndex - Index of the player performing the action.
  * @param phaseMachine - The phase machine for phase lookup.
+ * @param actionParams - Optional params from a declare action, readable via get_param().
  * @returns Array of effect descriptions produced by the action's expressions.
  * @throws {Error} if the action is not found in the current phase.
  */
@@ -367,7 +403,8 @@ export function executePhaseAction(
   state: CardGameState,
   actionName: string,
   playerIndex: number,
-  phaseMachine: PhaseMachine
+  phaseMachine: PhaseMachine,
+  actionParams?: Readonly<Record<string, string | number | boolean>>
 ): EffectDescription[] {
   const phase = phaseMachine.getPhase(state.currentPhase);
   const phaseAction = phase.actions.find((a) => a.name === actionName);
@@ -382,6 +419,7 @@ export function executePhaseAction(
     state,
     playerIndex,
     effects: [],
+    ...(actionParams ? { actionParams } : {}),
   };
 
   for (const expression of phaseAction.effect) {

@@ -2077,4 +2077,374 @@ describe("Ruleset Interpreter", () => {
       expect(state.variables.x).toBe(5);
     });
   });
+
+  // ── play_card with phase action effects ─────────────────────────
+
+  describe("play_card with phase action effects", () => {
+    const PLAY_CARD_VALUES: Readonly<Record<string, CardValue>> = {
+      "2": { kind: "fixed", value: 2 },
+      "3": { kind: "fixed", value: 3 },
+      "4": { kind: "fixed", value: 4 },
+      "5": { kind: "fixed", value: 5 },
+      "6": { kind: "fixed", value: 6 },
+      "7": { kind: "fixed", value: 7 },
+      "8": { kind: "fixed", value: 8 },
+      "9": { kind: "fixed", value: 9 },
+      "10": { kind: "fixed", value: 10 },
+      J: { kind: "fixed", value: 10 },
+      Q: { kind: "fixed", value: 10 },
+      K: { kind: "fixed", value: 10 },
+      A: { kind: "dual", low: 1, high: 11 },
+    };
+
+    function makePlayCardRuleset(overrides?: {
+      playCardEffects?: string[];
+      playCardCondition?: string;
+      autoEndTurnCondition?: string;
+      transitions?: Array<{ to: string; when: string }>;
+      noPlayCardAction?: boolean;
+    }): CardGameRuleset {
+      const playActions: PhaseDefinition["actions"] = overrides?.noPlayCardAction
+        ? []
+        : [
+            {
+              name: "play_card",
+              label: "Play",
+              effect: overrides?.playCardEffects ?? [
+                'inc_var("cards_played", 1)',
+              ],
+              ...(overrides?.playCardCondition
+                ? { condition: overrides.playCardCondition }
+                : {}),
+            },
+          ];
+
+      return {
+        meta: {
+          name: "PlayCard Test",
+          slug: "play-card-test",
+          version: "1.0.0",
+          author: "test",
+          players: { min: 1, max: 2 },
+        },
+        deck: {
+          preset: "standard_52",
+          copies: 1,
+          cardValues: PLAY_CARD_VALUES,
+        },
+        zones: [
+          { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+          {
+            name: "hand",
+            visibility: { kind: "owner_only" },
+            owners: ["player"],
+          },
+          { name: "discard", visibility: { kind: "public" }, owners: [] },
+        ],
+        roles: [{ name: "player", isHuman: true, count: "per_player" }],
+        scoring: {
+          mode: "manual",
+          expressions: [],
+          winCondition: { mode: "highest_score" },
+          ...(overrides?.autoEndTurnCondition
+            ? { autoEndTurnCondition: overrides.autoEndTurnCondition }
+            : {}),
+        },
+        phases: [
+          {
+            name: "setup",
+            kind: "automatic",
+            actions: [],
+            transitions: [{ to: "play_turn", when: "true" }],
+            automaticSequence: [
+              'shuffle("draw_pile")',
+              'deal("draw_pile", "hand", 5)',
+            ],
+          },
+          {
+            name: "play_turn",
+            kind: "turn_based",
+            actions: [
+              ...playActions,
+              {
+                name: "done",
+                label: "Done",
+                effect: ["end_turn()"],
+              },
+            ],
+            transitions: overrides?.transitions ?? [
+              { to: "game_over", when: "all_players_done" },
+            ],
+            turnOrder: "clockwise",
+          },
+          {
+            name: "game_over",
+            kind: "automatic",
+            actions: [],
+            transitions: [],
+            automaticSequence: [],
+          },
+        ],
+        initialVariables: { cards_played: 0 },
+      };
+    }
+
+    it("executes phase action effects when play_card action exists", () => {
+      const ruleset = makePlayCardRuleset();
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("pc-test"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      expect(state.variables.cards_played).toBe(0);
+      const card = state.zones["hand:0"]!.cards[0]!;
+
+      state = reducer(state, {
+        kind: "play_card",
+        playerId: makePlayerId("p0"),
+        cardId: card.id,
+        fromZone: "hand:0",
+        toZone: "discard",
+      });
+
+      expect(state.variables.cards_played).toBe(1);
+      expect(state.zones["discard"]!.cards).toHaveLength(1);
+      expect(state.zones["hand:0"]!.cards).toHaveLength(4);
+    });
+
+    it("moves card without effects when no play_card phase action exists", () => {
+      const ruleset = makePlayCardRuleset({ noPlayCardAction: true });
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("pc-noaction"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      const card = state.zones["hand:0"]!.cards[0]!;
+
+      state = reducer(state, {
+        kind: "play_card",
+        playerId: makePlayerId("p0"),
+        cardId: card.id,
+        fromZone: "hand:0",
+        toZone: "discard",
+      });
+
+      expect(state.zones["discard"]!.cards).toHaveLength(1);
+      expect(state.variables.cards_played).toBe(0); // No effects ran
+    });
+
+    it("checks autoEndTurnCondition after effects", () => {
+      const ruleset = makePlayCardRuleset({
+        autoEndTurnCondition: 'get_var("cards_played") >= 1',
+      });
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(2);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("pc-autoend"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      expect(state.currentPlayerIndex).toBe(0);
+      const card = state.zones["hand:0"]!.cards[0]!;
+
+      state = reducer(state, {
+        kind: "play_card",
+        playerId: makePlayerId("p0"),
+        cardId: card.id,
+        fromZone: "hand:0",
+        toZone: "discard",
+      });
+
+      // After autoEndTurn, next player should be active
+      expect(state.currentPlayerIndex).toBe(1);
+    });
+
+    it("triggers phase transitions after effects", () => {
+      const ruleset = makePlayCardRuleset({
+        transitions: [
+          { to: "game_over", when: 'get_var("cards_played") >= 1' },
+        ],
+      });
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("pc-trans"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      expect(state.currentPhase).toBe("play_turn");
+      const card = state.zones["hand:0"]!.cards[0]!;
+
+      state = reducer(state, {
+        kind: "play_card",
+        playerId: makePlayerId("p0"),
+        cardId: card.id,
+        fromZone: "hand:0",
+        toZone: "discard",
+      });
+
+      expect(state.currentPhase).toBe("game_over");
+    });
+
+    it("rejects play_card when phase action condition fails", () => {
+      const ruleset = makePlayCardRuleset({ playCardCondition: "false" });
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("pc-reject"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      const card = state.zones["hand:0"]!.cards[0]!;
+      const handCountBefore = state.zones["hand:0"]!.cards.length;
+
+      state = reducer(state, {
+        kind: "play_card",
+        playerId: makePlayerId("p0"),
+        cardId: card.id,
+        fromZone: "hand:0",
+        toZone: "discard",
+      });
+
+      // State unchanged — action was rejected
+      expect(state.zones["hand:0"]!.cards).toHaveLength(handCountBefore);
+      expect(state.zones["discard"]!.cards).toHaveLength(0);
+      expect(state.variables.cards_played).toBe(0);
+    });
+
+    it("declare with params passes params to get_param builtin", () => {
+      const ruleset: CardGameRuleset = {
+        ...makePlayCardRuleset(),
+        phases: [
+          {
+            name: "setup",
+            kind: "automatic",
+            actions: [],
+            transitions: [{ to: "play_turn", when: "true" }],
+            automaticSequence: [
+              'shuffle("draw_pile")',
+              'deal("draw_pile", "hand", 5)',
+            ],
+          },
+          {
+            name: "play_turn",
+            kind: "turn_based",
+            actions: [
+              {
+                name: "choose",
+                label: "Choose",
+                effect: ['set_var("chosen", get_param("amount"))'],
+              },
+              {
+                name: "done",
+                label: "Done",
+                effect: ["end_turn()"],
+              },
+            ],
+            transitions: [{ to: "game_over", when: "all_players_done" }],
+            turnOrder: "clockwise",
+          },
+          {
+            name: "game_over",
+            kind: "automatic",
+            actions: [],
+            transitions: [],
+            automaticSequence: [],
+          },
+        ],
+        initialVariables: { chosen: 0, cards_played: 0 },
+      };
+
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("pc-params"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      state = reducer(state, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "choose",
+        params: { amount: 42 },
+      });
+
+      expect(state.variables.chosen).toBe(42);
+    });
+
+    it("declare without params still works (backward compat)", () => {
+      const ruleset = makePlayCardRuleset();
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("pc-noparams"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      // "done" action has end_turn() effect, should work fine without params
+      state = reducer(state, {
+        kind: "declare",
+        playerId: makePlayerId("p0"),
+        declaration: "done",
+      });
+
+      // Should not throw, turn ends normally — version increased
+      expect(state.version).toBeGreaterThan(1);
+    });
+
+    it("play_card with multiple effects executes all", () => {
+      const ruleset = makePlayCardRuleset({
+        playCardEffects: [
+          'inc_var("cards_played", 1)',
+          'inc_var("cards_played", 10)',
+        ],
+      });
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(1);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("pc-multi"),
+        players,
+        FIXED_SEED
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      const card = state.zones["hand:0"]!.cards[0]!;
+
+      state = reducer(state, {
+        kind: "play_card",
+        playerId: makePlayerId("p0"),
+        cardId: card.id,
+        fromZone: "hand:0",
+        toZone: "discard",
+      });
+
+      expect(state.variables.cards_played).toBe(11); // 1 + 10
+    });
+  });
 });

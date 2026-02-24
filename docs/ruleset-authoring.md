@@ -13,6 +13,8 @@ running example throughout.
 5. [Zones](#5-zones)
 6. [Phases (the FSM)](#6-phases-the-fsm)
 7. [Actions](#7-actions)
+   - [play_card Action Kind](#play_card-action-kind)
+   - [Declare with Parameters](#declare-with-parameters)
 8. [Expressions](#8-expressions)
 9. [Turn Order](#9-turn-order)
 10. [Custom Variables](#10-custom-variables)
@@ -409,6 +411,80 @@ The `player_turns` phase defines three actions:
 When a `condition` is omitted, the action is always available. Effects are
 executed sequentially -- `double_down` first draws a card, then ends the turn.
 
+### play_card Action Kind
+
+In addition to `declare`, the engine also recognizes `play_card` as an action
+that can trigger phase effects. When a player dispatches a `play_card` action:
+
+```typescript
+{ kind: "play_card", playerId: "p1", cardId: "card-42", fromZone: "hand:0", toZone: "discard" }
+```
+
+The engine first moves the card from `fromZone` to `toZone` as usual. Then, if
+the current phase has a phase action named `"play_card"`, its effect expressions
+are executed automatically. The engine also checks `autoEndTurnCondition` and
+evaluates phase transitions after the effects run.
+
+This is the recommended way to combine card movement with game logic. For
+example, in a game where playing a card should increment a counter:
+
+```json
+{
+  "name": "play_card",
+  "label": "Play a Card",
+  "effect": ["inc_var(\"running_total\", top_card_rank(discard))"]
+}
+```
+
+When a player plays a card, the card moves to the discard pile, then the
+`play_card` action's effects run -- in this case, adding the played card's rank
+to the running total.
+
+**Backward compatibility:** If no phase action named `"play_card"` exists in
+the current phase, `play_card` behaves as before (card move only). Existing
+rulesets are unaffected.
+
+### Declare with Parameters
+
+The `declare` action variant supports an optional `params` object that lets
+players pass choices to effects at action time:
+
+```typescript
+{ kind: "declare", playerId: "p1", declaration: "choose_color", params: { color: "red" } }
+```
+
+Effects can read these parameter values using the `get_param(name)` query
+builtin:
+
+```json
+{
+  "name": "choose_color",
+  "label": "Choose Color",
+  "effect": ["set_var(\"current_color\", get_param(\"color\"))"]
+}
+```
+
+`get_param(name)` returns the value of the named parameter as a string or
+number. If the parameter is a boolean, it is returned as `1` (true) or `0`
+(false). If the parameter does not exist or no params were provided, it returns
+`0`.
+
+**Example -- UNO color choice:** When a player plays a Wild card, they must
+choose a color. The client sends:
+
+```typescript
+{ kind: "declare", playerId: "p1", declaration: "choose_color", params: { color: "blue" } }
+```
+
+The phase action's effects read the choice:
+
+```json
+"effect": ["set_var(\"wild_color\", get_param(\"color\"))"]
+```
+
+Now subsequent matching logic can use `get_var("wild_color")` to check if
+played cards match the chosen color.
+
 ---
 
 ## 8. Expressions
@@ -481,6 +557,7 @@ for player 1, and so on.
 | `has_playable_card(hand_zone, target_zone)` | boolean | True if `hand_zone` has any card matching the top card of `target_zone` by suit or rank. Useful for enabling/disabling a "draw" action. |
 | `turn_direction()` | number | Returns the current turn direction: `1` (clockwise) or `-1` (counterclockwise). |
 | `get_var(name)` | number | Returns the value of a custom variable. Throws if the variable does not exist. |
+| `get_param(name)` | string\|number | Returns the value of an action parameter. Returns 0 if not found. Booleans as 1/0. |
 | `all_players_done()` | boolean | True when all players have completed their turns. |
 | `all_hands_dealt()` | boolean | True after dealing is complete. |
 | `scores_calculated()` | boolean | True after scoring is complete. |
