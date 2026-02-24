@@ -63,6 +63,7 @@
       },
       "devDependencies": {
         "typescript": "~5.9.2",
+        "vitest": "^3.2.1",
       },
     },
     "packages/shared": {

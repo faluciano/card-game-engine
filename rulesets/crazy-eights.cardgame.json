@@ -1,4 +1,5 @@
 {
+  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
   "meta": {
     "name": "Crazy Eights",
     "slug": "crazy-eights",
@@ -7,7 +8,10 @@
     "players": {
       "min": 2,
       "max": 4
-    }
+    },
+    "description": "Match cards by rank or suit, play eights as wildcards to change the active suit",
+    "tags": ["matching", "shedding", "classic", "wildcards"],
+    "license": "public-domain"
   },
   "deck": {
     "preset": "standard_52",

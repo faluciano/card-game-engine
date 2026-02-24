@@ -35,3 +35,6 @@ ios/
 
 # CouchKit bundled client assets (build artifact)
 packages/host/src/www-manifest.json
+
+# Generated catalog (build artifact)
+catalog.json

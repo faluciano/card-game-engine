@@ -1,4 +1,5 @@
 {
+  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
   "meta": {
     "name": "Ninety-Nine",
     "slug": "ninety-nine",
@@ -7,7 +8,10 @@
     "players": {
       "min": 2,
       "max": 4
-    }
+    },
+    "description": "Accumulation card game where players add to a running total and try not to exceed 99",
+    "tags": ["accumulation", "avoidance", "classic", "math"],
+    "license": "public-domain"
   },
   "deck": {
     "preset": "standard_52",

@@ -1,4 +1,5 @@
 {
+  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
   "meta": {
     "name": "Blackjack",
     "slug": "blackjack",
@@ -7,7 +8,10 @@
     "players": {
       "min": 1,
       "max": 6
-    }
+    },
+    "description": "Classic casino card game where players try to beat the dealer by getting closest to 21 without going over",
+    "tags": ["banking", "casino", "dealer-vs-players", "classic"],
+    "license": "public-domain"
   },
   "deck": {
     "preset": "standard_52",

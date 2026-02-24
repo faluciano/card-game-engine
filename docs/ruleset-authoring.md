@@ -55,6 +55,7 @@ sections:
 
 ```json
 {
+  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
   "meta": {
     "name": "string",
     "slug": "string (lowercase, hyphens only)",
@@ -63,10 +64,13 @@ sections:
     "players": {
       "min": "number (integer >= 1)",
       "max": "number (integer >= 1)"
-    }
+    },
+    "description": "string (optional — short description of the game)",
+    "tags": ["string (optional — searchable tags for catalog browsing)"],
+    "license": "string (optional — license identifier, e.g. MIT, public-domain)"
   },
   "deck": {
-    "preset": "standard_52 | standard_54 | uno_108",
+    "preset": "standard_52 | standard_54 | uno_108 | custom",
     "copies": "number (integer >= 1)",
     "cardValues": { "...rank-to-value mappings" }
   },
@@ -87,18 +91,26 @@ sections:
 }
 ```
 
-All sections are required. The schema enforces this at load time.
+| Field | Required | Description |
+|---|---|---|
+| `$schema` | No | Root-level field referencing the JSON Schema for editor validation and autocompletion. |
+| `meta` | Yes | Metadata block (see below). |
+| `deck` … `ui` | Yes | All other top-level sections are required. The schema enforces this at load time. |
 
 For the blackjack ruleset, the `meta` block looks like this:
 
 ```json
 {
+  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
   "meta": {
     "name": "Blackjack",
     "slug": "blackjack",
     "version": "1.0.0",
     "author": "card-engine",
-    "players": { "min": 1, "max": 6 }
+    "players": { "min": 1, "max": 6 },
+    "description": "Classic casino banking game — beat the dealer without going over 21.",
+    "tags": ["casino", "banking", "classic"],
+    "license": "public-domain"
   }
 }
 ```
@@ -106,6 +118,7 @@ For the blackjack ruleset, the `meta` block looks like this:
 - `slug` must be lowercase alphanumeric with hyphens only (regex: `^[a-z0-9-]+$`).
 - `version` must be a valid semver string (regex: `^\d+\.\d+\.\d+$`).
 - `players.min` must be less than or equal to `players.max`.
+- `description`, `tags`, and `license` are optional catalog fields used by the `bun run catalog` script to generate a browsable `catalog.json`.
 
 ---
 
@@ -1175,14 +1188,14 @@ A JSON Schema (draft-07) is also available for editor autocompletion and
 pre-commit validation:
 
 ```
-packages/shared/src/schema/cardgame.v1.schema.json
+packages/schema/src/schema/cardgame.v1.schema.json
 ```
 
 You can reference it in your `.cardgame.json` files for editor support:
 
 ```json
 {
-  "$schema": "../packages/shared/src/schema/cardgame.v1.schema.json",
+  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
   "meta": { "..." }
 }
 ```

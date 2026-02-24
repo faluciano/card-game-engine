@@ -7,6 +7,10 @@
   "required": ["meta", "deck", "zones", "roles", "phases", "scoring", "visibility", "ui"],
   "additionalProperties": false,
   "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference for editor validation"
+    },
     "meta": {
       "type": "object",
       "required": ["name", "slug", "version", "author", "players"],
@@ -22,6 +26,21 @@
             "min": { "type": "integer", "minimum": 1 },
             "max": { "type": "integer", "minimum": 1 }
           }
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Short description of the game"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Searchable tags for catalog browsing"
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1,
+          "description": "License identifier (e.g., MIT, public-domain)"
         }
       }
     },
@@ -29,7 +48,7 @@
       "type": "object",
       "required": ["preset", "copies", "cardValues"],
       "properties": {
-        "preset": { "type": "string", "enum": ["standard_52", "standard_54", "uno_108"] },
+        "preset": { "type": "string", "enum": ["standard_52", "standard_54", "uno_108", "custom"] },
         "copies": { "type": "integer", "minimum": 1 },
         "cardValues": {
           "type": "object",
@@ -137,8 +156,21 @@
       "properties": {
         "method": { "type": "string" },
         "winCondition": { "type": "string" },
-        "bustCondition": { "type": "string" }
+        "bustCondition": { "type": "string" },
+        "tieCondition": {
+          "type": "string",
+          "description": "Expression evaluated to determine tie-breaking"
+        },
+        "autoEndTurnCondition": {
+          "type": "string",
+          "description": "Expression that auto-ends the current turn when true"
+        }
       }
+    },
+    "initialVariables": {
+      "type": "object",
+      "additionalProperties": { "type": "number" },
+      "description": "Initial game variables (key-value pairs, all numeric)"
     },
     "visibility": {
       "type": "array",

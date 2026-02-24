@@ -42,6 +42,8 @@ card-game-engine/
 ├── packages/
 │   ├── shared/        @card-engine/shared   — game engine core (types, expression
 │   │                                          evaluator, interpreter, PRNG)
+│   ├── schema/        @card-engine/schema   — JSON Schema, Zod validation, types
+│   │                                          (card, ruleset, state)
 │   ├── host/          @card-engine/host     — Android TV app (Expo + CouchKit host
 │   │                                          + expo-file-system storage)
 │   └── client/        @card-engine/client   — phone controller (Vite + React +
@@ -53,7 +55,8 @@ card-game-engine/
 
 | Package | Runtime | Key Dependencies |
 |---------|---------|------------------|
-| `shared` | Pure TypeScript, zero framework deps | Zod |
+| `schema` | Pure TypeScript | Zod |
+| `shared` | Pure TypeScript, zero framework deps | @card-engine/schema, Zod |
 | `host` | Expo + React Native | CouchKit host, expo-file-system |
 | `client` | Vite + React 18 | CouchKit client |
 
@@ -83,14 +86,14 @@ bun run dev:client
 
 ### Testing
 
-Tests live in the shared and host packages and use Vitest:
+Tests live in the shared, schema, and host packages and use Vitest:
 
 ```sh
 cd packages/shared
 bunx vitest run
 ```
 
-898 tests across 16 test files cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios, host bridge) and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
+913 tests across the shared (804), schema (15), and host (94) packages cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios), schema meta fields, and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
 
 ### Build and Deploy
 
@@ -113,6 +116,18 @@ Type-check the shared and client packages:
 bun run typecheck
 ```
 
+### Scripts
+
+| Command | Description |
+|---------|-------------|
+| `bun run dev:client` | Start the client Vite dev server with HMR |
+| `bun run build:client` | TypeScript check + Vite production build |
+| `bun run bundle:client` | Bundle client dist into host's Android assets |
+| `bun run build:android` | Bundle client + Expo Android build |
+| `bun run typecheck` | Type-check shared and client packages |
+| `bun run validate` | Validate all rulesets against the JSON Schema |
+| `bun run catalog` | Generate `catalog.json` from all rulesets' metadata |
+
 ## Rulesets
 
 A `.cardgame.json` file declaratively defines everything the engine needs to run a card game: metadata, deck composition, zones, roles, phases (FSM), scoring, visibility rules, and UI hints.
@@ -125,11 +140,13 @@ The [`rulesets/`](rulesets/) directory contains example rulesets:
 - **`ninety-nine.cardgame.json`** — an accumulation game demonstrating custom variables (`get_var`, `set_var`, `inc_var`), conditional card effects with `if()`, and turn reversal
 - **`uno.cardgame.json`** — a shedding game demonstrating `play_card` action effects, custom variables for color choice, declare with params, Skip/Reverse/Draw Two effects, and multi-phase Wild card flow
 
+Rulesets support optional catalog fields (`description`, `tags`, `license`) in their `meta` block. Run `bun run catalog` to generate a `catalog.json` index of all rulesets for browsing and discovery. Run `bun run validate` to validate all rulesets against the schema.
+
 See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format specification, expression language reference, and annotated examples. The [Engine API Reference](packages/shared/README.md) documents all public functions and builtins.
 
 ## Project Status
 
-All four implementation phases are **complete** with **898 passing tests** across 16 test files.
+All four implementation phases are **complete** with **913 passing tests** across shared (804), schema (15), and host (94) packages.
 
 | Phase | Status | Tests |
 |-------|--------|-------|
@@ -137,6 +154,7 @@ All four implementation phases are **complete** with **898 passing tests** acros
 | Phase 1.5 — Documentation | ✅ Complete | — |
 | Phase 2 — Storage & Import | ✅ Complete | 94 |
 | Phase 3 — Host Screens & CouchKit Integration | ✅ Complete | — |
+| Phase 3.4 — Schema Package & Catalog | ✅ Complete | 15 |
 | Phase 4 — Client Controller App | ✅ Complete | — |
 
 The app builds and deploys to Android TV via `bun run build:android`. The host runs an HTTP+WebSocket server via CouchKit; phones connect by scanning a QR code displayed on the TV.

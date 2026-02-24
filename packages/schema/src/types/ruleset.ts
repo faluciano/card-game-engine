@@ -16,6 +16,9 @@ export interface RulesetMeta {
     readonly min: number;
     readonly max: number;
   };
+  readonly description?: string;
+  readonly tags?: readonly string[];
+  readonly license?: string;
 }
 
 // ─── Deck Configuration ────────────────────────────────────────────
@@ -143,6 +146,7 @@ export interface UIConfig {
  * Immutable by design — the engine never mutates a ruleset.
  */
 export interface CardGameRuleset {
+  readonly $schema?: string;
   readonly meta: RulesetMeta;
   readonly deck: DeckConfig;
   readonly zones: readonly ZoneConfig[];

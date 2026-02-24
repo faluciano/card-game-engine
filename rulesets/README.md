@@ -12,6 +12,30 @@ This directory contains example `.cardgame.json` ruleset files that the Card Gam
 | `ninety-nine.cardgame.json` | Ninety-Nine (99) | Accumulation / avoidance | 2–4 |
 | `uno.cardgame.json` | Uno (Simplified) | Shedding / color matching | 2–4 |
 
+## Catalog Fields
+
+Each ruleset's `meta` block supports optional catalog fields for browsing and discovery:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Display name of the game |
+| `slug` | Yes | URL-safe identifier (`^[a-z0-9-]+$`) |
+| `version` | Yes | Semver version string |
+| `author` | Yes | Author name |
+| `players` | Yes | `{ min, max }` player count |
+| `description` | No | Short description of the game |
+| `tags` | No | Array of searchable tags (e.g., `["casino", "classic"]`) |
+| `license` | No | License identifier (e.g., `MIT`, `public-domain`) |
+
+## Scripts
+
+From the project root:
+
+| Command | Description |
+|---------|-------------|
+| `bun run validate` | Validates all rulesets against the JSON Schema and Zod schema |
+| `bun run catalog` | Generates `catalog.json` from all rulesets' metadata |
+
 ## Creating Your Own
 
 A ruleset file requires these top-level sections:

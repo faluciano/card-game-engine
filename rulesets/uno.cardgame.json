@@ -1,4 +1,5 @@
 {
+  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
   "meta": {
     "name": "Uno",
     "slug": "uno",
@@ -7,7 +8,10 @@
     "players": {
       "min": 2,
       "max": 4
-    }
+    },
+    "description": "Color-matching shedding game with action cards — be the first to empty your hand",
+    "tags": ["shedding", "color-matching", "action-cards", "family"],
+    "license": "public-domain"
   },
   "deck": {
     "preset": "custom",

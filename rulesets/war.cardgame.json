@@ -1,4 +1,5 @@
 {
+  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
   "meta": {
     "name": "War",
     "slug": "war",
@@ -7,7 +8,10 @@
     "players": {
       "min": 2,
       "max": 2
-    }
+    },
+    "description": "Simple rank-comparison card game where the highest card wins each round",
+    "tags": ["rank-comparison", "classic", "simple", "kids"],
+    "license": "public-domain"
   },
   "deck": {
     "preset": "standard_52",

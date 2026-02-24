@@ -1,0 +1,65 @@
+name: Validate & Catalog Rulesets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "rulesets/**"
+      - "packages/schema/**"
+  workflow_dispatch:
+
+jobs:
+  validate-and-catalog:
+    runs-on: ubuntu-latest
+    container: oven/bun:slim
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate rulesets
+        run: bun run scripts/validate-rulesets.ts
+
+      - name: Build catalog
+        run: bun run scripts/build-catalog.ts
+
+      - name: Upload catalog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog
+          path: catalog.json
+
+  deploy-pages:
+    needs: validate-and-catalog
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    container: oven/bun:slim
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build catalog
+        run: bun run scripts/build-catalog.ts
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

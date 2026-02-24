@@ -9,6 +9,8 @@
     "bundle:client": "cd packages/host && bunx couch-kit bundle --source ../client --output ./android/app/src/main/assets/www --manifest ./src/www-manifest.json",
     "build:android": "bun run bundle:client && cd packages/host && npx expo run:android",
     "typecheck": "cd packages/shared && bunx tsc && cd ../client && bunx tsc --noEmit",
-    "build": "bun run typecheck && bun run build:client && bun run bundle:client"
+    "build": "bun run typecheck && bun run build:client && bun run bundle:client",
+    "validate": "bun run scripts/validate-rulesets.ts",
+    "catalog": "bun run scripts/build-catalog.ts"
   }
 }

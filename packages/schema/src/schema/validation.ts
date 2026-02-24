@@ -32,6 +32,9 @@ const MetaSchema = z.object({
     (p) => p.min <= p.max,
     { message: "players.min must be <= players.max" }
   ),
+  description: z.string().min(1).optional(),
+  tags: z.array(z.string().min(1)).optional(),
+  license: z.string().min(1).optional(),
 });
 
 const CardTemplateSchema = z.object({
@@ -113,6 +116,7 @@ const UISchema = z.object({
 // ─── Complete Ruleset Schema ───────────────────────────────────────
 
 export const CardGameRulesetSchema = z.object({
+  $schema: z.string().min(1).optional(),
   meta: MetaSchema,
   deck: DeckSchema,
   zones: z.array(ZoneSchema).min(1),
