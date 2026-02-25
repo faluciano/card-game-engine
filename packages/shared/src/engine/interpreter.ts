@@ -686,6 +686,8 @@ function applySingleEffect(
       return applySetLeadPlayerEffect(state, effect.params);
     case "end_game":
       return applyEndGameEffect(state);
+    case "accumulate_scores":
+      return applyAccumulateScoresEffect(state);
     default:
       // Unknown effects are ignored — forward compatible
       return state;
@@ -994,6 +996,14 @@ function applyCollectAllToEffect(
  * Resets the round: clears scores, resets player index, increments turn.
  */
 function applyResetRoundEffect(state: CardGameState): CardGameState {
+  // Preserve cumulative_score_* variables across round resets
+  const preserved: Record<string, number> = {};
+  for (const [key, value] of Object.entries(state.variables)) {
+    if (key.startsWith("cumulative_score_")) {
+      preserved[key] = value;
+    }
+  }
+
   return {
     ...state,
     currentPlayerIndex: 0,
@@ -1001,7 +1011,7 @@ function applyResetRoundEffect(state: CardGameState): CardGameState {
     turnsTakenThisPhase: 0,
     turnDirection: 1,
     scores: {},
-    variables: { ...(state.ruleset.initialVariables ?? {}) },
+    variables: { ...(state.ruleset.initialVariables ?? {}), ...preserved },
   };
 }
 
@@ -1227,6 +1237,24 @@ function applyEndGameEffect(state: CardGameState): CardGameState {
       winnerId,
     },
   };
+}
+
+/**
+ * Accumulates each human player's round score into their cumulative score variable.
+ * Reads scores["player_score:{i}"] and adds to variables["cumulative_score_{i}"].
+ */
+function applyAccumulateScoresEffect(state: CardGameState): CardGameState {
+  const variables = { ...state.variables };
+  const { roles } = state.ruleset;
+
+  for (let i = 0; i < state.players.length; i++) {
+    if (!isHumanPlayer(state.players[i]!, roles)) continue;
+    const roundScore = state.scores[`player_score:${i}`] ?? 0;
+    const key = `cumulative_score_${i}`;
+    variables[key] = (variables[key] ?? 0) + roundScore;
+  }
+
+  return { ...state, variables };
 }
 
 // ─── Deterministic Card Creation ───────────────────────────────────

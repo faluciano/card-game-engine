@@ -1248,6 +1248,75 @@ function coerceToString(arg: EvalResult): string {
   }
 }
 
+// ─── Cumulative Score Builtins ─────────────────────────────────────
+
+/**
+ * get_cumulative_score(player_index) — Returns the cumulative score for a player.
+ * Reads from variables["cumulative_score_{player_index}"], defaults to 0.
+ */
+const getCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("get_cumulative_score", args, 1);
+  const playerIndex = requireNumber(args[0]!, "player_index");
+  const key = `cumulative_score_${playerIndex}`;
+  const value = context.state.variables[key] ?? 0;
+  return { kind: "number", value };
+};
+
+/**
+ * max_cumulative_score() — Returns the highest cumulative score across all human players.
+ */
+const maxCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
+  if (args.length !== 0) {
+    throw new ExpressionError(
+      `max_cumulative_score() takes no arguments, got ${args.length}`
+    );
+  }
+  const { players, variables } = context.state;
+  const roles = context.state.ruleset.roles;
+  let max = 0;
+  for (let i = 0; i < players.length; i++) {
+    if (!isHumanPlayer(players[i]!, roles)) continue;
+    const score = variables[`cumulative_score_${i}`] ?? 0;
+    if (score > max) max = score;
+  }
+  return { kind: "number", value: max };
+};
+
+/**
+ * min_cumulative_score() — Returns the lowest cumulative score across all human players.
+ */
+const minCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
+  if (args.length !== 0) {
+    throw new ExpressionError(
+      `min_cumulative_score() takes no arguments, got ${args.length}`
+    );
+  }
+  const { players, variables } = context.state;
+  const roles = context.state.ruleset.roles;
+  let min = Infinity;
+  let found = false;
+  for (let i = 0; i < players.length; i++) {
+    if (!isHumanPlayer(players[i]!, roles)) continue;
+    found = true;
+    const score = variables[`cumulative_score_${i}`] ?? 0;
+    if (score < min) min = score;
+  }
+  return { kind: "number", value: found ? min : 0 };
+};
+
+/**
+ * accumulate_scores() — Records an accumulate_scores effect.
+ * Adds each player's current round score to their cumulative score variable.
+ */
+const accumulateScoresBuiltin: BuiltinFunction = (args, context) => {
+  if (args.length !== 0) {
+    throw new ExpressionError(
+      `accumulate_scores() takes no arguments, got ${args.length}`
+    );
+  }
+  pushEffect(context, { kind: "accumulate_scores", params: {} });
+};
+
 // ─── Registration ──────────────────────────────────────────────────
 
 /**
@@ -1293,6 +1362,9 @@ export function registerAllBuiltins(): void {
   registerBuiltin("count_cards_by_suit", countCardsBySuitBuiltin);
   registerBuiltin("has_card_with", hasCardWithBuiltin);
   registerBuiltin("sum_zone_values_by_suit", sumZoneValuesBySuitBuiltin);
+  registerBuiltin("get_cumulative_score", getCumulativeScoreBuiltin);
+  registerBuiltin("max_cumulative_score", maxCumulativeScoreBuiltin);
+  registerBuiltin("min_cumulative_score", minCumulativeScoreBuiltin);
 
   // String builtins
   registerBuiltin("concat", concatBuiltin);
@@ -1317,6 +1389,7 @@ export function registerAllBuiltins(): void {
   registerBuiltin("collect_trick", collectTrickBuiltin);
   registerBuiltin("set_lead_player", setLeadPlayerBuiltin);
   registerBuiltin("end_game", endGameBuiltin);
+  registerBuiltin("accumulate_scores", accumulateScoresBuiltin);
   registerBuiltin("turn_direction", turnDirectionBuiltin);
   registerBuiltin("set_var", setVarBuiltin);
   registerBuiltin("inc_var", incVarBuiltin);

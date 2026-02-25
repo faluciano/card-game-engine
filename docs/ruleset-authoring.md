@@ -844,6 +844,47 @@ the `computeHandValue()` function, which starts all dual-value cards (Aces) at
 their high value and downgrades them one at a time until the total is at or
 below the target.
 
+### Multi-Round Scoring
+
+For games played over multiple rounds (like Hearts), the engine supports
+accumulated scoring through cumulative score variables:
+
+| Builtin | Args | Returns | Description |
+|---------|------|---------|-------------|
+| `accumulate_scores()` | 0 | effect | Adds each player's `player_score:{i}` to `variables["cumulative_score_{i}"]` |
+| `get_cumulative_score(i)` | 1 | number | Returns `variables["cumulative_score_{i}"]`, defaults to 0 |
+| `max_cumulative_score()` | 0 | number | Highest cumulative score across all human players |
+| `min_cumulative_score()` | 0 | number | Lowest cumulative score across all human players |
+
+**Pattern**: After `calculate_scores()` computes round scores, call
+`accumulate_scores()` to persist them. Use `max_cumulative_score()` in
+transition conditions to determine whether the game should end or continue.
+
+```json
+{
+  "name": "scoring",
+  "kind": "automatic",
+  "automaticSequence": [
+    "calculate_scores()",
+    "accumulate_scores()"
+  ],
+  "transitions": [
+    { "to": "game_over", "when": "max_cumulative_score() >= 100" },
+    { "to": "round_end", "when": "max_cumulative_score() < 100" }
+  ]
+}
+```
+
+The `reset_round()` effect automatically preserves all `cumulative_score_*`
+variables while resetting everything else to `initialVariables`.
+
+For final winner determination with cumulative scores, reference the cumulative
+builtins directly in the `winCondition`:
+
+```json
+"winCondition": "get_cumulative_score(current_player_index) == min_cumulative_score()"
+```
+
 ---
 
 ## 12. Visibility
@@ -1475,36 +1516,79 @@ wins the trick instead of the highest led-suit card.
 
 ### Scoring
 
-For avoidance games like Hearts, score penalty points:
+For avoidance games like Hearts, score penalty points per round:
 
 ```json
 "scoring": {
   "method": "count_cards_by_suit(concat(\"won:\", current_player_index), \"hearts\") + if(has_card_with(concat(\"won:\", current_player_index), \"Q\", \"spades\"), 13, 0)",
-  "winCondition": "my_score == 0"
+  "winCondition": "get_cumulative_score(current_player_index) == min_cumulative_score()"
 }
 ```
+
+The `method` computes each round's penalty (hearts taken + 13 for Queen of
+Spades). The `winCondition` uses cumulative scores so the player with the lowest
+total penalty wins at game end.
 
 For point-based games like Spades, score positively based on tricks won.
 
 ### Ending the Game
 
-Call `end_game()` in the scoring phase to properly terminate the game:
+For multi-round games, separate scoring from game termination. The scoring phase
+accumulates round scores and branches based on whether the target has been
+reached:
 
 ```json
 {
   "name": "scoring",
   "kind": "automatic",
-  "automaticSequence": [
-    "calculate_scores()",
-    "determine_winners()",
-    "end_game()"
+  "automaticSequence": ["calculate_scores()", "accumulate_scores()"],
+  "transitions": [
+    { "to": "game_over", "when": "max_cumulative_score() >= 100" },
+    { "to": "round_end", "when": "max_cumulative_score() < 100" }
   ]
+}
+```
+
+A dedicated `game_over` phase handles final winner determination:
+
+```json
+{
+  "name": "game_over",
+  "kind": "automatic",
+  "automaticSequence": ["determine_winners()", "end_game()"],
+  "transitions": []
+}
+```
+
+The `round_end` phase lets players start the next round. The `reset_round()`
+effect clears round state but preserves `cumulative_score_*` variables:
+
+```json
+{
+  "name": "round_end",
+  "kind": "all_players",
+  "actions": [{
+    "name": "play_again",
+    "label": "Play Again",
+    "effect": ["collect_all_to(draw_pile)", "reset_round()"]
+  }],
+  "transitions": [{ "to": "setup", "when": "continue_game" }]
 }
 ```
 
 The `end_game()` builtin transitions the game status to `finished` and derives
 the winner from `scores[result:N]`. The `ResultScreen` on the client
 automatically displays when the game ends.
+
+For single-round games, combine everything in one scoring phase:
+
+```json
+{
+  "name": "scoring",
+  "kind": "automatic",
+  "automaticSequence": ["calculate_scores()", "determine_winners()", "end_game()"]
+}
+```
 
 ### Limitations
 
@@ -1514,11 +1598,10 @@ automatically displays when the game ends.
   the UI level or via future per-card conditions.
 - **Card passing**: Pre-game card passing (e.g., Hearts pass phase) is not yet
   supported. Requires a new action type for selecting multiple cards to pass.
-- **Multi-round scoring**: Accumulated scoring across rounds (e.g., Hearts to
-  100) is not yet supported (G9). Currently each game is a single round.
 
 ### Complete Hearts Example
 
 See [`rulesets/hearts.cardgame.json`](../rulesets/hearts.cardgame.json) for a
 full working implementation. Hearts exercises: 4-player trick-taking, penalty
-scoring, hearts-broken tracking, and the `end_game()` lifecycle.
+scoring, hearts-broken tracking, multi-round accumulated scoring to 100 points,
+and the `game_over` → `end_game()` lifecycle.

@@ -5867,7 +5867,7 @@ describe("Hearts — Trick-Taking Integration", () => {
       expect(jsonRuleset.meta.name).toBe("Hearts");
       expect(jsonRuleset.meta.slug).toBe("hearts");
       expect(jsonRuleset.deck.preset).toBe("standard_52");
-      expect(jsonRuleset.phases).toHaveLength(5);
+      expect(jsonRuleset.phases).toHaveLength(6);
       expect(jsonRuleset.roles).toHaveLength(1);
       expect(jsonRuleset.zones).toHaveLength(4);
     });
@@ -5877,7 +5877,7 @@ describe("Hearts — Trick-Taking Integration", () => {
       expect(() => parseRuleset(raw)).not.toThrow();
     });
 
-    it("JSON ruleset contains all 5 expected phases", () => {
+    it("JSON ruleset contains all 6 expected phases", () => {
       const raw = JSON.parse(readFileSync(HEARTS_RULESET_PATH, "utf-8"));
       const jsonRuleset = loadRuleset(raw);
 
@@ -5887,6 +5887,7 @@ describe("Hearts — Trick-Taking Integration", () => {
         "play_trick",
         "resolve_trick",
         "scoring",
+        "game_over",
         "round_end",
       ]);
     });
@@ -5908,7 +5909,7 @@ describe("Hearts — Trick-Taking Integration", () => {
 
       expect(jsonRuleset.scoring.method).toContain("count_cards_by_suit");
       expect(jsonRuleset.scoring.method).toContain("has_card_with");
-      expect(jsonRuleset.scoring.winCondition).toBe("my_score == 0");
+      expect(jsonRuleset.scoring.winCondition).toBe("get_cumulative_score(current_player_index) == min_cumulative_score()");
     });
   });
 
@@ -6362,6 +6363,627 @@ describe("Hearts — Trick-Taking Integration", () => {
         const hand1 = handDescription(game1.state, `hand:${i}`);
         const hand2 = handDescription(game2.state, `hand:${i}`);
         expect(hand1).toEqual(hand2);
+      }
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── Hearts — Multi-Round Scoring (G9) Integration Tests ─────────────
+// ═══════════════════════════════════════════════════════════════════════
+//
+// These tests exercise the full multi-round Hearts lifecycle: playing
+// tricks, accumulating scores across rounds, round-end play_again flow,
+// and game termination at the 100-point threshold.
+
+describe("Hearts — Multi-Round Scoring (G9)", () => {
+  beforeEach(() => {
+    clearBuiltins();
+    registerAllBuiltins();
+  });
+
+  // ─── Helpers ─────────────────────────────────────────────────────
+
+  /**
+   * Builds a multi-round Hearts ruleset with 6 phases:
+   * setup → play_trick → resolve_trick → scoring → game_over / round_end
+   *
+   * scoring: calculate_scores() + accumulate_scores(), then branches:
+   *   - max_cumulative_score() >= 100 → game_over (determine_winners + end_game)
+   *   - max_cumulative_score() < 100  → round_end (all_players: play_again)
+   */
+  function makeMultiRoundHeartsRuleset(): CardGameRuleset {
+    return {
+      meta: {
+        name: "Hearts",
+        slug: "hearts",
+        version: "2.0.0",
+        author: "faluciano",
+        players: { min: 4, max: 4 },
+      },
+      deck: {
+        preset: "standard_52",
+        copies: 1,
+        cardValues: HEARTS_CARD_VALUES,
+      },
+      zones: [
+        { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+        {
+          name: "hand",
+          visibility: { kind: "owner_only" },
+          owners: ["player"],
+        },
+        {
+          name: "trick",
+          visibility: { kind: "public" },
+          owners: ["player"],
+          maxCards: 1,
+        },
+        { name: "won", visibility: { kind: "hidden" }, owners: ["player"] },
+      ],
+      roles: [{ name: "player", isHuman: true, count: "per_player" }],
+      initialVariables: {
+        lead_player: 0,
+        hearts_broken: 0,
+        tricks_played: 0,
+      },
+      phases: [
+        {
+          name: "setup",
+          kind: "automatic",
+          actions: [],
+          transitions: [{ to: "play_trick", when: "all_hands_dealt" }],
+          automaticSequence: [
+            "shuffle(draw_pile)",
+            "deal(draw_pile, hand, 13)",
+            "set_lead_player(0)",
+          ],
+        },
+        {
+          name: "play_trick",
+          kind: "turn_based",
+          actions: [
+            {
+              name: "play_card",
+              label: "Play Card",
+              effect: ["end_turn()"],
+            },
+          ],
+          transitions: [
+            {
+              to: "resolve_trick",
+              when: 'trick_card_count("trick") == player_count',
+            },
+          ],
+          turnOrder: "clockwise",
+        },
+        {
+          name: "resolve_trick",
+          kind: "automatic",
+          actions: [],
+          transitions: [
+            { to: "scoring", when: 'get_var("tricks_played") >= 13' },
+            { to: "play_trick", when: 'get_var("tricks_played") < 13' },
+          ],
+          automaticSequence: [
+            'if(count_cards_by_suit("trick:0", "hearts") + count_cards_by_suit("trick:1", "hearts") + count_cards_by_suit("trick:2", "hearts") + count_cards_by_suit("trick:3", "hearts") > 0, set_var("hearts_broken", 1))',
+            'collect_trick("trick", concat("won:", trick_winner("trick")))',
+            'set_lead_player(trick_winner("trick"))',
+            'inc_var("tricks_played", 1)',
+          ],
+        },
+        {
+          name: "scoring",
+          kind: "automatic",
+          actions: [],
+          transitions: [
+            { to: "game_over", when: "max_cumulative_score() >= 100" },
+            { to: "round_end", when: "max_cumulative_score() < 100" },
+          ],
+          automaticSequence: [
+            "calculate_scores()",
+            "accumulate_scores()",
+          ],
+        },
+        {
+          name: "game_over",
+          kind: "automatic",
+          actions: [],
+          transitions: [],
+          automaticSequence: [
+            "determine_winners()",
+            "end_game()",
+          ],
+        },
+        {
+          name: "round_end",
+          kind: "all_players",
+          actions: [
+            {
+              name: "play_again",
+              label: "Play Again",
+              effect: ["collect_all_to(draw_pile)", "reset_round()"],
+            },
+          ],
+          transitions: [{ to: "setup", when: "continue_game" }],
+        },
+      ],
+      scoring: {
+        method:
+          'count_cards_by_suit(concat("won:", current_player_index), "hearts") + if(has_card_with(concat("won:", current_player_index), "Q", "spades"), 13, 0)',
+        winCondition:
+          "get_cumulative_score(current_player_index) == min_cumulative_score()",
+      },
+      visibility: [
+        { zone: "draw_pile", visibility: { kind: "hidden" } },
+        { zone: "hand", visibility: { kind: "owner_only" } },
+        { zone: "trick", visibility: { kind: "public" } },
+        { zone: "won", visibility: { kind: "hidden" } },
+      ],
+      ui: { layout: "circle", tableColor: "felt_green" },
+    };
+  }
+
+  /**
+   * Creates a multi-round Hearts game with 4 players, started and ready
+   * at the play_trick phase.
+   */
+  function startMultiRoundHearts(seed: number = FIXED_SEED): {
+    state: CardGameState;
+    reducer: GameReducer;
+    players: Player[];
+  } {
+    const ruleset = makeMultiRoundHeartsRuleset();
+    const players: Player[] = [
+      { id: pid("p0"), name: "Alice", role: "player", connected: true },
+      { id: pid("p1"), name: "Bob", role: "player", connected: true },
+      { id: pid("p2"), name: "Charlie", role: "player", connected: true },
+      { id: pid("p3"), name: "Diana", role: "player", connected: true },
+    ];
+    const reducer = createReducer(ruleset, seed);
+    const initial = createInitialState(
+      ruleset,
+      sid("multi-round-hearts-test"),
+      players,
+      seed
+    );
+    const state = reducer(initial, { kind: "start_game" });
+    return { state, reducer, players };
+  }
+
+  /**
+   * Plays one complete trick: each player plays their first available
+   * card from hand to trick zone. Returns state after trick resolution.
+   */
+  function playOneTrickG9(
+    state: CardGameState,
+    reducer: GameReducer,
+    players: Player[]
+  ): CardGameState {
+    let current = state;
+    for (let i = 0; i < 4; i++) {
+      const playerIdx = current.currentPlayerIndex;
+      const hand = current.zones[`hand:${playerIdx}`];
+      if (!hand || hand.cards.length === 0) break;
+
+      const card = hand.cards[0]!;
+      current = reducer(current, {
+        kind: "play_card",
+        playerId: players[playerIdx]!.id,
+        cardId: card.id,
+        fromZone: `hand:${playerIdx}`,
+        toZone: `trick:${playerIdx}`,
+      });
+    }
+    return current;
+  }
+
+  /**
+   * Plays 13 tricks (a full round). Returns the state after the
+   * scoring phase completes (either at round_end or game_over).
+   */
+  function playFullRound(
+    state: CardGameState,
+    reducer: GameReducer,
+    players: Player[]
+  ): CardGameState {
+    let current = state;
+    for (let trick = 0; trick < 13; trick++) {
+      current = playOneTrickG9(current, reducer, players);
+    }
+    return current;
+  }
+
+  /**
+   * Issues a play_again declare from any player to trigger the
+   * round_end → setup transition. In the engine, `continue_game`
+   * always returns true, so a single player's action suffices.
+   */
+  function triggerPlayAgain(
+    state: CardGameState,
+    reducer: GameReducer,
+    players: Player[]
+  ): CardGameState {
+    return reducer(state, {
+      kind: "declare",
+      playerId: players[0]!.id,
+      declaration: "play_again",
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Round Scoring and Accumulation ────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("round scoring and accumulation", () => {
+    it("first round accumulates scores into cumulative variables", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      const afterRound = playFullRound(state, reducer, players);
+
+      // After scoring + accumulate_scores, cumulative_score_* should exist
+      // Total penalty per round is always 26 (13 hearts + Q♠ = 13)
+      let totalCumulative = 0;
+      for (let i = 0; i < 4; i++) {
+        const score = afterRound.variables[`cumulative_score_${i}`] ?? 0;
+        expect(score).toBeGreaterThanOrEqual(0);
+        totalCumulative += score;
+      }
+      expect(totalCumulative).toBe(26);
+    });
+
+    it("game does NOT end after first round (scores < 100)", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      const afterRound = playFullRound(state, reducer, players);
+
+      // Max cumulative score after 1 round is at most 26, well below 100
+      expect(afterRound.status.kind).toBe("in_progress");
+      expect(afterRound.currentPhase).toBe("round_end");
+    });
+
+    it("round_end play_again transitions back to setup and then play_trick", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      const afterRound = playFullRound(state, reducer, players);
+      expect(afterRound.currentPhase).toBe("round_end");
+
+      // One player's play_again triggers: effects → transition to setup →
+      // automatic phases (shuffle + deal + set_lead_player) → play_trick
+      const afterPlayAgain = triggerPlayAgain(afterRound, reducer, players);
+
+      expect(afterPlayAgain.status.kind).toBe("in_progress");
+      expect(afterPlayAgain.currentPhase).toBe("play_trick");
+    });
+
+    it("reset_round preserves cumulative_score variables", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      const afterRound = playFullRound(state, reducer, players);
+
+      // Record cumulative scores before play_again
+      const cumulativeBefore: number[] = [];
+      for (let i = 0; i < 4; i++) {
+        cumulativeBefore.push(
+          afterRound.variables[`cumulative_score_${i}`] ?? 0
+        );
+      }
+
+      // Trigger play_again → collect_all_to + reset_round + setup auto
+      const afterPlayAgain = triggerPlayAgain(afterRound, reducer, players);
+
+      // Cumulative scores must survive the reset
+      for (let i = 0; i < 4; i++) {
+        expect(afterPlayAgain.variables[`cumulative_score_${i}`]).toBe(
+          cumulativeBefore[i]
+        );
+      }
+
+      // But round-level variables should be reset to initial values
+      expect(afterPlayAgain.variables.tricks_played).toBe(0);
+      expect(afterPlayAgain.variables.hearts_broken).toBe(0);
+      // lead_player is reset by initialVariables then set_lead_player(0) in setup
+      expect(afterPlayAgain.variables.lead_player).toBe(0);
+    });
+
+    it("second round deals new hands after reset", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      const afterRound = playFullRound(state, reducer, players);
+      const afterPlayAgain = triggerPlayAgain(afterRound, reducer, players);
+
+      // Each player should have 13 cards again
+      for (let i = 0; i < 4; i++) {
+        expect(afterPlayAgain.zones[`hand:${i}`]!.cards).toHaveLength(13);
+      }
+
+      // Trick zones should be empty
+      for (let i = 0; i < 4; i++) {
+        expect(afterPlayAgain.zones[`trick:${i}`]!.cards).toHaveLength(0);
+      }
+
+      // Won zones should be empty (collect_all_to already moved them)
+      for (let i = 0; i < 4; i++) {
+        expect(afterPlayAgain.zones[`won:${i}`]!.cards).toHaveLength(0);
+      }
+
+      // Draw pile empty (all 52 dealt to hands)
+      expect(afterPlayAgain.zones["draw_pile"]!.cards).toHaveLength(0);
+
+      // Total cards across all zones still 52
+      expect(totalCards(afterPlayAgain)).toBe(DECK_SIZE);
+    });
+
+    it("cumulative scores accumulate across two rounds", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      // ── Round 1 ──
+      const afterRound1 = playFullRound(state, reducer, players);
+      const round1Cumulative: number[] = [];
+      for (let i = 0; i < 4; i++) {
+        round1Cumulative.push(
+          afterRound1.variables[`cumulative_score_${i}`] ?? 0
+        );
+      }
+
+      // ── Transition to Round 2 ──
+      const afterPlayAgain = triggerPlayAgain(afterRound1, reducer, players);
+
+      // ── Round 2 ──
+      const afterRound2 = playFullRound(afterPlayAgain, reducer, players);
+
+      // Round 2 cumulative should be round 1 cumulative + round 2 scores
+      let totalR2Cumulative = 0;
+      for (let i = 0; i < 4; i++) {
+        const cumAfterR2 =
+          afterRound2.variables[`cumulative_score_${i}`] ?? 0;
+        // Each round's cumulative should be >= what it was after round 1
+        expect(cumAfterR2).toBeGreaterThanOrEqual(round1Cumulative[i]!);
+        totalR2Cumulative += cumAfterR2;
+      }
+
+      // Total cumulative across all players should be 26 * 2 = 52
+      expect(totalR2Cumulative).toBe(52);
+    });
+
+    it("round scores (player_score:*) are reset between rounds", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      const afterRound1 = playFullRound(state, reducer, players);
+
+      // After scoring, player_score:* should exist
+      for (let i = 0; i < 4; i++) {
+        expect(afterRound1.scores[`player_score:${i}`]).toBeDefined();
+      }
+
+      // After play_again → reset_round, scores{} should be empty
+      const afterPlayAgain = triggerPlayAgain(afterRound1, reducer, players);
+      expect(afterPlayAgain.scores).toEqual({});
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Game Termination ──────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("game termination", () => {
+    it("game ends when max cumulative score >= 100", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      // Play round 1 to reach round_end (cumulative scores are ~26 total)
+      const afterRound1 = playFullRound(state, reducer, players);
+      expect(afterRound1.currentPhase).toBe("round_end");
+
+      // Artificially inflate one player's cumulative score above 100 so
+      // that after round 2's accumulate_scores the max_cumulative_score
+      // transition fires. We set it to 74 — even if that player takes
+      // 0 penalty in round 2, the 26 total penalty is distributed among
+      // 4 players, so at least one player will exceed 100 when starting
+      // from 74 + round2_score ≥ 74, and the sum of all cumulative
+      // scores after round 2 will be 74 + (other_round1_cum) + 26.
+      // Actually, the simplest guarantee: set ALL players to 80 so
+      // that every player gets 80 + round2_penalty > 80 ≥ 100 for at
+      // least one (total 26 penalty distributed means max ≥ 80 + ceil(26/4) = 87,
+      // but a single player could get 26 → 106). However, even if one
+      // gets 0, the others sum to 26 across 3 → one gets ≥ 9, making
+      // them 89. Still not 100. So let's just set one player to 100:
+      // after accumulate, they'll be 100 + round2_score ≥ 100.
+      const inflated: CardGameState = {
+        ...afterRound1,
+        variables: {
+          ...afterRound1.variables,
+          cumulative_score_0: 100,
+        },
+      };
+
+      // Trigger play_again → setup → play_trick → play round 2
+      const afterPlayAgain = triggerPlayAgain(inflated, reducer, players);
+      expect(afterPlayAgain.currentPhase).toBe("play_trick");
+
+      // Play round 2 completely. After accumulate_scores:
+      // player 0 has at least 100 + 0 = 100, so max_cumulative >= 100 → game_over.
+      const afterRound2 = playFullRound(afterPlayAgain, reducer, players);
+
+      expect(afterRound2.status.kind).toBe("finished");
+    });
+
+    it("winner has lowest cumulative score", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      // Play one round naturally
+      const afterRound1 = playFullRound(state, reducer, players);
+
+      // Inflate a specific player to >= 100 to force game over next round
+      const inflated: CardGameState = {
+        ...afterRound1,
+        variables: {
+          ...afterRound1.variables,
+          cumulative_score_0: 110,
+        },
+      };
+
+      // Trigger play_again → round 2
+      const afterPlayAgain = triggerPlayAgain(inflated, reducer, players);
+      const afterRound2 = playFullRound(afterPlayAgain, reducer, players);
+
+      expect(afterRound2.status.kind).toBe("finished");
+
+      // determine_winners evaluates the winCondition:
+      //   get_cumulative_score(current_player_index) == min_cumulative_score()
+      // The player with the LOWEST cumulative score should have result:i = 1
+
+      // Find the player with the minimum cumulative score
+      let minCum = Infinity;
+      let minIdx = -1;
+      for (let i = 0; i < 4; i++) {
+        const cum = afterRound2.variables[`cumulative_score_${i}`] ?? 0;
+        if (cum < minCum) {
+          minCum = cum;
+          minIdx = i;
+        }
+      }
+
+      // That player should be the winner
+      expect(afterRound2.scores[`result:${minIdx}`]).toBe(1);
+
+      // Player 0 should NOT be the winner (they had 110+)
+      expect(afterRound2.scores[`result:0`]).toBe(-1);
+    });
+
+    it("game_over sets status to finished with a winnerId", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      const afterRound1 = playFullRound(state, reducer, players);
+
+      // Force game over next round
+      const inflated: CardGameState = {
+        ...afterRound1,
+        variables: {
+          ...afterRound1.variables,
+          cumulative_score_0: 110,
+        },
+      };
+
+      const afterPlayAgain = triggerPlayAgain(inflated, reducer, players);
+      const afterRound2 = playFullRound(afterPlayAgain, reducer, players);
+
+      expect(afterRound2.status.kind).toBe("finished");
+      if (afterRound2.status.kind === "finished") {
+        expect(afterRound2.status.finishedAt).toBeGreaterThan(0);
+        // winnerId should be set (the player with the lowest cumulative)
+        expect(afterRound2.status.winnerId).toBeDefined();
+        expect(afterRound2.status.winnerId).not.toBeNull();
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Engine Resilience ─────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("engine resilience", () => {
+    it("engine survives multi-round game without errors", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      let current = state;
+      expect(() => {
+        // Round 1
+        current = playFullRound(current, reducer, players);
+        current = triggerPlayAgain(current, reducer, players);
+        // Round 2
+        current = playFullRound(current, reducer, players);
+      }).not.toThrow();
+
+      // After round 2, should still be in_progress (scores < 100)
+      expect(current.status.kind).toBe("in_progress");
+      expect(current.currentPhase).toBe("round_end");
+      expect(totalCards(current)).toBe(DECK_SIZE);
+    });
+
+    it("deterministic multi-round with same seed", () => {
+      // Two games with the same seed should produce identical results
+      const game1 = startMultiRoundHearts(123);
+      const game2 = startMultiRoundHearts(123);
+
+      // Play round 1 for both
+      const afterR1_g1 = playFullRound(
+        game1.state,
+        game1.reducer,
+        game1.players
+      );
+      const afterR1_g2 = playFullRound(
+        game2.state,
+        game2.reducer,
+        game2.players
+      );
+
+      // Cumulative scores should be identical
+      for (let i = 0; i < 4; i++) {
+        expect(afterR1_g1.variables[`cumulative_score_${i}`]).toBe(
+          afterR1_g2.variables[`cumulative_score_${i}`]
+        );
+      }
+
+      // Continue: play_again → round 2
+      const r2start_g1 = triggerPlayAgain(
+        afterR1_g1,
+        game1.reducer,
+        game1.players
+      );
+      const r2start_g2 = triggerPlayAgain(
+        afterR1_g2,
+        game2.reducer,
+        game2.players
+      );
+
+      // Same hands dealt in round 2
+      for (let i = 0; i < 4; i++) {
+        const hand1 = handDescription(r2start_g1, `hand:${i}`);
+        const hand2 = handDescription(r2start_g2, `hand:${i}`);
+        expect(hand1).toEqual(hand2);
+      }
+
+      // Play round 2 for both
+      const afterR2_g1 = playFullRound(
+        r2start_g1,
+        game1.reducer,
+        game1.players
+      );
+      const afterR2_g2 = playFullRound(
+        r2start_g2,
+        game2.reducer,
+        game2.players
+      );
+
+      // Cumulative scores after round 2 should be identical
+      for (let i = 0; i < 4; i++) {
+        expect(afterR2_g1.variables[`cumulative_score_${i}`]).toBe(
+          afterR2_g2.variables[`cumulative_score_${i}`]
+        );
+      }
+    });
+
+    it("card count remains 52 throughout multi-round play", () => {
+      const { state, reducer, players } = startMultiRoundHearts();
+
+      // Round 1: check at every trick
+      let current = state;
+      for (let trick = 0; trick < 13; trick++) {
+        current = playOneTrickG9(current, reducer, players);
+        expect(totalCards(current)).toBe(DECK_SIZE);
+      }
+
+      // After scoring at round_end
+      expect(totalCards(current)).toBe(DECK_SIZE);
+
+      // After play_again → new round
+      current = triggerPlayAgain(current, reducer, players);
+      expect(totalCards(current)).toBe(DECK_SIZE);
+
+      // Round 2: check at every trick
+      for (let trick = 0; trick < 13; trick++) {
+        current = playOneTrickG9(current, reducer, players);
+        expect(totalCards(current)).toBe(DECK_SIZE);
       }
     });
   });

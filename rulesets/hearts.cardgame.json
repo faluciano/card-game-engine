@@ -3,13 +3,13 @@
   "meta": {
     "name": "Hearts",
     "slug": "hearts",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "author": "faluciano",
     "players": {
       "min": 4,
       "max": 4
     },
-    "description": "Classic trick-taking card game where players avoid taking hearts and the Queen of Spades",
+    "description": "Classic trick-taking card game played over multiple rounds. Players avoid taking hearts and the Queen of Spades. First to 100 penalty points triggers the end — lowest total wins.",
     "tags": ["trick-taking", "avoidance", "classic", "penalty"],
     "license": "public-domain"
   },
@@ -116,10 +116,20 @@
       "kind": "automatic",
       "actions": [],
       "transitions": [
-        { "to": "round_end", "when": "scores_calculated" }
+        { "to": "game_over", "when": "max_cumulative_score() >= 100" },
+        { "to": "round_end", "when": "max_cumulative_score() < 100" }
       ],
       "automaticSequence": [
         "calculate_scores()",
+        "accumulate_scores()"
+      ]
+    },
+    {
+      "name": "game_over",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [],
+      "automaticSequence": [
         "determine_winners()",
         "end_game()"
       ]
@@ -144,7 +154,7 @@
   ],
   "scoring": {
     "method": "count_cards_by_suit(concat(\"won:\", current_player_index), \"hearts\") + if(has_card_with(concat(\"won:\", current_player_index), \"Q\", \"spades\"), 13, 0)",
-    "winCondition": "my_score == 0"
+    "winCondition": "get_cumulative_score(current_player_index) == min_cumulative_score()"
   },
   "visibility": [
     {

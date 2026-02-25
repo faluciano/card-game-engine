@@ -2850,4 +2850,306 @@ describe("builtins", () => {
       });
     });
   });
+
+  // ── G9 — Accumulated Multi-Round Scoring ─────────────────────────
+
+  describe("G9 — Accumulated Multi-Round Scoring", () => {
+    // Hearts-specific state factory (scoped to G9 block)
+    function makeHeartsRuleset(): CardGameRuleset {
+      return {
+        meta: {
+          name: "Hearts",
+          slug: "hearts",
+          version: "2.0.0",
+          author: "test",
+          players: { min: 4, max: 4 },
+        },
+        deck: {
+          preset: "standard_52",
+          copies: 1,
+          cardValues: {
+            "2": { kind: "fixed", value: 2 },
+            "3": { kind: "fixed", value: 3 },
+            "4": { kind: "fixed", value: 4 },
+            "5": { kind: "fixed", value: 5 },
+            "6": { kind: "fixed", value: 6 },
+            "7": { kind: "fixed", value: 7 },
+            "8": { kind: "fixed", value: 8 },
+            "9": { kind: "fixed", value: 9 },
+            "10": { kind: "fixed", value: 10 },
+            J: { kind: "fixed", value: 11 },
+            Q: { kind: "fixed", value: 12 },
+            K: { kind: "fixed", value: 13 },
+            A: { kind: "fixed", value: 14 },
+          },
+        },
+        zones: [
+          { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+          { name: "hand", visibility: { kind: "owner_only" }, owners: ["player"] },
+          { name: "trick", visibility: { kind: "public" }, owners: ["player"], maxCards: 1 },
+          { name: "won", visibility: { kind: "hidden" }, owners: ["player"] },
+        ],
+        roles: [{ name: "player", isHuman: true, count: "per_player" }],
+        initialVariables: { lead_player: 0, hearts_broken: 0, tricks_played: 0 },
+        phases: [],
+        scoring: {
+          method: 'count_cards_by_suit(concat("won:", current_player_index), "hearts") + if(has_card_with(concat("won:", current_player_index), "Q", "spades"), 13, 0)',
+          winCondition: "get_cumulative_score(current_player_index) == min_cumulative_score()",
+        },
+        visibility: [
+          { zone: "draw_pile", visibility: { kind: "hidden" } },
+          { zone: "hand", visibility: { kind: "owner_only" } },
+          { zone: "trick", visibility: { kind: "public" } },
+          { zone: "won", visibility: { kind: "hidden" } },
+        ],
+        ui: { layout: "circle", tableColor: "felt_green" },
+      };
+    }
+
+    function makeHeartsState(
+      zones: Record<string, ZoneState>,
+      overrides: Partial<CardGameState> = {}
+    ): CardGameState {
+      return {
+        sessionId: makeSessionId("hearts-g9-test"),
+        ruleset: makeHeartsRuleset(),
+        status: { kind: "in_progress", startedAt: Date.now() },
+        players: [
+          { id: makePlayerId("p0"), name: "Alice", role: "player", connected: true },
+          { id: makePlayerId("p1"), name: "Bob", role: "player", connected: true },
+          { id: makePlayerId("p2"), name: "Charlie", role: "player", connected: true },
+          { id: makePlayerId("p3"), name: "Diana", role: "player", connected: true },
+        ],
+        zones,
+        currentPhase: "scoring",
+        currentPlayerIndex: 0,
+        turnNumber: 1,
+        scores: {},
+        variables: { lead_player: 0, hearts_broken: 0, tricks_played: 0 },
+        actionLog: [],
+        turnsTakenThisPhase: 0,
+        turnDirection: 1,
+        version: 1,
+        ...overrides,
+      };
+    }
+
+    // ── get_cumulative_score ──────────────────────────────────────
+
+    describe("get_cumulative_score", () => {
+      it("returns 0 when no cumulative variable exists", () => {
+        const state = makeHeartsState({
+          "won:0": makeZone("won:0", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression("get_cumulative_score(0)", ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("returns stored cumulative score for player", () => {
+        const state = makeHeartsState(
+          { "won:0": makeZone("won:0", []) },
+          { variables: { lead_player: 0, hearts_broken: 0, tricks_played: 0, cumulative_score_0: 42 } }
+        );
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression("get_cumulative_score(0)", ctx);
+        expect(result).toEqual({ kind: "number", value: 42 });
+      });
+
+      it("returns correct score for different player indices", () => {
+        const state = makeHeartsState(
+          { "won:0": makeZone("won:0", []) },
+          {
+            variables: {
+              lead_player: 0,
+              hearts_broken: 0,
+              tricks_played: 0,
+              cumulative_score_0: 10,
+              cumulative_score_1: 25,
+              cumulative_score_2: 5,
+              cumulative_score_3: 80,
+            },
+          }
+        );
+        const ctx = makeEvalContext(state);
+        expect(evaluateExpression("get_cumulative_score(0)", ctx)).toEqual({ kind: "number", value: 10 });
+        expect(evaluateExpression("get_cumulative_score(1)", ctx)).toEqual({ kind: "number", value: 25 });
+        expect(evaluateExpression("get_cumulative_score(2)", ctx)).toEqual({ kind: "number", value: 5 });
+        expect(evaluateExpression("get_cumulative_score(3)", ctx)).toEqual({ kind: "number", value: 80 });
+      });
+
+      it("throws on wrong argument count", () => {
+        const state = makeHeartsState({
+          "won:0": makeZone("won:0", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression("get_cumulative_score()", ctx)).toThrow(
+          "requires exactly 1 argument"
+        );
+      });
+    });
+
+    // ── max_cumulative_score ─────────────────────────────────────
+
+    describe("max_cumulative_score", () => {
+      it("returns 0 when no cumulative variables exist", () => {
+        const state = makeHeartsState({
+          "won:0": makeZone("won:0", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression("max_cumulative_score()", ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("returns highest score across players", () => {
+        const state = makeHeartsState(
+          { "won:0": makeZone("won:0", []) },
+          {
+            variables: {
+              lead_player: 0,
+              hearts_broken: 0,
+              tricks_played: 0,
+              cumulative_score_0: 10,
+              cumulative_score_1: 25,
+              cumulative_score_2: 5,
+              cumulative_score_3: 80,
+            },
+          }
+        );
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression("max_cumulative_score()", ctx);
+        expect(result).toEqual({ kind: "number", value: 80 });
+      });
+
+      it("returns 0 when all cumulative scores are 0", () => {
+        const state = makeHeartsState(
+          { "won:0": makeZone("won:0", []) },
+          {
+            variables: {
+              lead_player: 0,
+              hearts_broken: 0,
+              tricks_played: 0,
+              cumulative_score_0: 0,
+              cumulative_score_1: 0,
+              cumulative_score_2: 0,
+              cumulative_score_3: 0,
+            },
+          }
+        );
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression("max_cumulative_score()", ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("throws on arguments", () => {
+        const state = makeHeartsState({
+          "won:0": makeZone("won:0", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression("max_cumulative_score(1)", ctx)).toThrow(
+          "takes no arguments"
+        );
+      });
+    });
+
+    // ── min_cumulative_score ─────────────────────────────────────
+
+    describe("min_cumulative_score", () => {
+      it("returns 0 when no cumulative variables exist", () => {
+        const state = makeHeartsState({
+          "won:0": makeZone("won:0", []),
+        });
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression("min_cumulative_score()", ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("returns lowest score across players", () => {
+        const state = makeHeartsState(
+          { "won:0": makeZone("won:0", []) },
+          {
+            variables: {
+              lead_player: 0,
+              hearts_broken: 0,
+              tricks_played: 0,
+              cumulative_score_0: 10,
+              cumulative_score_1: 25,
+              cumulative_score_2: 5,
+              cumulative_score_3: 80,
+            },
+          }
+        );
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression("min_cumulative_score()", ctx);
+        expect(result).toEqual({ kind: "number", value: 5 });
+      });
+
+      it("returns 0 when all scores are 0", () => {
+        const state = makeHeartsState(
+          { "won:0": makeZone("won:0", []) },
+          {
+            variables: {
+              lead_player: 0,
+              hearts_broken: 0,
+              tricks_played: 0,
+              cumulative_score_0: 0,
+              cumulative_score_1: 0,
+              cumulative_score_2: 0,
+              cumulative_score_3: 0,
+            },
+          }
+        );
+        const ctx = makeEvalContext(state);
+        const result = evaluateExpression("min_cumulative_score()", ctx);
+        expect(result).toEqual({ kind: "number", value: 0 });
+      });
+
+      it("throws on arguments", () => {
+        const state = makeHeartsState({
+          "won:0": makeZone("won:0", []),
+        });
+        const ctx = makeEvalContext(state);
+        expect(() => evaluateExpression("min_cumulative_score(1)", ctx)).toThrow(
+          "takes no arguments"
+        );
+      });
+    });
+
+    // ── accumulate_scores (effect builtin) ───────────────────────
+
+    describe("accumulate_scores", () => {
+      it("records an accumulate_scores effect", () => {
+        const state = makeHeartsState({
+          "won:0": makeZone("won:0", []),
+        });
+        const ctx = makeMutableContext(state);
+        evaluateExpression("accumulate_scores()", ctx);
+        expect(ctx.effects).toHaveLength(1);
+        expect(ctx.effects[0]).toEqual({
+          kind: "accumulate_scores",
+          params: {},
+        });
+      });
+
+      it("throws on arguments", () => {
+        const state = makeHeartsState({
+          "won:0": makeZone("won:0", []),
+        });
+        const ctx = makeMutableContext(state);
+        expect(() =>
+          evaluateExpression("accumulate_scores(1)", ctx)
+        ).toThrow("takes no arguments");
+      });
+    });
+
+    // ── Registration ─────────────────────────────────────────────
+
+    it("registers all G9 builtin names", () => {
+      const names = getRegisteredBuiltins();
+      expect(names).toContain("get_cumulative_score");
+      expect(names).toContain("max_cumulative_score");
+      expect(names).toContain("min_cumulative_score");
+      expect(names).toContain("accumulate_scores");
+    });
+  });
 });
