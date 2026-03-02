@@ -48,7 +48,7 @@ A ruleset file requires these top-level sections:
 | `visibility` | Who can see which cards |
 | `ui` | Layout and visual hints for renderers |
 
-Optional sections: `initialVariables` (custom numeric state), `initialStringVariables` (custom string state).
+Optional sections: `initialVariables` (custom numeric state), `initialStringVariables` (custom string state), `publicVariables` (restrict which variables are exposed to clients in `PlayerView`).
 
 For the full format specification, expression language reference, and annotated examples, see the **[Ruleset Authoring Guide](../docs/ruleset-authoring.md)**.
 

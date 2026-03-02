@@ -17,8 +17,12 @@ import type { HostAction, HostGameState, HostScreen, InstalledGame } from "./hos
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
-/** UUID v4-like session ID without depending on `crypto` (unavailable in Hermes). */
+/** Crypto-quality session ID. Falls back to Math.random() on Hermes. */
 function generateSessionId(): string {
+  if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  // Fallback for Hermes (no crypto.randomUUID)
   const hex = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, "0");
   return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-${(0x8 | (Math.random() * 0x4) | 0).toString(16)}${hex().slice(1)}-${hex()}${hex()}${hex()}`;
 }
@@ -85,7 +89,7 @@ export function hostReducerImpl(state: HostGameState, action: HostAction): HostG
       return handleBackToPicker(state);
 
     case "START_GAME":
-      return handleStartGame(state, action.seed);
+      return handleStartGame(state);
 
     case "GAME_ACTION":
       return handleGameAction(state, action.action);
@@ -140,7 +144,7 @@ function handleBackToPicker(state: HostGameState): HostGameState {
   };
 }
 
-function handleStartGame(state: HostGameState, seed?: number): HostGameState {
+function handleStartGame(state: HostGameState): HostGameState {
   // Guard: must be in lobby with a ruleset selected
   if (state.screen.tag !== "lobby") return state;
 
@@ -160,7 +164,7 @@ function handleStartGame(state: HostGameState, seed?: number): HostGameState {
   if (enginePlayers.length === 0) return state;
 
   const sessionId = generateSessionId() as GameSessionId;
-  const initialEngineState = createInitialState(ruleset, sessionId, enginePlayers, seed);
+  const initialEngineState = createInitialState(ruleset, sessionId, enginePlayers);
 
   // Immediately transition from waiting_for_players → in_progress and run deal phase
   const engineReducer = getOrCreateReducer(ruleset);
@@ -180,6 +184,11 @@ function handleGameAction(
   state: HostGameState,
   action: CardGameAction,
 ): HostGameState {
+  // Guard: block engine-internal actions from client submissions
+  if (action.kind === "advance_phase" || action.kind === "reset_round") {
+    return state;
+  }
+
   // Guard: must be on game table with active engine state
   if (state.screen.tag !== "game_table") return state;
   if (state.engineState === null) return state;

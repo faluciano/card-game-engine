@@ -2443,4 +2443,184 @@ describe("Ruleset Interpreter", () => {
       expect(state.variables.cards_played).toBe(11); // 1 + 10
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── B1: Player index cycles through all players (including NPCs) ─
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("B1: player index includes NPCs in turn cycling", () => {
+    /** Minimal turn-based ruleset with 1 human player + 1 NPC dealer. */
+    function makeNpcTurnRuleset(): CardGameRuleset {
+      return {
+        meta: {
+          name: "NPC Turn Test",
+          slug: "npc-turn-test",
+          version: "1.0.0",
+          author: "test",
+          players: { min: 1, max: 4 },
+        },
+        deck: {
+          preset: "standard_52",
+          copies: 1,
+          cardValues: { A: { kind: "fixed", value: 1 } },
+        },
+        zones: [
+          { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+          { name: "hand", visibility: { kind: "owner_only" }, owners: ["player"] },
+          { name: "dealer_hand", visibility: { kind: "hidden" }, owners: ["dealer"] },
+        ],
+        roles: [
+          { name: "player", isHuman: true, count: "per_player" },
+          { name: "dealer", isHuman: false, count: 1 },
+        ],
+        phases: [
+          {
+            name: "deal",
+            kind: "automatic",
+            actions: [],
+            transitions: [{ to: "play", when: "all_hands_dealt" }],
+            automaticSequence: [
+              "shuffle(draw_pile)",
+              "deal(draw_pile, hand, 1)",
+              "deal(draw_pile, dealer_hand, 1)",
+            ],
+          },
+          {
+            name: "play",
+            kind: "turn_based",
+            actions: [
+              { name: "pass", label: "Pass", effect: ["end_turn()"] },
+            ],
+            transitions: [{ to: "play", when: "all_players_done" }],
+            turnOrder: "clockwise",
+          },
+        ],
+        scoring: { method: "0", winCondition: "false" },
+        visibility: [],
+        ui: { layout: "semicircle", tableColor: "felt_green" },
+      };
+    }
+
+    it("end_turn advances through human players; NPC dealer gets own zones but not a player slot", () => {
+      const ruleset = makeNpcTurnRuleset();
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      // 2 human players — NPC dealer is handled via zones, not the players array
+      const humans = makePlayers(2);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("npc-turn"),
+        humans,
+        FIXED_SEED,
+      );
+      state = reducer(state, { kind: "start_game" });
+
+      // After deal phase, should be in "play"
+      expect(state.currentPhase).toBe("play");
+      // players array contains only human players
+      expect(state.players).toHaveLength(2);
+      // Dealer's zone exists even though dealer isn't in the players array
+      expect(state.zones["dealer_hand"]).toBeDefined();
+
+      const startIndex = state.currentPlayerIndex;
+
+      // Dispatch end_turn — cycles through the 2 human players (mod 2)
+      state = reducer(state, {
+        kind: "declare",
+        playerId: state.players[startIndex]!.id,
+        declaration: "pass",
+      });
+
+      const expectedNext = (startIndex + 1) % 2;
+      expect(state.currentPlayerIndex).toBe(expectedNext);
+
+      // Dispatch again — should wrap back to the original player
+      state = reducer(state, {
+        kind: "declare",
+        playerId: state.players[expectedNext]!.id,
+        declaration: "pass",
+      });
+
+      expect(state.currentPlayerIndex).toBe(startIndex);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── S4: Action log capped at MAX_ACTION_LOG_SIZE (500) ───────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("S4: action log capping", () => {
+    /** Simple 2-player turn-based game where "pass" just ends the turn. */
+    function makeSimpleTurnRuleset(): CardGameRuleset {
+      return {
+        meta: {
+          name: "Log Cap Test",
+          slug: "log-cap-test",
+          version: "1.0.0",
+          author: "test",
+          players: { min: 2, max: 2 },
+        },
+        deck: {
+          preset: "standard_52",
+          copies: 1,
+          cardValues: { A: { kind: "fixed", value: 1 } },
+        },
+        zones: [
+          { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+          { name: "hand", visibility: { kind: "owner_only" }, owners: ["player"] },
+        ],
+        roles: [{ name: "player", isHuman: true, count: "per_player" }],
+        phases: [
+          {
+            name: "deal",
+            kind: "automatic",
+            actions: [],
+            transitions: [{ to: "play", when: "all_hands_dealt" }],
+            automaticSequence: [
+              "shuffle(draw_pile)",
+              "deal(draw_pile, hand, 1)",
+            ],
+          },
+          {
+            name: "play",
+            kind: "turn_based",
+            actions: [
+              { name: "pass", label: "Pass", effect: ["end_turn()"] },
+            ],
+            transitions: [{ to: "play", when: "all_players_done" }],
+            turnOrder: "clockwise",
+          },
+        ],
+        scoring: { method: "0", winCondition: "false" },
+        visibility: [],
+        ui: { layout: "semicircle", tableColor: "felt_green" },
+      };
+    }
+
+    it("caps actionLog at 500 entries after many turns", () => {
+      const ruleset = makeSimpleTurnRuleset();
+      const reducer = createReducer(ruleset, FIXED_SEED);
+      const players = makePlayers(2);
+      let state = createInitialState(
+        ruleset,
+        makeSessionId("log-cap"),
+        players,
+        FIXED_SEED,
+      );
+      state = reducer(state, { kind: "start_game" });
+      expect(state.currentPhase).toBe("play");
+
+      // Dispatch 600 "pass" actions, alternating players
+      for (let i = 0; i < 600; i++) {
+        const currentPlayer = state.players[state.currentPlayerIndex]!;
+        state = reducer(state, {
+          kind: "declare",
+          playerId: currentPlayer.id,
+          declaration: "pass",
+        });
+      }
+
+      expect(state.actionLog.length).toBeLessThanOrEqual(500);
+      expect(state.actionLog.length).toBeGreaterThan(0);
+    });
+  });
 });

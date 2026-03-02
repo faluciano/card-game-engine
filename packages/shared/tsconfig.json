@@ -1,11 +1,15 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    "composite": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
     "rootDir": "src",
     "outDir": "dist",
     "baseUrl": "."
   },
-  "include": ["src"]
+  "include": ["src"],
+  "references": [
+    { "path": "../schema" }
+  ]
 }

@@ -1243,4 +1243,19 @@ describe("Action Validator", () => {
       expect(result.valid).toBe(true);
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Unknown Phase Handling ───────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("unknown phase handling", () => {
+    it("returns no valid actions for an unknown phase", () => {
+      // Create a state with a phase name not in the ruleset's phases array
+      const state = makeGameState(makeDefaultZones(), {
+        currentPhase: "nonexistent_phase",
+      });
+      const actions = getValidActions(state, makePlayerId("p1"));
+      expect(actions).toEqual([]);
+    });
+  });
 });

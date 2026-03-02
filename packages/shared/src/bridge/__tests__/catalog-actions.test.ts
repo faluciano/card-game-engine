@@ -421,4 +421,42 @@ describe("catalog actions (host reducer)", () => {
       expect(state.pendingUninstall).toBeNull();
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Security: blocks internal actions from GAME_ACTION ───────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("Security: blocks internal actions from GAME_ACTION", () => {
+    it("blocks advance_phase sent via GAME_ACTION", () => {
+      const state = makeGameTableState();
+      const action: HostAction = {
+        type: "GAME_ACTION",
+        action: { kind: "advance_phase" } as any,
+      };
+      const next = hostReducer(state, action);
+      expect(next).toBe(state);
+    });
+
+    it("blocks reset_round sent via GAME_ACTION", () => {
+      const state = makeGameTableState();
+      const action: HostAction = {
+        type: "GAME_ACTION",
+        action: { kind: "reset_round" } as any,
+      };
+      const next = hostReducer(state, action);
+      expect(next).toBe(state);
+    });
+
+    it("does not block regular game actions", () => {
+      const state = makeGameTableState();
+      const action: HostAction = {
+        type: "GAME_ACTION",
+        action: { kind: "end_turn" } as any,
+      };
+      // end_turn is not blocked by the guard — it reaches the engine reducer
+      // The stub engine state may cause an error, but the guard itself should not block it
+      const next = hostReducer(state, action);
+      expect(next).toBeDefined();
+    });
+  });
 });

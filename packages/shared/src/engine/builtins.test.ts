@@ -292,6 +292,39 @@ describe("builtins", () => {
       // A(11) + 5 = 16 > 15 → A(1) + 5 = 6
       expect(computeHandValue(cards, BLACKJACK_CARD_VALUES, 15)).toBe(6);
     });
+
+    it("handles mixed dual-value cards with different deltas", () => {
+      const mixedCardValues: Readonly<Record<string, CardValue>> = {
+        A: { kind: "dual", low: 1, high: 11 },
+        X: { kind: "dual", low: 5, high: 15 },
+        "5": { kind: "fixed", value: 5 },
+      };
+      const cards = [makeCard("A", "spades"), makeCard("X", "spades"), makeCard("5", "spades")];
+      // High total = 11 + 15 + 5 = 31. Downgrade X first (delta=10) → 21.
+      expect(computeHandValue(cards, mixedCardValues, 21)).toBe(21);
+    });
+
+    it("downgrades largest-delta dual cards first", () => {
+      const mixedCardValues: Readonly<Record<string, CardValue>> = {
+        A: { kind: "dual", low: 1, high: 11 },   // delta = 10
+        B: { kind: "dual", low: 3, high: 8 },     // delta = 5
+      };
+      const cards = [makeCard("A", "spades"), makeCard("B", "spades")];
+      // High total = 11 + 8 = 19. Target = 15. Downgrade A (delta=10) → 9. Result = 9.
+      expect(computeHandValue(cards, mixedCardValues, 15)).toBe(9);
+    });
+
+    it("handles multiple aces needing selective downgrade", () => {
+      const cards = [makeCard("A", "spades"), makeCard("A", "hearts"), makeCard("9", "clubs")];
+      // High = 11 + 11 + 9 = 31. Downgrade one ace → 21.
+      expect(computeHandValue(cards, BLACKJACK_CARD_VALUES, 21)).toBe(21);
+    });
+
+    it("downgrades all dual-value cards when needed", () => {
+      const cards = [makeCard("A", "spades"), makeCard("A", "hearts"), makeCard("A", "clubs")];
+      // High = 33. Downgrade first → 23, second → 13. Target = 13.
+      expect(computeHandValue(cards, BLACKJACK_CARD_VALUES, 13)).toBe(13);
+    });
   });
 
   // ── Query Builtins via expression evaluator ──

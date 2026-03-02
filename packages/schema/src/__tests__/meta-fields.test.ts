@@ -288,7 +288,9 @@ describe("JSON Schema bug fixes verification", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.deck.preset).toBe("custom");
-      expect(result.data.deck.cards).toHaveLength(3);
+      if (result.data.deck.preset === "custom") {
+        expect(result.data.deck.cards).toHaveLength(3);
+      }
     }
   });
 
@@ -330,5 +332,37 @@ describe("JSON Schema bug fixes verification", () => {
         "my_score == dealer_score"
       );
     }
+  });
+});
+
+// ─── Deck copies boundary validation ───────────────────────────────
+
+describe("Deck copies boundary validation", () => {
+  it("accepts copies = 1 (minimum)", () => {
+    const result = safeParseRuleset(
+      makeMinimalRuleset({ deck: { preset: "standard_52", copies: 1, cardValues: { A: { kind: "fixed", value: 1 } } } })
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts copies = 100 (maximum)", () => {
+    const result = safeParseRuleset(
+      makeMinimalRuleset({ deck: { preset: "standard_52", copies: 100, cardValues: { A: { kind: "fixed", value: 1 } } } })
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects copies = 0 (below minimum)", () => {
+    const result = safeParseRuleset(
+      makeMinimalRuleset({ deck: { preset: "standard_52", copies: 0, cardValues: { A: { kind: "fixed", value: 1 } } } })
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects copies = 101 (above maximum)", () => {
+    const result = safeParseRuleset(
+      makeMinimalRuleset({ deck: { preset: "standard_52", copies: 101, cardValues: { A: { kind: "fixed", value: 1 } } } })
+    );
+    expect(result.success).toBe(false);
   });
 });

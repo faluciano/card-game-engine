@@ -79,3 +79,18 @@ export class SeededRng {
 export function createRng(seed: number): SeededRng {
   return new SeededRng(seed);
 }
+
+/**
+ * Generates a high-quality 32-bit seed.
+ * Uses crypto.getRandomValues when available (Node, browsers),
+ * falls back to Date.now() XOR'd with Math.random() for Hermes.
+ */
+export function generateSeed(): number {
+  if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.getRandomValues === "function") {
+    const buf = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(buf);
+    return buf[0]!;
+  }
+  // Fallback for Hermes (Android TV) — XOR to increase entropy
+  return (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
+}

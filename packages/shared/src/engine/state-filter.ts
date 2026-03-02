@@ -48,6 +48,42 @@ function isPlayerActive(state: CardGameState, playerIndex: number): boolean {
 }
 
 /**
+ * Filters numeric variables to only include those named in publicVariables.
+ * If publicVariables is undefined, all variables pass through (backward compatible).
+ */
+function filterVariables(
+  variables: Readonly<Record<string, number>>,
+  publicVariables: readonly string[] | undefined
+): Readonly<Record<string, number>> {
+  if (!publicVariables) return variables;
+  const filtered: Record<string, number> = {};
+  for (const name of publicVariables) {
+    if (name in variables) {
+      filtered[name] = variables[name]!;
+    }
+  }
+  return filtered;
+}
+
+/**
+ * Filters string variables to only include those named in publicVariables.
+ * If publicVariables is undefined, all variables pass through (backward compatible).
+ */
+function filterStringVariables(
+  variables: Readonly<Record<string, string>>,
+  publicVariables: readonly string[] | undefined
+): Readonly<Record<string, string>> {
+  if (!publicVariables) return variables;
+  const filtered: Record<string, string> = {};
+  for (const name of publicVariables) {
+    if (name in variables) {
+      filtered[name] = variables[name]!;
+    }
+  }
+  return filtered;
+}
+
+/**
  * Creates a player-specific view of the game state.
  * Applies visibility rules from the ruleset to filter zone contents.
  * Hidden cards are replaced with null placeholders.
@@ -118,8 +154,8 @@ export function createPlayerView(
       .filter((a) => a.enabled)
       .map((a) => a.actionName as CardGameAction["kind"]),
     scores: remappedScores,
-    variables: state.variables,
-    stringVariables: state.stringVariables,
+    variables: filterVariables(state.variables, state.ruleset.publicVariables),
+    stringVariables: filterStringVariables(state.stringVariables, state.ruleset.publicVariables),
     turnNumber: state.turnNumber,
   };
 }
