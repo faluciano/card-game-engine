@@ -12,6 +12,7 @@ import type {
   GameSessionId,
   Player,
   PlayerId,
+  ResolvedAction,
   ZoneDefinition,
   ZoneState,
 } from "../types/index";
@@ -28,8 +29,22 @@ import {
   validateAction,
   executePhaseAction,
 } from "./action-validator";
-import { createRng, type SeededRng } from "./prng";
+import { createRng, generateSeed, type SeededRng } from "./prng";
 import { isHumanPlayer } from "./role-utils";
+
+/** Maximum number of entries in the action log to prevent unbounded memory growth. */
+const MAX_ACTION_LOG_SIZE = 500;
+
+/** Appends an entry to the action log, capping at MAX_ACTION_LOG_SIZE. */
+function appendToLog(
+  log: readonly ResolvedAction[],
+  entry: ResolvedAction
+): readonly ResolvedAction[] {
+  const newLog = [...log, entry];
+  return newLog.length > MAX_ACTION_LOG_SIZE
+    ? newLog.slice(-MAX_ACTION_LOG_SIZE)
+    : newLog;
+}
 
 // ─── loadRuleset ───────────────────────────────────────────────────
 
@@ -76,7 +91,7 @@ export function createInitialState(
   ruleset: CardGameRuleset,
   sessionId: GameSessionId,
   players: readonly Player[],
-  seed: number = Date.now()
+  seed: number = generateSeed()
 ): CardGameState {
   if (players.length < ruleset.meta.players.min) {
     throw new RangeError(
@@ -129,7 +144,7 @@ export function createInitialState(
  */
 export function createReducer(
   ruleset: CardGameRuleset,
-  seed: number = Date.now()
+  seed: number = generateSeed()
 ): GameReducer {
   // Ensure builtins are registered (idempotent)
   registerAllBuiltins();
@@ -183,10 +198,7 @@ function handleJoin(
       ...state,
       players: updated,
       version: state.version + 1,
-      actionLog: [
-        ...state.actionLog,
-        { action, timestamp: Date.now(), version: state.version + 1 },
-      ],
+      actionLog: appendToLog(state.actionLog, { action, timestamp: Date.now(), version: state.version + 1 }),
     };
   }
 
@@ -202,10 +214,7 @@ function handleJoin(
     ...state,
     players: [...state.players, newPlayer],
     version: state.version + 1,
-    actionLog: [
-      ...state.actionLog,
-      { action, timestamp: Date.now(), version: state.version + 1 },
-    ],
+    actionLog: appendToLog(state.actionLog, { action, timestamp: Date.now(), version: state.version + 1 }),
   };
 }
 
@@ -230,10 +239,7 @@ function handleLeave(
     ...state,
     players: updated,
     version: state.version + 1,
-    actionLog: [
-      ...state.actionLog,
-      { action, timestamp: Date.now(), version: state.version + 1 },
-    ],
+    actionLog: appendToLog(state.actionLog, { action, timestamp: Date.now(), version: state.version + 1 }),
   };
 }
 
@@ -260,14 +266,11 @@ function handleStartGame(
     ...state,
     status: { kind: "in_progress", startedAt: Date.now() },
     version: state.version + 1,
-    actionLog: [
-      ...state.actionLog,
-      {
-        action: { kind: "start_game" },
-        timestamp: Date.now(),
-        version: state.version + 1,
-      },
-    ],
+    actionLog: appendToLog(state.actionLog, {
+      action: { kind: "start_game" },
+      timestamp: Date.now(),
+      version: state.version + 1,
+    }),
   };
 
   // Run automatic phases (e.g., deal phase in blackjack)
@@ -322,10 +325,7 @@ function handleDeclare(
   newState = {
     ...newState,
     version: newState.version + 1,
-    actionLog: [
-      ...newState.actionLog,
-      { action, timestamp: Date.now(), version: newState.version + 1 },
-    ],
+    actionLog: appendToLog(newState.actionLog, { action, timestamp: Date.now(), version: newState.version + 1 }),
   };
 
   // Check transitions after the action
@@ -407,10 +407,7 @@ function handlePlayCard(
   newState = {
     ...newState,
     version: newState.version + 1,
-    actionLog: [
-      ...newState.actionLog,
-      { action, timestamp: Date.now(), version: newState.version + 1 },
-    ],
+    actionLog: appendToLog(newState.actionLog, { action, timestamp: Date.now(), version: newState.version + 1 }),
   };
 
   // Check transitions after the action
@@ -446,10 +443,7 @@ function handleDrawCard(
     ...state,
     zones,
     version: state.version + 1,
-    actionLog: [
-      ...state.actionLog,
-      { action, timestamp: Date.now(), version: state.version + 1 },
-    ],
+    actionLog: appendToLog(state.actionLog, { action, timestamp: Date.now(), version: state.version + 1 }),
   };
 }
 
@@ -465,8 +459,7 @@ function handleEndTurn(
   const validation = validateAction(state, action, phaseMachine);
   if (!validation.valid) return state;
 
-  const humanPlayers = state.players.filter((p) => isHumanPlayer(p, state.ruleset.roles));
-  const count = humanPlayers.length;
+  const count = state.players.length;
   const nextPlayerIndex =
     ((state.currentPlayerIndex + state.turnDirection) % count + count) % count;
 
@@ -475,10 +468,7 @@ function handleEndTurn(
     currentPlayerIndex: nextPlayerIndex,
     turnsTakenThisPhase: state.turnsTakenThisPhase + 1,
     version: state.version + 1,
-    actionLog: [
-      ...state.actionLog,
-      { action, timestamp: Date.now(), version: state.version + 1 },
-    ],
+    actionLog: appendToLog(state.actionLog, { action, timestamp: Date.now(), version: state.version + 1 }),
   };
 
   // Check transitions (e.g., all_players_done triggers phase change)
@@ -853,8 +843,7 @@ function applyRevealAllEffect(
  * Advances currentPlayerIndex to the next human player. Wraps around.
  */
 function applyEndTurnEffect(state: CardGameState): CardGameState {
-  const humanPlayers = state.players.filter((p) => isHumanPlayer(p, state.ruleset.roles));
-  const count = humanPlayers.length;
+  const count = state.players.length;
   const nextIndex = ((state.currentPlayerIndex + state.turnDirection) % count + count) % count;
 
   return {
@@ -1158,8 +1147,7 @@ function applyReverseTurnOrderEffect(state: CardGameState): CardGameState {
  * in the current turn direction.
  */
 function applySkipNextPlayerEffect(state: CardGameState): CardGameState {
-  const humanPlayers = state.players.filter((p) => isHumanPlayer(p, state.ruleset.roles));
-  const count = humanPlayers.length;
+  const count = state.players.length;
   const nextIndex = ((state.currentPlayerIndex + state.turnDirection) % count + count) % count;
   return {
     ...state,
@@ -1175,8 +1163,7 @@ function applySetNextPlayerEffect(
   params: Record<string, unknown>
 ): CardGameState {
   const playerIndex = params.playerIndex as number;
-  const humanPlayers = state.players.filter((p) => isHumanPlayer(p, state.ruleset.roles));
-  if (playerIndex < 0 || playerIndex >= humanPlayers.length) return state;
+  if (playerIndex < 0 || playerIndex >= state.players.length) return state;
   return {
     ...state,
     currentPlayerIndex: playerIndex,

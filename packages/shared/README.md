@@ -237,7 +237,7 @@ Lowest to highest:
 | 3          | `==`, `!=`      | Equality                          |
 | 4          | `<`, `>`, `<=`, `>=` | Comparison                   |
 | 5          | `+`, `-`        | Addition, subtraction             |
-| 6          | `*`, `/`        | Multiplication, division          |
+| 6          | `*`, `/`, `%`   | Multiplication, division, modulo  |
 | 7          | `!`, unary `-`  | Logical NOT, numeric negation     |
 
 ### Literals
@@ -403,7 +403,7 @@ A zone where hidden cards are replaced with `null` placeholders. Contains `name`
 
 ## Testing
 
-744 tests across 9 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, integration scenarios, and host bridge catalog actions.
+770 tests across 9 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, integration scenarios, and host bridge catalog actions.
 
 ```sh
 # Run all tests

@@ -389,8 +389,8 @@ function validatePlayerTurn(
   try {
     phase = machine.getPhase(state.currentPhase);
   } catch {
-    // If phase can't be resolved, let it through for lower-level actions
-    return { valid: true };
+    // Unknown phase — reject immediately; never allow actions on invalid state
+    return { valid: false, reason: "Unknown phase" };
   }
 
   if (

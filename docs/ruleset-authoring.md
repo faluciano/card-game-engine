@@ -79,6 +79,7 @@ sections:
   "zones": ["...array of zone definitions"],
   "initialVariables": { "...optional name-to-number mappings" },
   "initialStringVariables": { "...optional name-to-string mappings" },
+  "publicVariables": ["...optional list of variable names exposed to clients"],
   "phases": ["...array of phase definitions (the FSM)"],
   "scoring": {
     "method": "expression",
@@ -538,7 +539,7 @@ sandboxed evaluator.
 
 | Category | Operators |
 |---|---|
-| Arithmetic | `+`, `-`, `*`, `/` |
+| Arithmetic | `+`, `-`, `*`, `/`, `%` |
 | Comparison | `==`, `!=`, `<`, `>`, `<=`, `>=` |
 | Logic | `&&`, `\|\|`, `!` |
 | Unary | `-` (negation), `!` (logical not) |
@@ -816,11 +817,23 @@ Variables can appear in scoring expressions:
 }
 ```
 
+### Public Variables
+
+By default, all variables and string variables are exposed to clients in the `PlayerView`. To restrict which variables are visible, add a `publicVariables` array to the ruleset:
+
+```json
+{
+  "publicVariables": ["score", "round"]
+}
+```
+
+When specified, only the named variables (both numeric and string) are included in the client-facing `PlayerView`. Variables not listed are hidden from all players. If omitted, all variables are exposed (backward compatible).
+
 ### Variables in Player Views
 
-All variables are included in `PlayerView` — they are global game state visible
+All variables are included in `PlayerView` by default — they are global game state visible
 to all players. The client can display them (e.g., showing the running total on
-the TV screen).
+the TV screen). Use `publicVariables` (see above) to restrict which variables are sent to clients.
 
 ### Reset Behavior
 

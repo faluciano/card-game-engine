@@ -102,6 +102,7 @@ function createMockState(
     turnNumber: 1,
     scores: {},
     variables: {},
+    stringVariables: {},
     actionLog: [],
     turnsTakenThisPhase: 0,
     turnDirection: 1,
@@ -1056,6 +1057,74 @@ describe("state-filter", () => {
       // regardless of array ordering. So hand:0 keeps owner_only visibility,
       // and bob (player 1) cannot see alice's (player 0) hand.
       expect(bobView.zones["hand:0"]!.cards).toEqual([null]);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── publicVariables filtering ────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("publicVariables filtering", () => {
+    it("exposes all variables when publicVariables is not set", () => {
+      const state = createMockState({
+        variables: { score: 10, secret: 42 },
+      });
+      const view = createPlayerView(state, makePlayerId("p1"));
+      expect(view.variables).toEqual({ score: 10, secret: 42 });
+    });
+
+    it("filters numeric variables to only named keys", () => {
+      const baseRuleset = createMockState().ruleset;
+      const state = createMockState({
+        variables: { score: 10, secret: 42 },
+        ruleset: {
+          ...baseRuleset,
+          publicVariables: ["score"],
+        },
+      });
+      const view = createPlayerView(state, makePlayerId("p1"));
+      expect(view.variables).toEqual({ score: 10 });
+    });
+
+    it("filters string variables to only named keys", () => {
+      const baseRuleset = createMockState().ruleset;
+      const state = createMockState({
+        stringVariables: { status: "active", internalFlag: "x" },
+        ruleset: {
+          ...baseRuleset,
+          publicVariables: ["status"],
+        },
+      });
+      const view = createPlayerView(state, makePlayerId("p1"));
+      expect(view.stringVariables).toEqual({ status: "active" });
+    });
+
+    it("returns empty objects when publicVariables is empty array", () => {
+      const baseRuleset = createMockState().ruleset;
+      const state = createMockState({
+        variables: { score: 10 },
+        stringVariables: { status: "active" },
+        ruleset: {
+          ...baseRuleset,
+          publicVariables: [],
+        },
+      });
+      const view = createPlayerView(state, makePlayerId("p1"));
+      expect(view.variables).toEqual({});
+      expect(view.stringVariables).toEqual({});
+    });
+
+    it("handles publicVariables with non-existent keys gracefully", () => {
+      const baseRuleset = createMockState().ruleset;
+      const state = createMockState({
+        variables: { score: 10 },
+        ruleset: {
+          ...baseRuleset,
+          publicVariables: ["nonexistent"],
+        },
+      });
+      const view = createPlayerView(state, makePlayerId("p1"));
+      expect(view.variables).toEqual({});
     });
   });
 });

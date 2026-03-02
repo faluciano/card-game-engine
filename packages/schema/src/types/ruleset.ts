@@ -155,6 +155,11 @@ export interface CardGameRuleset {
   readonly scoring: ScoringConfig;
   readonly initialVariables?: Readonly<Record<string, number>>;
   readonly initialStringVariables?: Readonly<Record<string, string>>;
+  /**
+   * If specified, only these variable names are exposed to clients in PlayerView.
+   * Omit to expose all variables (backward compatible default).
+   */
+  readonly publicVariables?: readonly string[];
   readonly visibility: readonly VisibilityRule[];
   readonly ui: UIConfig;
 }

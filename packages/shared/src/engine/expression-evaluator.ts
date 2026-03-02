@@ -52,7 +52,8 @@ export type BinaryOperator =
   | "+"
   | "-"
   | "*"
-  | "/";
+  | "/"
+  | "%";
 
 export interface BinaryOp {
   readonly kind: "BinaryOp";
@@ -152,6 +153,7 @@ const OPERATOR_CHARS = new Set([
   "-",
   "*",
   "/",
+  "%",
 ]);
 
 // Two-character operators that must be matched before single-char ones
@@ -184,7 +186,7 @@ export function tokenize(expression: string): readonly Token[] {
         pos++;
         if (pos >= expression.length || !isDigit(expression[pos]!)) {
           throw new ExpressionError(
-            `Invalid number at position ${start}: trailing decimal point`
+            `Invalid number at position ${start}: trailing decimal point`,
           );
         }
         while (pos < expression.length && isDigit(expression[pos]!)) {
@@ -225,7 +227,7 @@ export function tokenize(expression: string): readonly Token[] {
           pos++; // skip backslash
           if (pos >= expression.length) {
             throw new ExpressionError(
-              `Unterminated string at position ${start}`
+              `Unterminated string at position ${start}`,
             );
           }
           const escaped = expression[pos]!;
@@ -275,7 +277,7 @@ export function tokenize(expression: string): readonly Token[] {
       // Single-char operators (but reject lone `=`, `&`, `|`)
       if (ch === "=" || ch === "&" || ch === "|") {
         throw new ExpressionError(
-          `Unexpected character '${ch}' at position ${pos}. Did you mean '${ch}${ch}'?`
+          `Unexpected character '${ch}' at position ${pos}. Did you mean '${ch}${ch}'?`,
         );
       }
       tokens.push({ kind: "Operator", value: ch, position: start });
@@ -306,7 +308,7 @@ export function tokenize(expression: string): readonly Token[] {
     }
 
     throw new ExpressionError(
-      `Unexpected character '${ch}' at position ${pos}`
+      `Unexpected character '${ch}' at position ${pos}`,
     );
   }
 
@@ -328,7 +330,7 @@ function isIdentContinue(ch: string): boolean {
 
 // ─── Parser ────────────────────────────────────────────────────────
 // Recursive descent parser. Operator precedence (low → high):
-//   ||  →  &&  →  ==, !=  →  <, >, <=, >=  →  +, -  →  *, /  →  unary !, -  →  call, member
+//   ||  →  &&  →  ==, !=  →  <, >, <=, >=  →  +, -  →  *, /, %  →  unary !, -  →  call, member
 
 const MAX_AST_NODES = 1000;
 
@@ -346,7 +348,7 @@ export function parse(tokens: readonly Token[]): ASTNode {
     nodeCount++;
     if (nodeCount > MAX_AST_NODES) {
       throw new ExpressionError(
-        `Expression too complex: AST exceeds ${MAX_AST_NODES} nodes`
+        `Expression too complex: AST exceeds ${MAX_AST_NODES} nodes`,
       );
     }
   }
@@ -365,7 +367,7 @@ export function parse(tokens: readonly Token[]): ASTNode {
     const tok = current();
     if (tok.kind !== kind || (value !== undefined && tok.value !== value)) {
       throw new ExpressionError(
-        `Expected ${value ? `'${value}'` : kind} at position ${tok.position}, got '${tok.value}'`
+        `Expected ${value ? `'${value}'` : kind} at position ${tok.position}, got '${tok.value}'`,
       );
     }
     return advance();
@@ -448,7 +450,9 @@ export function parse(tokens: readonly Token[]): ASTNode {
     let left = parseUnary();
     while (
       current().kind === "Operator" &&
-      (current().value === "*" || current().value === "/")
+      (current().value === "*" ||
+        current().value === "/" ||
+        current().value === "%")
     ) {
       const op = advance().value as BinaryOperator;
       const right = parseUnary();
@@ -556,7 +560,7 @@ export function parse(tokens: readonly Token[]): ASTNode {
     }
 
     throw new ExpressionError(
-      `Unexpected token '${tok.value}' at position ${tok.position}`
+      `Unexpected token '${tok.value}' at position ${tok.position}`,
     );
   }
 
@@ -566,7 +570,7 @@ export function parse(tokens: readonly Token[]): ASTNode {
   if (current().kind !== "EOF") {
     const tok = current();
     throw new ExpressionError(
-      `Unexpected token '${tok.value}' at position ${tok.position} (expected end of expression)`
+      `Unexpected token '${tok.value}' at position ${tok.position} (expected end of expression)`,
     );
   }
 
@@ -582,7 +586,7 @@ export function parse(tokens: readonly Token[]): ASTNode {
  */
 export type BuiltinFunction = (
   args: readonly EvalResult[],
-  context: EvalContext
+  context: EvalContext,
 ) => EvalResult | void;
 
 /** Registry of builtin functions available to the expression evaluator. */
@@ -634,7 +638,7 @@ const MAX_EVAL_DEPTH = 64;
  */
 function resolveBinding(
   name: string,
-  context: EvalContext
+  context: EvalContext,
 ): EvalResult | Record<string, unknown> | undefined {
   const { state } = context;
 
@@ -699,8 +703,8 @@ function resolveBinding(
 
   // Per-player zone template lookup — e.g., "hand" matches "hand:0", "hand:1", etc.
   // Returns the base name as a string for effect builtins (deal, draw) to expand.
-  const isPerPlayerTemplate = Object.keys(state.zones).some(
-    (zoneName) => zoneName.startsWith(`${name}:`)
+  const isPerPlayerTemplate = Object.keys(state.zones).some((zoneName) =>
+    zoneName.startsWith(`${name}:`),
   );
   if (isPerPlayerTemplate) {
     return { kind: "string", value: name };
@@ -722,13 +726,10 @@ function resolveBinding(
 /**
  * Resolves a member access on a resolved object.
  */
-function resolveMember(
-  obj: unknown,
-  property: string,
-): unknown {
+function resolveMember(obj: unknown, property: string): unknown {
   if (obj === null || obj === undefined) {
     throw new ExpressionError(
-      `Cannot access property '${property}' of ${String(obj)}`
+      `Cannot access property '${property}' of ${String(obj)}`,
     );
   }
   if (typeof obj === "object") {
@@ -736,12 +737,10 @@ function resolveMember(
     if (property in record) {
       return record[property];
     }
-    throw new ExpressionError(
-      `Property '${property}' not found on object`
-    );
+    throw new ExpressionError(`Property '${property}' not found on object`);
   }
   throw new ExpressionError(
-    `Cannot access property '${property}' of ${typeof obj}`
+    `Cannot access property '${property}' of ${typeof obj}`,
   );
 }
 
@@ -786,7 +785,7 @@ function toEvalResult(value: unknown, description: string): EvalResult {
   }
 
   throw new ExpressionError(
-    `Cannot convert ${description} to an expression result`
+    `Cannot convert ${description} to an expression result`,
   );
 }
 
@@ -797,11 +796,11 @@ function toEvalResult(value: unknown, description: string): EvalResult {
 function evaluateNode(
   node: ASTNode,
   context: EvalContext,
-  depth: number
+  depth: number,
 ): EvalResult {
   if (depth > MAX_EVAL_DEPTH) {
     throw new ExpressionError(
-      `Maximum evaluation depth (${MAX_EVAL_DEPTH}) exceeded`
+      `Maximum evaluation depth (${MAX_EVAL_DEPTH}) exceeded`,
     );
   }
 
@@ -832,7 +831,10 @@ function evaluateNode(
   }
 }
 
-function evaluateIdentifier(node: Identifier, context: EvalContext): EvalResult {
+function evaluateIdentifier(
+  node: Identifier,
+  context: EvalContext,
+): EvalResult {
   const resolved = resolveBinding(node.name, context);
   if (resolved === undefined) {
     // Fall back to calling a registered zero-arg builtin function.
@@ -856,11 +858,11 @@ function evaluateIdentifier(node: Identifier, context: EvalContext): EvalResult 
 function evaluateRawValue(
   node: ASTNode,
   context: EvalContext,
-  depth: number
+  depth: number,
 ): unknown {
   if (depth > MAX_EVAL_DEPTH) {
     throw new ExpressionError(
-      `Maximum evaluation depth (${MAX_EVAL_DEPTH}) exceeded`
+      `Maximum evaluation depth (${MAX_EVAL_DEPTH}) exceeded`,
     );
   }
 
@@ -885,7 +887,7 @@ function evaluateRawValue(
 function evaluateMemberAccess(
   node: MemberAccess,
   context: EvalContext,
-  depth: number
+  depth: number,
 ): EvalResult {
   const raw = evaluateRawValue(node, context, depth + 1);
   return toEvalResult(raw, `member access .${node.property}`);
@@ -897,7 +899,7 @@ const MAX_WHILE_ITERATIONS = 100;
 function evaluateFunctionCall(
   node: FunctionCall,
   context: EvalContext,
-  depth: number
+  depth: number,
 ): EvalResult {
   // ── Special form: while(condition, body) ──
   // Must be handled before regular lookup because arguments need lazy evaluation.
@@ -905,20 +907,20 @@ function evaluateFunctionCall(
   if (node.callee === "while") {
     if (node.args.length !== 2) {
       throw new ExpressionError(
-        "while() requires exactly 2 arguments: condition, body"
+        "while() requires exactly 2 arguments: condition, body",
       );
     }
     let iterations = 0;
     while (true) {
       if (iterations >= MAX_WHILE_ITERATIONS) {
         throw new ExpressionError(
-          `while() exceeded maximum iterations (${MAX_WHILE_ITERATIONS})`
+          `while() exceeded maximum iterations (${MAX_WHILE_ITERATIONS})`,
         );
       }
       const condResult = evaluateNode(node.args[0]!, context, depth + 1);
       if (condResult.kind !== "boolean") {
         throw new ExpressionError(
-          `while() condition must be boolean, got ${condResult.kind}`
+          `while() condition must be boolean, got ${condResult.kind}`,
         );
       }
       if (!condResult.value) break;
@@ -928,7 +930,7 @@ function evaluateFunctionCall(
       // Flush accumulated effects into state so the next condition
       // re-evaluation sees updated zones (e.g., draw() adding cards).
       // Duck-typed to avoid circular imports with builtins.ts.
-      const mctx = context as Record<string, unknown>;
+      const mctx = context as unknown as Record<string, unknown>;
       if (
         typeof mctx.applyEffectsToState === "function" &&
         Array.isArray(mctx.effects) &&
@@ -936,12 +938,11 @@ function evaluateFunctionCall(
       ) {
         const applyFn = mctx.applyEffectsToState as (
           state: CardGameState,
-          effects: unknown[]
+          effects: unknown[],
         ) => CardGameState;
-        const newState = applyFn(
-          context.state,
-          [...(mctx.effects as unknown[])]
-        );
+        const newState = applyFn(context.state, [
+          ...(mctx.effects as unknown[]),
+        ]);
         (context as { state: CardGameState }).state = newState;
         (mctx.effects as unknown[]).length = 0;
       }
@@ -955,13 +956,13 @@ function evaluateFunctionCall(
   if (node.callee === "if") {
     if (node.args.length < 2 || node.args.length > 3) {
       throw new ExpressionError(
-        "if() requires 2-3 arguments: condition, then_expr[, else_expr]"
+        "if() requires 2-3 arguments: condition, then_expr[, else_expr]",
       );
     }
     const condResult = evaluateNode(node.args[0]!, context, depth + 1);
     if (condResult.kind !== "boolean") {
       throw new ExpressionError(
-        `if() condition must be boolean, got ${condResult.kind}`
+        `if() condition must be boolean, got ${condResult.kind}`,
       );
     }
     if (condResult.value) {
@@ -979,7 +980,7 @@ function evaluateFunctionCall(
   }
 
   const evaluatedArgs = node.args.map((arg) =>
-    evaluateNode(arg, context, depth + 1)
+    evaluateNode(arg, context, depth + 1),
   );
 
   const result = fn(evaluatedArgs, context);
@@ -995,21 +996,21 @@ function evaluateFunctionCall(
 function evaluateBinaryOp(
   node: BinaryOp,
   context: EvalContext,
-  depth: number
+  depth: number,
 ): EvalResult {
   // Short-circuit evaluation for logical operators
   if (node.operator === "&&") {
     const left = evaluateNode(node.left, context, depth + 1);
     if (left.kind !== "boolean") {
       throw new ExpressionError(
-        `Left operand of '&&' must be boolean, got ${left.kind}`
+        `Left operand of '&&' must be boolean, got ${left.kind}`,
       );
     }
     if (!left.value) return { kind: "boolean", value: false };
     const right = evaluateNode(node.right, context, depth + 1);
     if (right.kind !== "boolean") {
       throw new ExpressionError(
-        `Right operand of '&&' must be boolean, got ${right.kind}`
+        `Right operand of '&&' must be boolean, got ${right.kind}`,
       );
     }
     return { kind: "boolean", value: right.value };
@@ -1019,14 +1020,14 @@ function evaluateBinaryOp(
     const left = evaluateNode(node.left, context, depth + 1);
     if (left.kind !== "boolean") {
       throw new ExpressionError(
-        `Left operand of '||' must be boolean, got ${left.kind}`
+        `Left operand of '||' must be boolean, got ${left.kind}`,
       );
     }
     if (left.value) return { kind: "boolean", value: true };
     const right = evaluateNode(node.right, context, depth + 1);
     if (right.kind !== "boolean") {
       throw new ExpressionError(
-        `Right operand of '||' must be boolean, got ${right.kind}`
+        `Right operand of '||' must be boolean, got ${right.kind}`,
       );
     }
     return { kind: "boolean", value: right.value };
@@ -1051,6 +1052,7 @@ function evaluateBinaryOp(
     case "-":
     case "*":
     case "/":
+    case "%":
       return evaluateArithmetic(node.operator, left, right);
   }
 }
@@ -1058,11 +1060,11 @@ function evaluateBinaryOp(
 function evaluateComparison(
   op: "<" | ">" | "<=" | ">=",
   left: EvalResult,
-  right: EvalResult
+  right: EvalResult,
 ): EvalResult {
   if (left.kind !== "number" || right.kind !== "number") {
     throw new ExpressionError(
-      `Comparison '${op}' requires numeric operands, got ${left.kind} and ${right.kind}`
+      `Comparison '${op}' requires numeric operands, got ${left.kind} and ${right.kind}`,
     );
   }
   switch (op) {
@@ -1078,17 +1080,19 @@ function evaluateComparison(
 }
 
 function evaluateArithmetic(
-  op: "+" | "-" | "*" | "/",
+  op: "+" | "-" | "*" | "/" | "%",
   left: EvalResult,
-  right: EvalResult
+  right: EvalResult,
 ): EvalResult {
   if (left.kind !== "number" || right.kind !== "number") {
     throw new ExpressionError(
-      `Arithmetic '${op}' requires numeric operands, got ${left.kind} and ${right.kind}`
+      `Arithmetic '${op}' requires numeric operands, got ${left.kind} and ${right.kind}`,
     );
   }
-  if (op === "/" && right.value === 0) {
-    throw new ExpressionError("Division by zero");
+  if ((op === "/" || op === "%") && right.value === 0) {
+    throw new ExpressionError(
+      op === "/" ? "Division by zero" : "Modulo by zero",
+    );
   }
   switch (op) {
     case "+":
@@ -1099,13 +1103,15 @@ function evaluateArithmetic(
       return { kind: "number", value: left.value * right.value };
     case "/":
       return { kind: "number", value: left.value / right.value };
+    case "%":
+      return { kind: "number", value: left.value % right.value };
   }
 }
 
 function evaluateUnaryOp(
   node: UnaryOp,
   context: EvalContext,
-  depth: number
+  depth: number,
 ): EvalResult {
   const operand = evaluateNode(node.operand, context, depth + 1);
 
@@ -1113,7 +1119,7 @@ function evaluateUnaryOp(
     case "!":
       if (operand.kind !== "boolean") {
         throw new ExpressionError(
-          `Unary '!' requires boolean operand, got ${operand.kind}`
+          `Unary '!' requires boolean operand, got ${operand.kind}`,
         );
       }
       return { kind: "boolean", value: !operand.value };
@@ -1121,7 +1127,7 @@ function evaluateUnaryOp(
     case "-":
       if (operand.kind !== "number") {
         throw new ExpressionError(
-          `Unary '-' requires numeric operand, got ${operand.kind}`
+          `Unary '-' requires numeric operand, got ${operand.kind}`,
         );
       }
       return { kind: "number", value: -operand.value };
@@ -1138,7 +1144,7 @@ function evaluateUnaryOp(
  */
 export function evaluateExpression(
   expression: Expression,
-  context: EvalContext
+  context: EvalContext,
 ): EvalResult {
   if (!expression || expression.trim().length === 0) {
     throw new ExpressionError("Empty expression");
@@ -1155,12 +1161,12 @@ export function evaluateExpression(
  */
 export function evaluateCondition(
   expression: Expression,
-  context: EvalContext
+  context: EvalContext,
 ): boolean {
   const result = evaluateExpression(expression, context);
   if (result.kind !== "boolean") {
     throw new ExpressionError(
-      `Expected boolean expression, got ${result.kind}: "${expression}"`
+      `Expected boolean expression, got ${result.kind}: "${expression}"`,
     );
   }
   return result.value;

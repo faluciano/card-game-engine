@@ -30,8 +30,9 @@ The TV runs the authoritative game engine: it loads the ruleset, advances the FS
 - **41 query builtins + 23 effect builtins** — covering common card game mechanics (draw, discard, shuffle, score, card matching, pattern matching, turn order, trick-taking, string variables, etc.)
 - **Phase-based FSM** — supports automatic, player_action, and simultaneous phase types
 - **Turn order mechanics** — clockwise/counterclockwise direction, reverse, skip, and set-next-player effects
-- **Seeded PRNG** — mulberry32 enables deterministic replay from an action log
-- **Hidden information** — per-player state filtering via `createPlayerView`
+- **Seeded PRNG** — mulberry32 with `crypto.getRandomValues` seed hardening enables deterministic replay from an action log
+- **Hidden information** — per-player state filtering via `createPlayerView` with `publicVariables` support
+- **Security hardening** — internal actions (`advance_phase`, `reset_round`) blocked from client submissions, action log capped at 500 entries
 - **Zod schema validation** — rulesets are validated against a strict schema at load time
 - **2 deck presets + custom decks** — `standard52`, `standard54`, plus fully custom card lists
 
@@ -93,7 +94,7 @@ cd packages/shared
 bunx vitest run
 ```
 
-853 tests across the shared (744), schema (15), and host (94) packages cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios), schema meta fields, and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
+883 tests across the shared (770), schema (19), and host (94) packages cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios), schema meta fields, and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
 
 ### Build and Deploy
 
@@ -143,15 +144,15 @@ See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format
 
 ## Project Status
 
-All four implementation phases are **complete** with **853 passing tests** across shared (744), schema (15), and host (94) packages.
+All four implementation phases are **complete** with **883 passing tests** across shared (770), schema (19), and host (94) packages.
 
 | Phase | Status | Tests |
 |-------|--------|-------|
-| Phase 1 — Engine Core | ✅ Complete | 744 |
+| Phase 1 — Engine Core | ✅ Complete | 770 |
 | Phase 1.5 — Documentation | ✅ Complete | — |
 | Phase 2 — Storage & Import | ✅ Complete | 94 |
 | Phase 3 — Host Screens & CouchKit Integration | ✅ Complete | — |
-| Phase 3.4 — Schema Package & Catalog | ✅ Complete | 15 |
+| Phase 3.4 — Schema Package & Catalog | ✅ Complete | 19 |
 | Phase 4 — Client Controller App | ✅ Complete | — |
 
 The app builds and deploys to Android TV via `bun run build:android`. The host runs an HTTP+WebSocket server via CouchKit; phones connect by scanning a QR code displayed on the TV.

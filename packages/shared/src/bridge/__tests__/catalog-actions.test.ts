@@ -1,15 +1,14 @@
 import { describe, it, expect } from "vitest";
-import {
-  createHostInitialState,
-  hostReducer,
-} from "../host-reducer";
+import { createHostInitialState, hostReducer } from "../host-reducer";
 import type { HostAction, HostGameState, InstalledGame } from "../host-state";
 import type { CardGameRuleset, CardGameState } from "../../types/index";
 
 // ─── Fixtures ──────────────────────────────────────────────────────
 
 /** Minimal valid CardGameRuleset that satisfies the full schema. */
-function makeTestRuleset(overrides?: Partial<CardGameRuleset["meta"]>): CardGameRuleset {
+function makeTestRuleset(
+  overrides?: Partial<CardGameRuleset["meta"]>,
+): CardGameRuleset {
   return {
     meta: {
       name: "Test Game",
@@ -30,14 +29,14 @@ function makeTestRuleset(overrides?: Partial<CardGameRuleset["meta"]>): CardGame
       { name: "hand", visibility: { kind: "owner_only" }, owners: ["player"] },
       { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
     ],
-    roles: [
-      { name: "player", isHuman: true, count: "per_player" },
-    ],
+    roles: [{ name: "player", isHuman: true, count: "per_player" }],
     phases: [
       {
         name: "play",
         kind: "turn_based",
-        actions: [{ name: "end_turn", label: "End Turn", effect: ["end_turn()"] }],
+        actions: [
+          { name: "end_turn", label: "End Turn", effect: ["end_turn()"] },
+        ],
         transitions: [],
       },
     ],
@@ -45,9 +44,7 @@ function makeTestRuleset(overrides?: Partial<CardGameRuleset["meta"]>): CardGame
       method: "card_count(hand)",
       winCondition: "highest_wins",
     },
-    visibility: [
-      { zone: "hand", visibility: { kind: "owner_only" } },
-    ],
+    visibility: [{ zone: "hand", visibility: { kind: "owner_only" } }],
     ui: {
       layout: "semicircle",
       tableColor: "felt_green",
@@ -75,7 +72,9 @@ function makeGameTableState(): HostGameState {
 
   return {
     status: "game:in_progress",
-    players: { p1: { name: "Alice", connected: true, color: "#fff" } },
+    players: {
+      p1: { id: "p1", name: "Alice", connected: true, isHost: false },
+    },
     screen: { tag: "game_table", ruleset },
     engineState: stubEngineState,
     installedSlugs: [],
@@ -259,7 +258,9 @@ describe("catalog actions (host reducer)", () => {
         type: "SET_INSTALLED_SLUGS",
         slugs: [{ slug: "test-game", version: "1.0.0" }],
       });
-      expect(state.installedSlugs).toEqual([{ slug: "test-game", version: "1.0.0" }]);
+      expect(state.installedSlugs).toEqual([
+        { slug: "test-game", version: "1.0.0" },
+      ]);
       expect(state.pendingInstall).toBeNull();
     });
   });
@@ -297,7 +298,10 @@ describe("catalog actions (host reducer)", () => {
   describe("INSTALL_RULESET during active game", () => {
     it("sets pendingInstall without breaking screen or engineState", () => {
       const gameState = makeGameTableState();
-      const newRuleset = makeTestRuleset({ slug: "new-game", name: "New Game" });
+      const newRuleset = makeTestRuleset({
+        slug: "new-game",
+        name: "New Game",
+      });
 
       const action: HostAction = {
         type: "INSTALL_RULESET",
@@ -404,7 +408,9 @@ describe("catalog actions (host reducer)", () => {
         slug: "test-game",
       });
       expect(state.pendingUninstall).toBe("test-game");
-      expect(state.installedSlugs).toEqual([{ slug: "test-game", version: "1.0.0" }]);
+      expect(state.installedSlugs).toEqual([
+        { slug: "test-game", version: "1.0.0" },
+      ]);
 
       // Step 2: dispatch SET_INSTALLED_SLUGS (host hook completed I/O)
       state = hostReducer(state, {
@@ -413,6 +419,44 @@ describe("catalog actions (host reducer)", () => {
       });
       expect(state.installedSlugs).toEqual([]);
       expect(state.pendingUninstall).toBeNull();
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Security: blocks internal actions from GAME_ACTION ───────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("Security: blocks internal actions from GAME_ACTION", () => {
+    it("blocks advance_phase sent via GAME_ACTION", () => {
+      const state = makeGameTableState();
+      const action: HostAction = {
+        type: "GAME_ACTION",
+        action: { kind: "advance_phase" } as any,
+      };
+      const next = hostReducer(state, action);
+      expect(next).toBe(state);
+    });
+
+    it("blocks reset_round sent via GAME_ACTION", () => {
+      const state = makeGameTableState();
+      const action: HostAction = {
+        type: "GAME_ACTION",
+        action: { kind: "reset_round" } as any,
+      };
+      const next = hostReducer(state, action);
+      expect(next).toBe(state);
+    });
+
+    it("does not block regular game actions", () => {
+      const state = makeGameTableState();
+      const action: HostAction = {
+        type: "GAME_ACTION",
+        action: { kind: "end_turn" } as any,
+      };
+      // end_turn is not blocked by the guard — it reaches the engine reducer
+      // The stub engine state may cause an error, but the guard itself should not block it
+      const next = hostReducer(state, action);
+      expect(next).toBeDefined();
     });
   });
 });

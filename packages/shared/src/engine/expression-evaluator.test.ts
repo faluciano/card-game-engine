@@ -1222,4 +1222,53 @@ describe("expression-evaluator", () => {
       expect(result).toEqual({ kind: "boolean", value: false });
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Modulo Operator (%) ──────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("modulo operator (%)", () => {
+    it("tokenizes % as an operator", () => {
+      const tokens = tokenize("10 % 3");
+      const ops = tokens.filter((t) => t.kind === "Operator" && t.value === "%");
+      expect(ops).toHaveLength(1);
+    });
+
+    it("parses % as BinaryOp", () => {
+      const ast = parse(tokenize("10 % 3"));
+      expect(ast.kind).toBe("BinaryOp");
+      if (ast.kind === "BinaryOp") {
+        expect(ast.operator).toBe("%");
+      }
+    });
+
+    it("evaluates 10 % 3 = 1", () => {
+      const ctx = makeContext();
+      const result = evaluateExpression("10 % 3", ctx);
+      expect(result).toEqual({ kind: "number", value: 1 });
+    });
+
+    it("evaluates 7 % 2 = 1", () => {
+      const ctx = makeContext();
+      const result = evaluateExpression("7 % 2", ctx);
+      expect(result).toEqual({ kind: "number", value: 1 });
+    });
+
+    it("evaluates 10 % 5 = 0", () => {
+      const ctx = makeContext();
+      const result = evaluateExpression("10 % 5", ctx);
+      expect(result).toEqual({ kind: "number", value: 0 });
+    });
+
+    it("has correct precedence (binds tighter than +)", () => {
+      const ctx = makeContext();
+      const result = evaluateExpression("2 + 10 % 3", ctx);
+      expect(result).toEqual({ kind: "number", value: 3 });
+    });
+
+    it("throws ExpressionError for modulo by zero", () => {
+      const ctx = makeContext();
+      expect(() => evaluateExpression("5 % 0", ctx)).toThrow(ExpressionError);
+    });
+  });
 });

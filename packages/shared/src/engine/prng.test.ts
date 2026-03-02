@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SeededRng, createRng } from "./prng";
+import { SeededRng, createRng, generateSeed } from "./prng";
 
 // ─── Tests ─────────────────────────────────────────────────────────
 
@@ -286,6 +286,37 @@ describe("prng", () => {
       const rng = createRng(42);
       expect(() => rng.pick([])).toThrow(RangeError);
       expect(() => rng.pick([])).toThrow("Cannot pick from an empty array");
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── generateSeed ─────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("generateSeed", () => {
+    it("returns a number", () => {
+      expect(typeof generateSeed()).toBe("number");
+    });
+
+    it("returns an unsigned 32-bit integer", () => {
+      const seed = generateSeed();
+      expect(seed).toBeGreaterThanOrEqual(0);
+      expect(seed).toBeLessThanOrEqual(0xFFFFFFFF);
+      expect(Number.isInteger(seed)).toBe(true);
+    });
+
+    it("produces varying values across multiple calls", () => {
+      const seeds = Array.from({ length: 10 }, () => generateSeed());
+      const unique = new Set(seeds);
+      expect(unique.size).toBeGreaterThan(1);
+    });
+
+    it("result can be used as a valid seed for createRng", () => {
+      const seed = generateSeed();
+      const rng = createRng(seed);
+      const value = rng.next();
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThan(1);
     });
   });
 });
