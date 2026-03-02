@@ -42,15 +42,17 @@ jobs:
 
       - name: Optimize Gradle for CI
         run: |
-          cat >> packages/host/android/gradle.properties << EOF
-          org.gradle.java.home=$JAVA_HOME
-          org.gradle.daemon=false
-          org.gradle.caching=true
-          org.gradle.configureondemand=true
-          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError
-          kotlin.incremental=false
-          kotlin.compiler.execution.strategy=in-process
-          EOF
+          PROPS=packages/host/android/gradle.properties
+          {
+            echo ""
+            echo "org.gradle.java.home=$JAVA_HOME"
+            echo "org.gradle.daemon=false"
+            echo "org.gradle.caching=true"
+            echo "org.gradle.configureondemand=true"
+            echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError"
+            echo "kotlin.incremental=false"
+            echo "kotlin.compiler.execution.strategy=in-process"
+          } >> "$PROPS"
 
       - name: Build APK
         run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
