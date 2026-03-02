@@ -41,7 +41,7 @@ export interface MutableEvalContext extends EvalContext {
    */
   readonly applyEffectsToState?: (
     state: CardGameState,
-    effects: EffectDescription[]
+    effects: EffectDescription[],
   ) => CardGameState;
 
   /** Parameters passed from a declare action, readable via the get_param() builtin. */
@@ -61,9 +61,7 @@ function resolveZoneName(arg: EvalResult): string {
   if (arg.kind === "number") {
     return String(arg.value);
   }
-  throw new ExpressionError(
-    `Expected zone name (string), got ${arg.kind}`
-  );
+  throw new ExpressionError(`Expected zone name (string), got ${arg.kind}`);
 }
 
 /**
@@ -84,7 +82,7 @@ function getZone(state: CardGameState, name: string): ZoneState {
  */
 function getCardValue(
   cardValues: Readonly<Record<string, CardValue>>,
-  rank: string
+  rank: string,
 ): CardValue {
   const cv = cardValues[rank];
   if (!cv) {
@@ -101,7 +99,7 @@ function pushEffect(context: EvalContext, effect: EffectDescription): void {
   const mctx = context as MutableEvalContext;
   if (!mctx.effects || !Array.isArray(mctx.effects)) {
     throw new ExpressionError(
-      `Effect builtin '${effect.kind}' requires a MutableEvalContext with an effects array`
+      `Effect builtin '${effect.kind}' requires a MutableEvalContext with an effects array`,
     );
   }
   mctx.effects.push(effect);
@@ -112,9 +110,7 @@ function pushEffect(context: EvalContext, effect: EffectDescription): void {
  */
 function requireNumber(arg: EvalResult, name: string): number {
   if (arg.kind !== "number") {
-    throw new ExpressionError(
-      `Expected number for '${name}', got ${arg.kind}`
-    );
+    throw new ExpressionError(`Expected number for '${name}', got ${arg.kind}`);
   }
   return arg.value;
 }
@@ -124,9 +120,7 @@ function requireNumber(arg: EvalResult, name: string): number {
  */
 function requireString(arg: EvalResult, name: string): string {
   if (arg.kind !== "string") {
-    throw new ExpressionError(
-      `Expected string for '${name}', got ${arg.kind}`
-    );
+    throw new ExpressionError(`Expected string for '${name}', got ${arg.kind}`);
   }
   return arg.value;
 }
@@ -137,7 +131,7 @@ function requireString(arg: EvalResult, name: string): string {
 function requireBoolean(arg: EvalResult, name: string): boolean {
   if (arg.kind !== "boolean") {
     throw new ExpressionError(
-      `Expected boolean for '${name}', got ${arg.kind}`
+      `Expected boolean for '${name}', got ${arg.kind}`,
     );
   }
   return arg.value;
@@ -149,11 +143,11 @@ function requireBoolean(arg: EvalResult, name: string): boolean {
 function assertArgCount(
   fnName: string,
   args: readonly EvalResult[],
-  expected: number
+  expected: number,
 ): void {
   if (args.length !== expected) {
     throw new ExpressionError(
-      `${fnName}() requires exactly ${expected} argument(s), got ${args.length}`
+      `${fnName}() requires exactly ${expected} argument(s), got ${args.length}`,
     );
   }
 }
@@ -190,7 +184,7 @@ function groupBySuit(cards: readonly Card[]): Map<string, number> {
  */
 function getCardNumericValues(
   rank: string,
-  cardValues: Readonly<Record<string, CardValue>>
+  cardValues: Readonly<Record<string, CardValue>>,
 ): number[] {
   const cv = cardValues[rank];
   if (!cv) return [];
@@ -243,29 +237,27 @@ function findConsecutiveRuns(sortedValues: number[]): number[] {
 export function computeHandValue(
   cards: readonly Card[],
   cardValues: Readonly<Record<string, CardValue>>,
-  target: number
+  target: number,
 ): number {
   let total = 0;
-  let dualCardCount = 0;
-  let dualHighMinusLow = 0;
+  const dualDeltas: number[] = [];
 
   for (const card of cards) {
     const cv = getCardValue(cardValues, card.rank);
     if (cv.kind === "fixed") {
       total += cv.value;
     } else {
-      // Start with high value; track how many duals and the delta
+      // Start with high value; track each card's delta individually
       total += cv.high;
-      dualCardCount++;
-      dualHighMinusLow = cv.high - cv.low; // Same delta for all aces in standard blackjack
+      dualDeltas.push(cv.high - cv.low);
     }
   }
 
-  // Downgrade dual-value cards one at a time while over target
-  let remainingDowngrades = dualCardCount;
-  while (total > target && remainingDowngrades > 0) {
-    total -= dualHighMinusLow;
-    remainingDowngrades--;
+  // Downgrade dual-value cards one at a time (largest delta first) while over target
+  dualDeltas.sort((a, b) => b - a);
+  for (const delta of dualDeltas) {
+    if (total <= target) break;
+    total -= delta;
   }
 
   return total;
@@ -281,7 +273,7 @@ export function computeHandValue(
 const handValueBuiltin: BuiltinFunction = (args, context) => {
   if (args.length < 1 || args.length > 2) {
     throw new ExpressionError(
-      `hand_value() requires 1-2 arguments, got ${args.length}`
+      `hand_value() requires 1-2 arguments, got ${args.length}`,
     );
   }
   const zoneName = resolveZoneName(args[0]!);
@@ -311,12 +303,12 @@ const cardCountBuiltin: BuiltinFunction = (args, context) => {
 const allPlayersDoneBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `all_players_done() takes no arguments, got ${args.length}`
+      `all_players_done() takes no arguments, got ${args.length}`,
     );
   }
   const { state } = context;
-  const humanPlayerCount = state.players.filter(
-    (p) => isHumanPlayer(p, state.ruleset.roles)
+  const humanPlayerCount = state.players.filter((p) =>
+    isHumanPlayer(p, state.ruleset.roles),
   ).length;
   return {
     kind: "boolean",
@@ -331,7 +323,7 @@ const allPlayersDoneBuiltin: BuiltinFunction = (args, context) => {
 const allHandsDealtBuiltin: BuiltinFunction = (args, _context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `all_hands_dealt() takes no arguments, got ${args.length}`
+      `all_hands_dealt() takes no arguments, got ${args.length}`,
     );
   }
   return { kind: "boolean", value: true };
@@ -343,7 +335,7 @@ const allHandsDealtBuiltin: BuiltinFunction = (args, _context) => {
 const scoresCalculatedBuiltin: BuiltinFunction = (args, _context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `scores_calculated() takes no arguments, got ${args.length}`
+      `scores_calculated() takes no arguments, got ${args.length}`,
     );
   }
   return { kind: "boolean", value: true };
@@ -355,7 +347,7 @@ const scoresCalculatedBuiltin: BuiltinFunction = (args, _context) => {
 const continueGameBuiltin: BuiltinFunction = (args, _context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `continue_game() takes no arguments, got ${args.length}`
+      `continue_game() takes no arguments, got ${args.length}`,
     );
   }
   return { kind: "boolean", value: true };
@@ -395,7 +387,7 @@ const cardRankBuiltin: BuiltinFunction = (args, context) => {
   const zone = getZone(context.state, zoneName);
   if (index < 0 || index >= zone.cards.length) {
     throw new ExpressionError(
-      `card_rank(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`
+      `card_rank(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`,
     );
   }
   const card = zone.cards[index]!;
@@ -414,7 +406,7 @@ const cardSuitBuiltin: BuiltinFunction = (args, context) => {
   const zone = getZone(context.state, zoneName);
   if (index < 0 || index >= zone.cards.length) {
     throw new ExpressionError(
-      `card_suit(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`
+      `card_suit(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`,
     );
   }
   const card = zone.cards[index]!;
@@ -431,7 +423,7 @@ const cardRankNameBuiltin: BuiltinFunction = (args, context) => {
   const zone = getZone(context.state, zoneName);
   if (index < 0 || index >= zone.cards.length) {
     throw new ExpressionError(
-      `card_rank_name(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`
+      `card_rank_name(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`,
     );
   }
   const card = zone.cards[index]!;
@@ -459,9 +451,7 @@ const topCardRankBuiltin: BuiltinFunction = (args, context) => {
   const zoneName = resolveZoneName(args[0]!);
   const zone = getZone(context.state, zoneName);
   if (zone.cards.length === 0) {
-    throw new ExpressionError(
-      `top_card_rank(): zone '${zoneName}' is empty`
-    );
+    throw new ExpressionError(`top_card_rank(): zone '${zoneName}' is empty`);
   }
   const card = zone.cards[0]!;
   const cv = getCardValue(context.state.ruleset.deck.cardValues, card.rank);
@@ -514,7 +504,7 @@ const topCardRankNameBuiltin: BuiltinFunction = (args, context) => {
   const zone = getZone(context.state, zoneName);
   if (zone.cards.length === 0) {
     throw new ExpressionError(
-      `top_card_rank_name(): zone '${zoneName}' is empty`
+      `top_card_rank_name(): zone '${zoneName}' is empty`,
     );
   }
   return { kind: "string", value: zone.cards[0]!.rank };
@@ -560,12 +550,12 @@ const cardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
   const targetZone = getZone(context.state, targetZoneName);
   if (cardIndex < 0 || cardIndex >= handZone.cards.length) {
     throw new ExpressionError(
-      `card_matches_top(): index ${cardIndex} out of bounds for zone '${handZoneName}' (${handZone.cards.length} cards)`
+      `card_matches_top(): index ${cardIndex} out of bounds for zone '${handZoneName}' (${handZone.cards.length} cards)`,
     );
   }
   if (targetZone.cards.length === 0) {
     throw new ExpressionError(
-      `card_matches_top(): target zone '${targetZoneName}' is empty`
+      `card_matches_top(): target zone '${targetZoneName}' is empty`,
     );
   }
   const card = handZone.cards[cardIndex]!;
@@ -591,7 +581,7 @@ const hasPlayableCardBuiltin: BuiltinFunction = (args, context) => {
   }
   const topCard = targetZone.cards[0]!;
   const found = handZone.cards.some(
-    (card) => card.suit === topCard.suit || card.rank === topCard.rank
+    (card) => card.suit === topCard.suit || card.rank === topCard.rank,
   );
   return { kind: "boolean", value: found };
 };
@@ -639,7 +629,10 @@ const setFaceUpBuiltin: BuiltinFunction = (args, context) => {
   const zone = resolveZoneName(args[0]!);
   const cardIndex = requireNumber(args[1]!, "card_index");
   const faceUp = requireBoolean(args[2]!, "face_up");
-  pushEffect(context, { kind: "set_face_up", params: { zone, cardIndex, faceUp } });
+  pushEffect(context, {
+    kind: "set_face_up",
+    params: { zone, cardIndex, faceUp },
+  });
 };
 
 /**
@@ -657,7 +650,7 @@ const revealAllBuiltin: BuiltinFunction = (args, context) => {
 const endTurnBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `end_turn() takes no arguments, got ${args.length}`
+      `end_turn() takes no arguments, got ${args.length}`,
     );
   }
   pushEffect(context, { kind: "end_turn", params: {} });
@@ -669,7 +662,7 @@ const endTurnBuiltin: BuiltinFunction = (args, context) => {
 const calculateScoresBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `calculate_scores() takes no arguments, got ${args.length}`
+      `calculate_scores() takes no arguments, got ${args.length}`,
     );
   }
   pushEffect(context, { kind: "calculate_scores", params: {} });
@@ -681,7 +674,7 @@ const calculateScoresBuiltin: BuiltinFunction = (args, context) => {
 const determineWinnersBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `determine_winners() takes no arguments, got ${args.length}`
+      `determine_winners() takes no arguments, got ${args.length}`,
     );
   }
   pushEffect(context, { kind: "determine_winners", params: {} });
@@ -702,7 +695,7 @@ const collectAllToBuiltin: BuiltinFunction = (args, context) => {
 const resetRoundBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `reset_round() takes no arguments, got ${args.length}`
+      `reset_round() takes no arguments, got ${args.length}`,
     );
   }
   pushEffect(context, { kind: "reset_round", params: {} });
@@ -751,7 +744,7 @@ const moveAllBuiltin: BuiltinFunction = (args, context) => {
 const reverseTurnOrderBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `reverse_turn_order() takes no arguments, got ${args.length}`
+      `reverse_turn_order() takes no arguments, got ${args.length}`,
     );
   }
   pushEffect(context, { kind: "reverse_turn_order", params: {} });
@@ -764,7 +757,7 @@ const reverseTurnOrderBuiltin: BuiltinFunction = (args, context) => {
 const skipNextPlayerBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `skip_next_player() takes no arguments, got ${args.length}`
+      `skip_next_player() takes no arguments, got ${args.length}`,
     );
   }
   pushEffect(context, { kind: "skip_next_player", params: {} });
@@ -786,7 +779,7 @@ const setNextPlayerBuiltin: BuiltinFunction = (args, context) => {
 const turnDirectionBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `turn_direction() takes no arguments, got ${args.length}`
+      `turn_direction() takes no arguments, got ${args.length}`,
     );
   }
   return { kind: "number", value: context.state.turnDirection };
@@ -974,7 +967,7 @@ const maxRunLengthBuiltin: BuiltinFunction = (args, context) => {
  */
 function resolveCardRankValue(
   cardValues: Readonly<Record<string, CardValue>>,
-  rank: string
+  rank: string,
 ): number {
   const cv = getCardValue(cardValues, rank);
   return cv.kind === "fixed" ? cv.value : cv.high;
@@ -1010,8 +1003,8 @@ const trickWinnerBuiltin: BuiltinFunction = (args, context) => {
 
   // Check for trump suit
   const trumpSuit =
-    state.variables.trump_suit !== undefined
-      ? String(state.variables.trump_suit)
+    state.stringVariables.trump_suit !== undefined
+      ? state.stringVariables.trump_suit
       : undefined;
 
   // Collect all player cards with their indices
@@ -1140,7 +1133,7 @@ const hasCardWithBuiltin: BuiltinFunction = (args, context) => {
   const suit = requireString(args[2]!, "suit");
   const zone = getZone(context.state, zoneName);
   const found = zone.cards.some(
-    (card) => card.rank === rank && card.suit === suit
+    (card) => card.rank === rank && card.suit === suit,
   );
   return { kind: "boolean", value: found };
 };
@@ -1202,7 +1195,7 @@ const setLeadPlayerBuiltin: BuiltinFunction = (args, context) => {
 const endGameBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `end_game() takes no arguments, got ${args.length}`
+      `end_game() takes no arguments, got ${args.length}`,
     );
   }
   pushEffect(context, { kind: "end_game", params: {} });
@@ -1271,7 +1264,7 @@ function coerceToString(arg: EvalResult): string {
       return String(arg.value);
     default:
       throw new ExpressionError(
-        `Cannot coerce ${arg.kind} to string`
+        `Cannot coerce ${(arg as { kind: string }).kind} to string`,
       );
   }
 }
@@ -1303,7 +1296,7 @@ const playedCardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
 
   if (!binding) {
     throw new ExpressionError(
-      "played_card_matches_top(): 'played_card_index' binding not found in context"
+      "played_card_matches_top(): 'played_card_index' binding not found in context",
     );
   }
 
@@ -1321,14 +1314,14 @@ const playedCardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
 
   if (cardIndex < 0 || cardIndex >= handZone.cards.length) {
     throw new ExpressionError(
-      `played_card_matches_top(): index ${cardIndex} out of bounds for zone '${handZoneName}' (${handZone.cards.length} cards)`
+      `played_card_matches_top(): index ${cardIndex} out of bounds for zone '${handZoneName}' (${handZone.cards.length} cards)`,
     );
   }
 
   const targetZone = getZone(context.state, targetZoneName);
   if (targetZone.cards.length === 0) {
     throw new ExpressionError(
-      `played_card_matches_top(): target zone '${targetZoneName}' is empty`
+      `played_card_matches_top(): target zone '${targetZoneName}' is empty`,
     );
   }
 
@@ -1360,7 +1353,7 @@ const getCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
 const maxCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `max_cumulative_score() takes no arguments, got ${args.length}`
+      `max_cumulative_score() takes no arguments, got ${args.length}`,
     );
   }
   const { players, variables } = context.state;
@@ -1380,7 +1373,7 @@ const maxCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
 const minCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `min_cumulative_score() takes no arguments, got ${args.length}`
+      `min_cumulative_score() takes no arguments, got ${args.length}`,
     );
   }
   const { players, variables } = context.state;
@@ -1403,7 +1396,7 @@ const minCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
 const accumulateScoresBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
     throw new ExpressionError(
-      `accumulate_scores() takes no arguments, got ${args.length}`
+      `accumulate_scores() takes no arguments, got ${args.length}`,
     );
   }
   pushEffect(context, { kind: "accumulate_scores", params: {} });

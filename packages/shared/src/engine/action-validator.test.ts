@@ -130,16 +130,18 @@ const SCORING_PHASE: PhaseDefinition = {
   kind: "automatic",
   actions: [],
   transitions: [{ to: "deal", when: "scores_calculated" }],
-  automaticSequence: [
-    "calculate_scores()",
-    "determine_winners()",
-  ],
+  automaticSequence: ["calculate_scores()", "determine_winners()"],
 };
 
-const ALL_PHASES = [DEAL_PHASE, PLAYER_TURNS_PHASE, ALL_PLAYERS_PHASE, SCORING_PHASE];
+const ALL_PHASES = [
+  DEAL_PHASE,
+  PLAYER_TURNS_PHASE,
+  ALL_PLAYERS_PHASE,
+  SCORING_PHASE,
+];
 
 function makeMinimalRuleset(
-  phases: readonly PhaseDefinition[] = ALL_PHASES
+  phases: readonly PhaseDefinition[] = ALL_PHASES,
 ): CardGameRuleset {
   return {
     meta: {
@@ -171,7 +173,8 @@ function makeMinimalRuleset(
     phases,
     scoring: {
       method: "hand_value(current_player.hand, 21)",
-      winCondition: "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
+      winCondition:
+        "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
       bustCondition: "my_score > 21",
       tieCondition: "my_score == dealer_score && my_score <= 21",
     },
@@ -182,7 +185,7 @@ function makeMinimalRuleset(
 
 function makeGameState(
   zones: Record<string, ZoneState>,
-  overrides: Partial<CardGameState> = {}
+  overrides: Partial<CardGameState> = {},
 ): CardGameState {
   return {
     sessionId: makeSessionId("test-session"),
@@ -208,6 +211,7 @@ function makeGameState(
     turnNumber: 1,
     scores: {},
     variables: {},
+    stringVariables: {},
     actionLog: [],
     turnsTakenThisPhase: 0,
     turnDirection: 1,
@@ -223,10 +227,7 @@ function makeDefaultZones(): Record<string, ZoneState> {
       makeCard("6", "spades"),
       makeCard("7", "diamonds"),
     ]),
-    hand: makeZone("hand", [
-      makeCard("10", "hearts"),
-      makeCard("5", "spades"),
-    ]),
+    hand: makeZone("hand", [makeCard("10", "hearts"), makeCard("5", "spades")]),
     dealer_hand: makeZone("dealer_hand", [
       makeCard("K", "clubs"),
       makeCard("8", "hearts"),
@@ -438,7 +439,7 @@ describe("Action Validator", () => {
             playerId: makePlayerId("p1"),
             declaration: "hit",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -452,11 +453,7 @@ describe("Action Validator", () => {
           status: { kind: "waiting_for_players" },
         });
 
-        const result = validateAction(
-          state,
-          { kind: "start_game" },
-          machine
-        );
+        const result = validateAction(state, { kind: "start_game" }, machine);
 
         expect(result.valid).toBe(true);
       });
@@ -466,11 +463,7 @@ describe("Action Validator", () => {
           status: { kind: "finished", finishedAt: Date.now(), winnerId: null },
         });
 
-        const result = validateAction(
-          state,
-          { kind: "start_game" },
-          machine
-        );
+        const result = validateAction(state, { kind: "start_game" }, machine);
 
         expect(result.valid).toBe(false);
         if (!result.valid) {
@@ -481,11 +474,7 @@ describe("Action Validator", () => {
       it("rejects start_game when game is already in progress", () => {
         const state = makeGameState(makeDefaultZones());
 
-        const result = validateAction(
-          state,
-          { kind: "start_game" },
-          machine
-        );
+        const result = validateAction(state, { kind: "start_game" }, machine);
 
         expect(result.valid).toBe(false);
         if (!result.valid) {
@@ -501,7 +490,7 @@ describe("Action Validator", () => {
         const result = validateAction(
           state,
           { kind: "join", playerId: makePlayerId("p3"), name: "Charlie" },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(true);
@@ -515,7 +504,7 @@ describe("Action Validator", () => {
         const result = validateAction(
           state,
           { kind: "leave", playerId: makePlayerId("p1") },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(true);
@@ -533,7 +522,7 @@ describe("Action Validator", () => {
             playerId: makePlayerId("p1"),
             declaration: "hit",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(true);
@@ -549,7 +538,7 @@ describe("Action Validator", () => {
             playerId: makePlayerId("p1"),
             declaration: "stand",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(true);
@@ -567,7 +556,7 @@ describe("Action Validator", () => {
             playerId: makePlayerId("p1"),
             declaration: "hit",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -586,7 +575,7 @@ describe("Action Validator", () => {
             playerId: makePlayerId("unknown"),
             declaration: "hit",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -607,7 +596,7 @@ describe("Action Validator", () => {
             playerId: makePlayerId("p2"),
             declaration: "hit",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -626,13 +615,13 @@ describe("Action Validator", () => {
             playerId: makePlayerId("p1"),
             declaration: "split",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
         if (!result.valid) {
           expect(result.reason).toBe(
-            "Action 'split' not available in phase 'player_turns'"
+            "Action 'split' not available in phase 'player_turns'",
           );
         }
       });
@@ -648,7 +637,7 @@ describe("Action Validator", () => {
             playerId: makePlayerId("p1"),
             declaration: "hit",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -671,7 +660,7 @@ describe("Action Validator", () => {
             playerId: makePlayerId("p2"),
             declaration: "place_bet",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(true);
@@ -685,7 +674,7 @@ describe("Action Validator", () => {
         const result = validateAction(
           state,
           { kind: "join", playerId: makePlayerId("p3"), name: "Charlie" },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(true);
@@ -697,7 +686,7 @@ describe("Action Validator", () => {
         const result = validateAction(
           state,
           { kind: "leave", playerId: makePlayerId("p1") },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(true);
@@ -711,7 +700,7 @@ describe("Action Validator", () => {
         const result = validateAction(
           state,
           { kind: "advance_phase" },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(true);
@@ -720,11 +709,7 @@ describe("Action Validator", () => {
       it("allows reset_round during in_progress", () => {
         const state = makeGameState(makeDefaultZones());
 
-        const result = validateAction(
-          state,
-          { kind: "reset_round" },
-          machine
-        );
+        const result = validateAction(state, { kind: "reset_round" }, machine);
 
         expect(result.valid).toBe(true);
       });
@@ -745,7 +730,7 @@ describe("Action Validator", () => {
             fromZone: "hand",
             toZone: "discard",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(true);
@@ -765,7 +750,7 @@ describe("Action Validator", () => {
             fromZone: "hand",
             toZone: "discard",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -788,7 +773,7 @@ describe("Action Validator", () => {
             fromZone: "hand",
             toZone: "discard",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -809,7 +794,7 @@ describe("Action Validator", () => {
             fromZone: "hand",
             toZone: "discard",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -830,7 +815,7 @@ describe("Action Validator", () => {
             fromZone: "nonexistent_zone",
             toZone: "discard",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -853,7 +838,7 @@ describe("Action Validator", () => {
             fromZone: "hand",
             toZone: "nonexistent_zone",
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -876,7 +861,7 @@ describe("Action Validator", () => {
             toZone: "hand",
             count: 1,
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(true);
@@ -895,7 +880,7 @@ describe("Action Validator", () => {
             toZone: "hand",
             count: 100,
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -916,7 +901,7 @@ describe("Action Validator", () => {
             toZone: "hand",
             count: 1,
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -937,7 +922,7 @@ describe("Action Validator", () => {
             toZone: "nonexistent",
             count: 1,
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -960,7 +945,7 @@ describe("Action Validator", () => {
             toZone: "hand",
             count: 1,
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -981,7 +966,7 @@ describe("Action Validator", () => {
             toZone: "hand",
             count: 1,
           },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -998,7 +983,7 @@ describe("Action Validator", () => {
         const result = validateAction(
           state,
           { kind: "end_turn", playerId: makePlayerId("p1") },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(true);
@@ -1012,7 +997,7 @@ describe("Action Validator", () => {
         const result = validateAction(
           state,
           { kind: "end_turn", playerId: makePlayerId("p2") },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
@@ -1027,7 +1012,7 @@ describe("Action Validator", () => {
         const result = validateAction(
           state,
           { kind: "end_turn", playerId: makePlayerId("unknown") },
-          machine
+          machine,
         );
 
         expect(result.valid).toBe(false);
