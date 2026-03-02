@@ -49,9 +49,8 @@ jobs:
             echo "org.gradle.daemon=false"
             echo "org.gradle.caching=true"
             echo "org.gradle.configureondemand=true"
-            echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError"
+            echo "org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError"
             echo "kotlin.incremental=false"
-            echo "kotlin.compiler.execution.strategy=in-process"
           } >> "$PROPS"
 
       - name: Build APK
