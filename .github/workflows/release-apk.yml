@@ -36,7 +36,7 @@ jobs:
 
       - name: Fix Gradle JDK path
         run: |
-          echo "org.gradle.java.home=$JAVA_HOME" >> packages/host/android/gradle.properties
+          printf '\norg.gradle.java.home=%s\n' "$JAVA_HOME" >> packages/host/android/gradle.properties
 
       - name: Build APK
         run: ./gradlew assembleRelease
