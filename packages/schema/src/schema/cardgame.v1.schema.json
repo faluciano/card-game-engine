@@ -48,7 +48,7 @@
       "type": "object",
       "required": ["preset", "copies", "cardValues"],
       "properties": {
-        "preset": { "type": "string", "enum": ["standard_52", "standard_54", "uno_108", "custom"] },
+        "preset": { "type": "string", "enum": ["standard_52", "standard_54", "custom"] },
         "copies": { "type": "integer", "minimum": 1 },
         "cardValues": {
           "type": "object",
@@ -171,6 +171,11 @@
       "type": "object",
       "additionalProperties": { "type": "number" },
       "description": "Initial game variables (key-value pairs, all numeric)"
+    },
+    "initialStringVariables": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Initial string variables (key-value pairs, all strings)"
     },
     "visibility": {
       "type": "array",

@@ -113,6 +113,7 @@ export function createInitialState(
     turnDirection: 1,
     scores: {},
     variables: { ...(ruleset.initialVariables ?? {}) },
+    stringVariables: { ...(ruleset.initialStringVariables ?? {}) },
     actionLog: [],
     turnsTakenThisPhase: 0,
     version: 0,
@@ -357,7 +358,7 @@ function handlePlayCard(
 
   const card = fromZone.cards[cardIndex]!;
   const newFromCards = fromZone.cards.filter((_, i) => i !== cardIndex);
-  const newToCards = [...toZone.cards, card];
+  const newToCards = [card, ...toZone.cards];
 
   zones[action.fromZone] = { ...fromZone, cards: newFromCards };
   zones[action.toZone] = { ...toZone, cards: newToCards };
@@ -527,6 +528,7 @@ function handleResetRound(
     turnDirection: 1,
     scores: {},
     variables: { ...(state.ruleset.initialVariables ?? {}) },
+    stringVariables: { ...(state.ruleset.initialStringVariables ?? {}) },
     version: state.version + 1,
   };
 
@@ -678,6 +680,8 @@ function applySingleEffect(
       return applySetNextPlayerEffect(state, effect.params);
     case "set_var":
       return applySetVarEffect(state, effect.params);
+    case "set_str_var":
+      return applySetStrVarEffect(state, effect.params);
     case "inc_var":
       return applyIncVarEffect(state, effect.params);
     case "collect_trick":
@@ -1012,6 +1016,7 @@ function applyResetRoundEffect(state: CardGameState): CardGameState {
     turnDirection: 1,
     scores: {},
     variables: { ...(state.ruleset.initialVariables ?? {}), ...preserved },
+    stringVariables: { ...(state.ruleset.initialStringVariables ?? {}) },
   };
 }
 
@@ -1027,6 +1032,21 @@ function applySetVarEffect(
   return {
     ...state,
     variables: { ...state.variables, [name]: value },
+  };
+}
+
+/**
+ * Sets a custom string variable to a specific value.
+ */
+function applySetStrVarEffect(
+  state: CardGameState,
+  params: Record<string, unknown>
+): CardGameState {
+  const name = params.name as string;
+  const value = params.value as string;
+  return {
+    ...state,
+    stringVariables: { ...state.stringVariables, [name]: value },
   };
 }
 

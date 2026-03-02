@@ -50,48 +50,17 @@ export function standard54(): readonly CardTemplate[] {
 }
 
 /**
- * UNO 108-card deck.
- * 4 colors × (one 0 + two each of 1–9, Skip, Reverse, Draw Two) + 4 Wild + 4 Wild Draw Four.
- */
-export function uno108(): readonly CardTemplate[] {
-  const colors: readonly string[] = ["red", "yellow", "green", "blue"];
-  const numberRanks = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
-  const actionRanks = ["Skip", "Reverse", "Draw Two"];
-  const cards: CardTemplate[] = [];
-
-  for (const color of colors) {
-    // One 0 per color
-    cards.push({ suit: color, rank: "0" });
-    // Two each of 1–9 and action cards
-    for (const rank of [...numberRanks.slice(1), ...actionRanks]) {
-      cards.push({ suit: color, rank });
-      cards.push({ suit: color, rank });
-    }
-  }
-
-  // 4 Wild and 4 Wild Draw Four
-  for (let i = 0; i < 4; i++) {
-    cards.push({ suit: "wild", rank: "Wild" });
-    cards.push({ suit: "wild", rank: "Wild Draw Four" });
-  }
-
-  return cards;
-}
-
-/**
  * Looks up a preset by name and returns its card templates.
  * @throws {Error} for unknown preset names.
  */
 export function getPresetDeck(
-  preset: "standard_52" | "standard_54" | "uno_108"
+  preset: "standard_52" | "standard_54"
 ): readonly CardTemplate[] {
   switch (preset) {
     case "standard_52":
       return standard52();
     case "standard_54":
       return standard54();
-    case "uno_108":
-      return uno108();
   }
 }
 

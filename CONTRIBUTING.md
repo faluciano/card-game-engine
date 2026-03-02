@@ -213,7 +213,7 @@ cd packages/shared && bunx vitest
 2. Add the preset name to the `DeckPreset` type in `types/ruleset.ts`:
 
     ```typescript
-    export type DeckPreset = "standard_52" | "standard_54" | "uno_108" | "my_custom";
+    export type DeckPreset = "standard_52" | "standard_54" | "my_custom";
     ```
 
 3. Add the case to `getPresetDeck()` in `deck/presets.ts`:

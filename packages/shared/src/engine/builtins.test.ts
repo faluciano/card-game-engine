@@ -136,6 +136,7 @@ function makeGameState(
     turnNumber: 1,
     scores: {},
     variables: {},
+    stringVariables: {},
     actionLog: [],
     turnsTakenThisPhase: 0,
     turnDirection: 1,
@@ -202,6 +203,9 @@ describe("builtins", () => {
       expect(names).toContain("set_lead_player");
       expect(names).toContain("end_game");
       expect(names).toContain("concat");
+      expect(names).toContain("played_card_matches_top");
+      expect(names).toContain("get_str_var");
+      expect(names).toContain("set_str_var");
     });
 
     it("does not register while (handled as special form)", () => {
@@ -1629,6 +1633,209 @@ describe("builtins", () => {
     });
   });
 
+  // ── Per-Card Play Validation Builtins ──
+
+  describe("played_card_matches_top", () => {
+    it("returns true when played_card_index is -1 (sentinel)", () => {
+      const state = makeGameState({
+        "hand:0": makeZone("hand:0", [
+          makeCard("K", "spades"),
+        ]),
+        discard: makeZone("discard", [
+          makeCard("7", "hearts"),
+        ]),
+      });
+      const ctx: EvalContext = {
+        state,
+        playerIndex: 0,
+        bindings: { played_card_index: { kind: "number", value: -1 } },
+      };
+      const result = evaluateExpression(
+        'played_card_matches_top(discard)',
+        ctx
+      );
+      expect(result).toEqual({ kind: "boolean", value: true });
+    });
+
+    it("returns true when played card matches top by suit", () => {
+      const state = makeGameState({
+        "hand:0": makeZone("hand:0", [
+          makeCard("3", "hearts"),  // matches suit of discard top
+        ]),
+        discard: makeZone("discard", [
+          makeCard("7", "hearts"),
+        ]),
+      });
+      const ctx: EvalContext = {
+        state,
+        playerIndex: 0,
+        bindings: { played_card_index: { kind: "number", value: 0 } },
+      };
+      const result = evaluateExpression(
+        'played_card_matches_top(discard)',
+        ctx
+      );
+      expect(result).toEqual({ kind: "boolean", value: true });
+    });
+
+    it("returns true when played card matches top by rank", () => {
+      const state = makeGameState({
+        "hand:0": makeZone("hand:0", [
+          makeCard("7", "spades"),  // matches rank of discard top
+        ]),
+        discard: makeZone("discard", [
+          makeCard("7", "hearts"),
+        ]),
+      });
+      const ctx: EvalContext = {
+        state,
+        playerIndex: 0,
+        bindings: { played_card_index: { kind: "number", value: 0 } },
+      };
+      const result = evaluateExpression(
+        'played_card_matches_top(discard)',
+        ctx
+      );
+      expect(result).toEqual({ kind: "boolean", value: true });
+    });
+
+    it("returns false when played card doesn't match top", () => {
+      const state = makeGameState({
+        "hand:0": makeZone("hand:0", [
+          makeCard("K", "spades"),  // no match: different suit and rank
+        ]),
+        discard: makeZone("discard", [
+          makeCard("7", "hearts"),
+        ]),
+      });
+      const ctx: EvalContext = {
+        state,
+        playerIndex: 0,
+        bindings: { played_card_index: { kind: "number", value: 0 } },
+      };
+      const result = evaluateExpression(
+        'played_card_matches_top(discard)',
+        ctx
+      );
+      expect(result).toEqual({ kind: "boolean", value: false });
+    });
+
+    it("throws when played_card_index binding is missing", () => {
+      const state = makeGameState({
+        "hand:0": makeZone("hand:0", [makeCard("K", "spades")]),
+        discard: makeZone("discard", [makeCard("7", "hearts")]),
+      });
+      const ctx: EvalContext = { state, playerIndex: 0 };
+      expect(() =>
+        evaluateExpression('played_card_matches_top(discard)', ctx)
+      ).toThrow("'played_card_index' binding not found");
+    });
+
+    it("throws when index is out of bounds", () => {
+      const state = makeGameState({
+        "hand:0": makeZone("hand:0", [makeCard("K", "spades")]),
+        discard: makeZone("discard", [makeCard("7", "hearts")]),
+      });
+      const ctx: EvalContext = {
+        state,
+        playerIndex: 0,
+        bindings: { played_card_index: { kind: "number", value: 5 } },
+      };
+      expect(() =>
+        evaluateExpression('played_card_matches_top(discard)', ctx)
+      ).toThrow("index 5 out of bounds");
+    });
+
+    it("throws when target zone is empty", () => {
+      const state = makeGameState({
+        "hand:0": makeZone("hand:0", [makeCard("K", "spades")]),
+        discard: makeZone("discard", []),
+      });
+      const ctx: EvalContext = {
+        state,
+        playerIndex: 0,
+        bindings: { played_card_index: { kind: "number", value: 0 } },
+      };
+      expect(() =>
+        evaluateExpression('played_card_matches_top(discard)', ctx)
+      ).toThrow("target zone 'discard' is empty");
+    });
+  });
+
+  // ── String Variable Builtins ──
+
+  describe("get_str_var", () => {
+    it("returns value of existing string variable", () => {
+      const state = makeGameState(
+        {},
+        { stringVariables: { active_suit: "Hearts" } }
+      );
+      const ctx = makeEvalContext(state);
+      const result = evaluateExpression('get_str_var("active_suit")', ctx);
+      expect(result).toEqual({ kind: "string", value: "Hearts" });
+    });
+
+    it("returns empty string for non-existent variable", () => {
+      const state = makeGameState({}, { stringVariables: {} });
+      const ctx = makeEvalContext(state);
+      const result = evaluateExpression('get_str_var("missing_var")', ctx);
+      expect(result).toEqual({ kind: "string", value: "" });
+    });
+
+    it("throws for empty name", () => {
+      const state = makeGameState({});
+      const ctx = makeEvalContext(state);
+      expect(() => evaluateExpression('get_str_var("")', ctx)).toThrow(
+        "variable name must not be empty"
+      );
+    });
+
+    it("throws with wrong arg count", () => {
+      const state = makeGameState({});
+      const ctx = makeEvalContext(state);
+      expect(() => evaluateExpression("get_str_var()", ctx)).toThrow(
+        "requires exactly 1 argument"
+      );
+    });
+  });
+
+  describe("set_str_var", () => {
+    it("pushes set_str_var effect with correct params", () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      evaluateExpression('set_str_var("active_suit", "Diamonds")', ctx);
+      expect(ctx.effects).toHaveLength(1);
+      expect(ctx.effects[0]).toEqual({
+        kind: "set_str_var",
+        params: { name: "active_suit", value: "Diamonds" },
+      });
+    });
+
+    it("throws for empty name", () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      expect(() =>
+        evaluateExpression('set_str_var("", "value")', ctx)
+      ).toThrow("variable name must not be empty");
+    });
+
+    it("throws with wrong arg count", () => {
+      const state = makeGameState({});
+      const ctx = makeMutableContext(state);
+      expect(() =>
+        evaluateExpression('set_str_var("name")', ctx)
+      ).toThrow("requires exactly 2 argument");
+    });
+
+    it("throws without MutableEvalContext", () => {
+      const state = makeGameState({});
+      const ctx = makeEvalContext(state);
+      expect(() =>
+        evaluateExpression('set_str_var("active_suit", "Hearts")', ctx)
+      ).toThrow("requires a MutableEvalContext");
+    });
+  });
+
   // ── Turn manipulation builtins ──
 
   describe("turn manipulation builtins", () => {
@@ -2467,6 +2674,7 @@ describe("builtins", () => {
         turnNumber: 1,
         scores: {},
         variables: { lead_player: 0 },
+        stringVariables: {},
         actionLog: [],
         turnsTakenThisPhase: 0,
         turnDirection: 1,
@@ -2926,6 +3134,7 @@ describe("builtins", () => {
         turnNumber: 1,
         scores: {},
         variables: { lead_player: 0, hearts_broken: 0, tricks_played: 0 },
+        stringVariables: {},
         actionLog: [],
         turnsTakenThisPhase: 0,
         turnDirection: 1,

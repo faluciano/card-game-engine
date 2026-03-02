@@ -71,13 +71,14 @@ sections:
     "license": "string (optional — license identifier, e.g. MIT, public-domain)"
   },
   "deck": {
-    "preset": "standard_52 | standard_54 | uno_108 | custom",
+    "preset": "standard_52 | standard_54 | custom",
     "copies": "number (integer >= 1)",
     "cardValues": { "...rank-to-value mappings" }
   },
   "roles": ["...array of role definitions"],
   "zones": ["...array of zone definitions"],
   "initialVariables": { "...optional name-to-number mappings" },
+  "initialStringVariables": { "...optional name-to-string mappings" },
   "phases": ["...array of phase definitions (the FSM)"],
   "scoring": {
     "method": "expression",
@@ -153,13 +154,12 @@ The `deck` section defines which cards exist and what they are worth.
 
 ### Presets
 
-Three built-in deck presets are available:
+Two built-in deck presets are available:
 
 | Preset | Cards | Description |
 |---|---|---|
 | `standard_52` | 52 | 4 suits (hearts, diamonds, clubs, spades) x 13 ranks (A through K) |
 | `standard_54` | 54 | Standard 52 + 2 Jokers |
-| `uno_108` | 108 | UNO deck: 4 colors x number/action cards + Wild cards |
 
 ### Copies
 
@@ -499,6 +499,25 @@ The phase action's effects read the choice:
 Now subsequent matching logic can use `get_var("wild_color")` to check if
 played cards match the chosen color.
 
+#### Per-Card Validation
+
+When a `play_card` action has a `condition`, the engine injects `played_card_index`
+into the expression context — the index of the card in the player's hand. This
+enables per-card validation (e.g., only allow cards matching the discard pile).
+
+Use `played_card_matches_top(zone)` for common suit/rank matching:
+
+```json
+{
+  "name": "play_card",
+  "label": "Play Card",
+  "condition": "played_card_index == -1 || played_card_matches_top(discard)"
+}
+```
+
+The `played_card_index == -1` guard handles the sentinel value used when the engine
+checks if the action is generically available (before a specific card is selected).
+
 ---
 
 ## 8. Expressions
@@ -569,8 +588,10 @@ for player 1, and so on.
 | `has_card_matching_rank(zone, rank)` | boolean | True if the zone contains at least one card with the given rank string. |
 | `card_matches_top(hand_zone, card_index, target_zone)` | boolean | True if the card at `card_index` in `hand_zone` matches the top card of `target_zone` by suit **or** rank. |
 | `has_playable_card(hand_zone, target_zone)` | boolean | True if `hand_zone` has any card matching the top card of `target_zone` by suit or rank. Useful for enabling/disabling a "draw" action. |
+| `played_card_matches_top(zone)` | boolean | Returns boolean: does the played card match the top of the target zone by suit or rank? Reads `played_card_index` from context. Returns `true` when index is -1 (sentinel). |
 | `turn_direction()` | number | Returns the current turn direction: `1` (clockwise) or `-1` (counterclockwise). |
 | `get_var(name)` | number | Returns the value of a custom variable. Throws if the variable does not exist. |
+| `get_str_var(name)` | string | Returns the value of a string variable. Returns empty string `""` if the variable does not exist. |
 | `get_param(name)` | string\|number | Returns the value of an action parameter. Returns 0 if not found. Booleans as 1/0. |
 | `count_sets(zone, min_size)` | number | Count rank groups with at least min_size cards. |
 | `max_set_size(zone)` | number | Size of the largest rank group (e.g., 4 for four-of-a-kind). |
@@ -614,6 +635,7 @@ for player 1, and so on.
 | `set_lead_player(player_index)` | Sets `variables.lead_player` AND `currentPlayerIndex` to the given player index. The trick winner leads the next trick. |
 | `end_game()` | Transitions the game status to `finished`. Derives the winner from `scores[result:N] === 1`. Call after `determine_winners()` in the scoring phase. |
 | `set_var(name, value)` | Sets a custom variable to the given numeric value. |
+| `set_str_var(name, value)` | Sets a string variable to the given value. |
 | `inc_var(name, amount)` | Increments a custom variable by `amount` (can be negative). Creates the variable from 0 if it doesn't exist. |
 
 #### Special Forms
@@ -758,14 +780,13 @@ Two effect builtins modify variables:
 | `set_var(name, value)` | Sets a variable to an exact numeric value. |
 | `inc_var(name, amount)` | Adds `amount` to the current value. Use negative amounts to subtract. If the variable doesn't exist, starts from 0. |
 
-### Example: Ninety-Nine Running Total
+### Example: Tracking a Running Total
 
-In Ninety-Nine (99), the running total is the core mechanic:
+Custom variables are useful for tracking game state that isn't captured by zones or scores. For example, a running total:
 
 ```json
 "initialVariables": {
-  "running_total": 0,
-  "bust_player": -1
+  "running_total": 0
 }
 ```
 
@@ -773,15 +794,12 @@ Card effects update the total in the declare action's effect array:
 
 ```json
 "effect": [
-  "set_var(\"bust_player\", current_player_index)",
-  "if(card_rank_name(current_player.hand, 0) == \"9\", set_var(\"running_total\", 99))",
-  "if(card_rank_name(current_player.hand, 0) == \"10\", inc_var(\"running_total\", -10))",
-  "if(card_rank_name(current_player.hand, 0) == \"K\", inc_var(\"running_total\", 0))",
-  "..."
+  "inc_var(\"running_total\", 10)",
+  "end_turn()"
 ]
 ```
 
-Phase transitions use `get_var()` to check the bust condition:
+Phase transitions use `get_var()` to check conditions:
 
 ```json
 { "to": "scoring", "when": "get_var(\"running_total\") > 99" }
@@ -811,6 +829,44 @@ Variables reset to their `initialVariables` values when:
 - A new round begins via the `handleResetRound` action
 
 If no `initialVariables` are defined, the variables map is empty `{}`.
+
+### String Variables
+
+For storing text values (like suit names, player choices, etc.), use string variables:
+
+```json
+"initialStringVariables": {
+  "active_suit": ""
+}
+```
+
+**Builtins:**
+
+| Builtin | Description |
+|---------|-------------|
+| `get_str_var(name)` | Returns the string value. Returns `""` if the variable doesn't exist. |
+| `set_str_var(name, value)` | Sets a string variable to the given value. |
+
+**Example — Crazy Eights suit choosing:**
+
+After a player plays a wild 8, the game transitions to a `choose_suit` phase where
+they declare a suit. The declare action sets the string variable:
+
+```json
+{
+  "name": "choose_hearts",
+  "label": "Hearts",
+  "effect": ["set_str_var(\"active_suit\", \"Hearts\")", "end_turn()"]
+}
+```
+
+Subsequent play validation checks the active suit:
+
+```
+get_str_var("active_suit") != "" && card_suit(current_player.hand, played_card_index) == get_str_var("active_suit")
+```
+
+String variables reset to their `initialStringVariables` values on `reset_round()`.
 
 ---
 
@@ -846,7 +902,7 @@ below the target.
 
 ### Multi-Round Scoring
 
-For games played over multiple rounds (like Hearts), the engine supports
+For games played over multiple rounds, the engine supports
 accumulated scoring through cumulative score variables:
 
 | Builtin | Args | Returns | Description |
@@ -1387,8 +1443,8 @@ it("allows a player to hit and draw a card", () => {
 ## 17. Trick-Taking Games
 
 The engine supports trick-taking card games through a set of specialized
-builtins. These enable games like Hearts, Spades, Whist, Euchre, and other
-trick-based card games.
+builtins. These enable trick-based card games like Spades, Whist, Euchre, and
+other trick-taking games.
 
 ### Core Concepts
 
@@ -1422,7 +1478,6 @@ Trick-taking games typically use three per-player zone types:
 ```json
 "initialVariables": {
   "lead_player": 0,
-  "hearts_broken": 0,
   "tricks_played": 0
 }
 ```
@@ -1516,7 +1571,7 @@ wins the trick instead of the highest led-suit card.
 
 ### Scoring
 
-For avoidance games like Hearts, score penalty points per round:
+For avoidance games, score penalty points per round. The scoring method counts cards taken and checks for specific penalty cards:
 
 ```json
 "scoring": {
@@ -1592,16 +1647,9 @@ For single-round games, combine everything in one scoring phase:
 
 ### Limitations
 
-- **Follow-suit enforcement**: The engine does not yet validate individual card
-  selection against follow-suit rules (requires per-card validation, G7). The
-  `play_card` action is always available. True follow-suit must be enforced at
-  the UI level or via future per-card conditions.
-- **Card passing**: Pre-game card passing (e.g., Hearts pass phase) is not yet
+- **Follow-suit enforcement**: Per-card validation via `played_card_matches_top(zone)` and
+  `condition` on `play_card` actions now enables basic suit/rank matching (e.g.,
+  Crazy Eights). Full follow-suit rules (must play led suit if able) require
+  additional UI-level support or future enhancements.
+- **Card passing**: Pre-game card passing is not yet
   supported. Requires a new action type for selecting multiple cards to pass.
-
-### Complete Hearts Example
-
-See [`rulesets/hearts.cardgame.json`](../rulesets/hearts.cardgame.json) for a
-full working implementation. Hearts exercises: 4-player trick-taking, penalty
-scoring, hearts-broken tracking, multi-round accumulated scoring to 100 points,
-and the `game_over` → `end_game()` lifecycle.

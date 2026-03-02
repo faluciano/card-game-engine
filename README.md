@@ -2,7 +2,7 @@
 
 A customizable card game engine driven by declarative JSON rulesets, with multi-device gameplay over local WiFi.
 
-Card Game Engine lets you define the rules of any card game — blackjack, poker, UNO, and more — in a `.cardgame.json` file. The engine loads the ruleset at runtime, manages game state through a phase-based finite state machine, and enforces all rules without a single line of game-specific code. An Android TV acts as the shared display and game host, while players connect their phones as controllers by scanning a QR code.
+Card Game Engine lets you define the rules of any card game — blackjack, poker, and more — in a `.cardgame.json` file. The engine loads the ruleset at runtime, manages game state through a phase-based finite state machine, and enforces all rules without a single line of game-specific code. An Android TV acts as the shared display and game host, while players connect their phones as controllers by scanning a QR code.
 
 ## Architecture
 
@@ -27,13 +27,13 @@ The TV runs the authoritative game engine: it loads the ruleset, advances the FS
 
 - **Declarative JSON rulesets** — define game logic without writing code
 - **Safe expression language** — conditions and effects use a constrained (non-Turing-complete) evaluator with `if()` conditional branching and `while()` loops
-- **26 query builtins + 15 effect builtins** — covering common card game mechanics (draw, discard, shuffle, score, card matching, pattern matching, turn order, etc.)
+- **41 query builtins + 23 effect builtins** — covering common card game mechanics (draw, discard, shuffle, score, card matching, pattern matching, turn order, trick-taking, string variables, etc.)
 - **Phase-based FSM** — supports automatic, player_action, and simultaneous phase types
 - **Turn order mechanics** — clockwise/counterclockwise direction, reverse, skip, and set-next-player effects
 - **Seeded PRNG** — mulberry32 enables deterministic replay from an action log
 - **Hidden information** — per-player state filtering via `createPlayerView`
 - **Zod schema validation** — rulesets are validated against a strict schema at load time
-- **3 deck presets + custom decks** — `standard52`, `standard54`, `uno108`, plus fully custom card lists
+- **2 deck presets + custom decks** — `standard52`, `standard54`, plus fully custom card lists
 
 ## Project Structure
 
@@ -93,7 +93,7 @@ cd packages/shared
 bunx vitest run
 ```
 
-913 tests across the shared (804), schema (15), and host (94) packages cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios), schema meta fields, and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
+853 tests across the shared (744), schema (15), and host (94) packages cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios), schema meta fields, and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
 
 ### Build and Deploy
 
@@ -135,10 +135,7 @@ A `.cardgame.json` file declaratively defines everything the engine needs to run
 The [`rulesets/`](rulesets/) directory contains example rulesets:
 
 - **`blackjack.cardgame.json`** — the reference implementation demonstrating dealer AI, hand value scoring, and partial visibility
-- **`war.cardgame.json`** — a simple rank-comparison game showcasing automatic phases and multi-round play
-- **`crazy-eights.cardgame.json`** — a matching game demonstrating `if()` conditional branching, card matching builtins, and turn order mechanics
-- **`ninety-nine.cardgame.json`** — an accumulation game demonstrating custom variables (`get_var`, `set_var`, `inc_var`), conditional card effects with `if()`, and turn reversal
-- **`uno.cardgame.json`** — a shedding game demonstrating `play_card` action effects, custom variables for color choice, declare with params, Skip/Reverse/Draw Two effects, and multi-phase Wild card flow
+- **`crazy-eights.cardgame.json`** — a matching/shedding game demonstrating wild 8s (suit choosing), per-card play validation, string variables, draw pile reshuffle, and `if()` conditional branching
 
 Rulesets support optional catalog fields (`description`, `tags`, `license`) in their `meta` block. Run `bun run catalog` to generate a `catalog.json` index of all rulesets for browsing and discovery. Run `bun run validate` to validate all rulesets against the schema.
 
@@ -146,11 +143,11 @@ See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format
 
 ## Project Status
 
-All four implementation phases are **complete** with **913 passing tests** across shared (804), schema (15), and host (94) packages.
+All four implementation phases are **complete** with **853 passing tests** across shared (744), schema (15), and host (94) packages.
 
 | Phase | Status | Tests |
 |-------|--------|-------|
-| Phase 1 — Engine Core | ✅ Complete | 804 |
+| Phase 1 — Engine Core | ✅ Complete | 744 |
 | Phase 1.5 — Documentation | ✅ Complete | — |
 | Phase 2 — Storage & Import | ✅ Complete | 94 |
 | Phase 3 — Host Screens & CouchKit Integration | ✅ Complete | — |
@@ -162,7 +159,6 @@ The app builds and deploys to Android TV via `bun run build:android`. The host r
 ## Known Issues
 
 - **`all_players_done` sentinel always returns true** — after any declare action the engine immediately advances through all automatic phases. Affects games where multiple players must each complete an action before the round advances.
-- **Per-player zone visibility** — `isOwner` checks role membership, but since all human players share the `"player"` role, `isOwner` evaluates to true for every player viewing any player's hand zone. A player-index-based ownership check is needed.
 - **JDK version after prebuild** — `expo prebuild --clean` regenerates `gradle.properties`, removing the `org.gradle.java.home` override. Must re-add JDK 17 path and `local.properties` with `sdk.dir` after each prebuild.
 
 ## License

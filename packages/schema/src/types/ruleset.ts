@@ -24,7 +24,7 @@ export interface RulesetMeta {
 // ─── Deck Configuration ────────────────────────────────────────────
 
 /** Preset deck identifiers the engine knows how to build. */
-export type DeckPreset = "standard_52" | "standard_54" | "uno_108";
+export type DeckPreset = "standard_52" | "standard_54";
 
 /** A card template for custom deck definitions. */
 export interface CardTemplateConfig {
@@ -154,6 +154,7 @@ export interface CardGameRuleset {
   readonly phases: readonly PhaseDefinition[];
   readonly scoring: ScoringConfig;
   readonly initialVariables?: Readonly<Record<string, number>>;
+  readonly initialStringVariables?: Readonly<Record<string, string>>;
   readonly visibility: readonly VisibilityRule[];
   readonly ui: UIConfig;
 }

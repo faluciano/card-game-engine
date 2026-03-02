@@ -13,6 +13,7 @@ import {
   evaluateExpression,
   ExpressionError,
   type EvalContext,
+  type EvalResult,
 } from "./expression-evaluator";
 import { PhaseMachine } from "./phase-machine";
 import type { MutableEvalContext, EffectDescription } from "./builtins";
@@ -84,7 +85,14 @@ export function getValidActions(
   const result: ValidAction[] = [];
 
   for (const action of phase.actions) {
-    const ctx: EvalContext = { state, playerIndex };
+    // For play_card actions, inject sentinel played_card_index = -1
+    // so builtins like played_card_matches_top() treat the action as
+    // generically available (per-card filtering happens at play time).
+    const bindings: Record<string, EvalResult> =
+      action.name === "play_card"
+        ? { played_card_index: { kind: "number", value: -1 } }
+        : {};
+    const ctx: EvalContext = { state, playerIndex, bindings };
     let enabled = true;
 
     if (action.condition) {
@@ -290,7 +298,15 @@ function validatePlayCard(
     const playerIndex = state.players.findIndex(
       (p) => p.id === action.playerId
     );
-    const ctx: EvalContext = { state, playerIndex };
+    // Compute the index of the played card in fromZone for per-card validation
+    const cardIndex = fromZone.cards.findIndex((c) => c.id === action.cardId);
+    const ctx: EvalContext = {
+      state,
+      playerIndex,
+      bindings: {
+        played_card_index: { kind: "number", value: cardIndex },
+      },
+    };
     try {
       const conditionMet = evaluateCondition(playCardAction.condition, ctx);
       if (!conditionMet) {

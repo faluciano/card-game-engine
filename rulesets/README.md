@@ -7,11 +7,7 @@ This directory contains example `.cardgame.json` ruleset files that the Card Gam
 | File | Game | Family | Players |
 |------|------|--------|---------|
 | `blackjack.cardgame.json` | Blackjack | Banking / dealer vs. players | 1–6 |
-| `war.cardgame.json` | War | Rank comparison | 2 |
 | `crazy-eights.cardgame.json` | Crazy Eights | Matching / shedding | 2–4 |
-| `ninety-nine.cardgame.json` | Ninety-Nine (99) | Accumulation / avoidance | 2–4 |
-| `uno.cardgame.json` | Uno (Simplified) | Shedding / color matching | 2–4 |
-| `hearts.cardgame.json` | Hearts | Trick-taking / avoidance | 4 |
 
 ## Catalog Fields
 
@@ -52,7 +48,7 @@ A ruleset file requires these top-level sections:
 | `visibility` | Who can see which cards |
 | `ui` | Layout and visual hints for renderers |
 
-Optional sections: `initialVariables` (custom numeric state).
+Optional sections: `initialVariables` (custom numeric state), `initialStringVariables` (custom string state).
 
 For the full format specification, expression language reference, and annotated examples, see the **[Ruleset Authoring Guide](../docs/ruleset-authoring.md)**.
 

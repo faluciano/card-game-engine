@@ -1,1 +1,1 @@
-export { standard52, standard54, uno108, getPresetDeck, createCardInstanceId, instantiateCards, type CardTemplate } from "./presets";
+export { standard52, standard54, getPresetDeck, createCardInstanceId, instantiateCards, type CardTemplate } from "./presets";

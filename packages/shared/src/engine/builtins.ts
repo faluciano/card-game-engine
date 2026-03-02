@@ -809,6 +809,20 @@ const getVarBuiltin: BuiltinFunction = (args, context) => {
 };
 
 /**
+ * get_str_var(name) — Returns the value of a custom string variable.
+ * Returns empty string "" if the variable does not exist.
+ */
+const getStrVarBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("get_str_var", args, 1);
+  const name = requireString(args[0]!, "name");
+  if (name === "") {
+    throw new ExpressionError("get_str_var: variable name must not be empty");
+  }
+  const value = context.state.stringVariables[name] ?? "";
+  return { kind: "string", value };
+};
+
+/**
  * get_param(name) — Returns the value of an action parameter.
  * Reads from the actionParams context provided by a declare action.
  * Returns 0 if the param doesn't exist or actionParams is undefined.
@@ -1206,6 +1220,20 @@ const setVarBuiltin: BuiltinFunction = (args, context) => {
 };
 
 /**
+ * set_str_var(name, value) — Records a set_str_var effect.
+ * Sets a custom string variable to the given string value.
+ */
+const setStrVarBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("set_str_var", args, 2);
+  const name = requireString(args[0]!, "name");
+  if (name === "") {
+    throw new ExpressionError("set_str_var: variable name must not be empty");
+  }
+  const value = requireString(args[1]!, "value");
+  pushEffect(context, { kind: "set_str_var", params: { name, value } });
+};
+
+/**
  * inc_var(name, amount) — Records an inc_var effect.
  * Increments a custom variable by the given amount (can be negative).
  */
@@ -1247,6 +1275,70 @@ function coerceToString(arg: EvalResult): string {
       );
   }
 }
+
+// ─── Per-Card Play Validation Builtins ─────────────────────────────
+
+/**
+ * played_card_matches_top(zone) — Returns boolean: does the card being
+ * played match the top card of the target zone by suit OR rank?
+ *
+ * Reads `played_card_index` from context bindings:
+ *   - If -1 (sentinel from getValidActions), returns true — the action is
+ *     generically available and per-card filtering happens at play time.
+ *   - Otherwise, looks up the card at that index in the current player's
+ *     hand zone and compares it against the top card of the target zone.
+ *
+ * Modeled after `card_matches_top` but uses the injected binding instead
+ * of an explicit card_index argument.
+ */
+const playedCardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("played_card_matches_top", args, 1);
+  const targetZoneName = resolveZoneName(args[0]!);
+
+  // Read the played_card_index binding
+  const binding =
+    context.bindings && "played_card_index" in context.bindings
+      ? context.bindings.played_card_index
+      : undefined;
+
+  if (!binding) {
+    throw new ExpressionError(
+      "played_card_matches_top(): 'played_card_index' binding not found in context"
+    );
+  }
+
+  const cardIndex = requireNumber(binding, "played_card_index");
+
+  // Sentinel: -1 means "no specific card" — generically available
+  if (cardIndex === -1) {
+    return { kind: "boolean", value: true };
+  }
+
+  // Resolve the current player's hand zone
+  const playerIndex = context.playerIndex ?? context.state.currentPlayerIndex;
+  const handZoneName = `hand:${playerIndex}`;
+  const handZone = getZone(context.state, handZoneName);
+
+  if (cardIndex < 0 || cardIndex >= handZone.cards.length) {
+    throw new ExpressionError(
+      `played_card_matches_top(): index ${cardIndex} out of bounds for zone '${handZoneName}' (${handZone.cards.length} cards)`
+    );
+  }
+
+  const targetZone = getZone(context.state, targetZoneName);
+  if (targetZone.cards.length === 0) {
+    throw new ExpressionError(
+      `played_card_matches_top(): target zone '${targetZoneName}' is empty`
+    );
+  }
+
+  const card = handZone.cards[cardIndex]!;
+  const topCard = targetZone.cards[0]!;
+  return {
+    kind: "boolean",
+    value: card.suit === topCard.suit || card.rank === topCard.rank,
+  };
+};
 
 // ─── Cumulative Score Builtins ─────────────────────────────────────
 
@@ -1349,6 +1441,7 @@ export function registerAllBuiltins(): void {
   registerBuiltin("sum_card_values", sumCardValuesBuiltin);
   registerBuiltin("prefer_high_under", preferHighUnderBuiltin);
   registerBuiltin("get_var", getVarBuiltin);
+  registerBuiltin("get_str_var", getStrVarBuiltin);
   registerBuiltin("get_param", getParamBuiltin);
   registerBuiltin("count_sets", countSetsBuiltin);
   registerBuiltin("max_set_size", maxSetSizeBuiltin);
@@ -1362,6 +1455,7 @@ export function registerAllBuiltins(): void {
   registerBuiltin("count_cards_by_suit", countCardsBySuitBuiltin);
   registerBuiltin("has_card_with", hasCardWithBuiltin);
   registerBuiltin("sum_zone_values_by_suit", sumZoneValuesBySuitBuiltin);
+  registerBuiltin("played_card_matches_top", playedCardMatchesTopBuiltin);
   registerBuiltin("get_cumulative_score", getCumulativeScoreBuiltin);
   registerBuiltin("max_cumulative_score", maxCumulativeScoreBuiltin);
   registerBuiltin("min_cumulative_score", minCumulativeScoreBuiltin);
@@ -1392,5 +1486,6 @@ export function registerAllBuiltins(): void {
   registerBuiltin("accumulate_scores", accumulateScoresBuiltin);
   registerBuiltin("turn_direction", turnDirectionBuiltin);
   registerBuiltin("set_var", setVarBuiltin);
+  registerBuiltin("set_str_var", setStrVarBuiltin);
   registerBuiltin("inc_var", incVarBuiltin);
 }

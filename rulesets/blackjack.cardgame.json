@@ -47,11 +47,6 @@
       "name": "dealer_hand",
       "visibility": { "kind": "partial", "rule": "face_up_only" },
       "owners": ["dealer"]
-    },
-    {
-      "name": "discard",
-      "visibility": { "kind": "public" },
-      "owners": []
     }
   ],
   "roles": [
@@ -99,7 +94,7 @@
         {
           "name": "double_down",
           "label": "Double Down",
-          "condition": "card_count(current_player.hand) == 2",
+          "condition": "card_count(current_player.hand) == 2 && hand_value(current_player.hand) < 21",
           "effect": [
             "draw(draw_pile, current_player.hand, 1)",
             "end_turn()"
@@ -172,10 +167,6 @@
     {
       "zone": "draw_pile",
       "visibility": { "kind": "hidden" }
-    },
-    {
-      "zone": "discard",
-      "visibility": { "kind": "public" }
     }
   ],
   "ui": {

@@ -53,6 +53,7 @@ export interface CardGameState {
   readonly turnDirection: 1 | -1;
   readonly scores: Readonly<Record<string, number>>;
   readonly variables: Readonly<Record<string, number>>;
+  readonly stringVariables: Readonly<Record<string, string>>;
   readonly actionLog: readonly ResolvedAction[];
   /** Tracks how many end_turn effects have been applied in the current phase. */
   readonly turnsTakenThisPhase: number;
@@ -132,6 +133,7 @@ export interface PlayerView {
   readonly validActions: readonly CardGameAction["kind"][];
   readonly scores: Readonly<Record<string, number>>;
   readonly variables: Readonly<Record<string, number>>;
+  readonly stringVariables: Readonly<Record<string, string>>;
   readonly turnNumber: number;
 }
 

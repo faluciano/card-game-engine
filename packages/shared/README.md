@@ -175,11 +175,11 @@ Built-in deck templates for common card games.
 
 ```typescript
 import {
-  getPresetDeck, instantiateCards, standard52, standard54, uno108
+  getPresetDeck, instantiateCards, standard52, standard54
 } from "@card-engine/shared";
 
 // Retrieve a preset deck's card templates by name.
-getPresetDeck(preset: "standard_52" | "standard_54" | "uno_108"): readonly CardTemplate[]
+getPresetDeck(preset: "standard_52" | "standard_54"): readonly CardTemplate[]
 
 // Instantiate templates into Card objects with unique IDs.
 // Cards start face-down by default.
@@ -188,7 +188,6 @@ instantiateCards(templates: readonly CardTemplate[], copies?: number): readonly 
 // Individual preset factories
 standard52(): readonly CardTemplate[]   // 4 suits x 13 ranks
 standard54(): readonly CardTemplate[]   // 52 + 2 jokers
-uno108(): readonly CardTemplate[]       // 4 colors x 25 + 8 wilds
 ```
 
 ### Host Bridge Layer
@@ -302,6 +301,7 @@ Pure functions that read state without side effects.
 | `has_playable_card(hand, target)`| zone, zone          | `boolean` | True if hand has any card matching target's top      |
 | `turn_direction()`               | none                | `number`  | Current turn direction (1=clockwise, -1=counter)     |
 | `get_var(name)`                  | string              | `number`  | Returns the value of a custom variable. Throws if not found. |
+| `get_str_var(name)`              | string              | `string`  | Returns the value of a string variable. Returns `""` if not found. |
 | `get_param(name)`                | string              | `string\|number` | Returns the value of an action parameter. Returns 0 if not found. Booleans as 1/0. |
 | `count_sets(zone, min_size)`     | zone name, number   | `number`  | Count rank groups with at least min_size cards           |
 | `max_set_size(zone)`             | zone name           | `number`  | Size of the largest rank group (e.g., 4 for four-of-a-kind) |
@@ -309,6 +309,23 @@ Pure functions that read state without side effects.
 | `has_straight(zone, length)`     | zone name, number   | `boolean` | True if consecutive rank sequence of given length exists |
 | `count_runs(zone, min_length)`   | zone name, number   | `number`  | Count consecutive rank sequences of at least min_length  |
 | `max_run_length(zone)`           | zone name           | `number`  | Length of the longest consecutive rank sequence          |
+| `trick_winner(zone_prefix)`      | string              | `number`  | Determines trick winner. Led suit from `{prefix}:{lead_player}`. Returns player index or -1. |
+| `led_card_suit(zone_prefix)`     | string              | `string`  | Suit of card played by lead player. Returns `""` if not set. |
+| `trick_card_count(zone_prefix)`  | string              | `number`  | Total cards across all `{prefix}:{N}` zones.             |
+| `count_cards_by_suit(zone, suit)`| zone, string        | `number`  | Count cards of a specific suit in a zone.                |
+| `has_card_with(zone, rank, suit)`| zone, string, string| `boolean` | True if zone has a card matching both rank and suit.     |
+| `sum_zone_values_by_suit(zone, suit)` | zone, string   | `number`  | Sum card values for cards of a specific suit.            |
+| `played_card_matches_top(zone)`  | zone name           | `boolean` | Does the played card match the top of zone by suit or rank? Reads `played_card_index` from context. Returns `true` when index is -1 (sentinel). |
+| `get_cumulative_score(i)`        | number              | `number`  | Returns `cumulative_score_{i}` from variables, defaults to 0. |
+| `max_cumulative_score()`         | none                | `number`  | Highest cumulative score across all human players.       |
+| `min_cumulative_score()`         | none                | `number`  | Lowest cumulative score across all human players.        |
+| `concat(a, b)`                   | any, any            | `string`  | Concatenates two values into a string.                   |
+| `card_rank(zone, index)`         | zone, number        | `number`  | Numeric rank value of card at index. Dual-value returns high. |
+| `card_rank_name(zone, index)`    | zone, number        | `string`  | Rank string (e.g., `"A"`, `"K"`) of card at index.      |
+| `card_suit(zone, index)`         | zone, number        | `string`  | Suit string of card at index.                            |
+| `count_rank(zone, rank)`         | zone, string        | `number`  | Count cards with given rank string.                      |
+| `top_card_rank(zone)`            | zone name           | `number`  | Numeric rank value of top card. Shorthand for `card_rank(zone, 0)`. |
+| `max_card_rank(zone)`            | zone name           | `number`  | Highest numeric rank value among all cards in zone.      |
 
 ### Effect Builtins
 
@@ -329,14 +346,22 @@ Mutating functions that record effect descriptions for the interpreter to apply.
 | `reverse_turn_order()`              | none                       | Flip turn direction (clockwise ↔ counterclockwise) |
 | `skip_next_player()`                | none                       | Advance player index by one extra step             |
 | `set_next_player(index)`            | number                     | Set next player to a specific 0-based index        |
+| `move_top(from, to, count)`         | zone, zone, number         | Move top count cards from one zone to another      |
+| `flip_top(zone, count)`             | zone, number               | Set top count cards in zone to face-up             |
+| `move_all(from, to)`                | zone, zone                 | Move all cards from one zone to another            |
+| `collect_trick(prefix, target)`     | string, zone               | Move all `{prefix}:{N}` cards into target (face-down) |
+| `set_lead_player(index)`            | number                     | Set `lead_player` variable and `currentPlayerIndex`    |
+| `end_game()`                        | none                       | Transition game status to `finished`                   |
+| `accumulate_scores()`               | none                       | Add round scores to cumulative score variables         |
 | `set_var(name, value)`              | string, number             | Sets a custom variable to the given value                  |
+| `set_str_var(name, value)`          | string, string             | Sets a string variable to the given value                  |
 | `inc_var(name, amount)`             | string, number             | Increments a custom variable by amount (can be negative)   |
 
 ## Key Types
 
 ### `CardGameRuleset`
 
-The top-level type for a fully parsed `.cardgame.json` file. Contains: `meta`, `deck`, `zones`, `roles`, `initialVariables?`, `phases`, `scoring`, `visibility`, `ui`. Immutable by design.
+The top-level type for a fully parsed `.cardgame.json` file. Contains: `meta`, `deck`, `zones`, `roles`, `initialVariables?`, `initialStringVariables?`, `phases`, `scoring`, `visibility`, `ui`. Immutable by design.
 
 ### `CardGameState`
 
@@ -378,7 +403,7 @@ A zone where hidden cards are replaced with `null` placeholders. Contains `name`
 
 ## Testing
 
-804 tests across 8 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, and integration scenarios.
+744 tests across 9 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, integration scenarios, and host bridge catalog actions.
 
 ```sh
 # Run all tests

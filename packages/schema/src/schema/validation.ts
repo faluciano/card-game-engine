@@ -44,7 +44,7 @@ const CardTemplateSchema = z.object({
 
 const DeckSchema = z.discriminatedUnion("preset", [
   z.object({
-    preset: z.enum(["standard_52", "standard_54", "uno_108"]),
+    preset: z.enum(["standard_52", "standard_54"]),
     copies: z.number().int().min(1),
     cardValues: z.record(z.string(), CardValueSchema),
   }),
@@ -124,6 +124,7 @@ export const CardGameRulesetSchema = z.object({
   phases: z.array(PhaseSchema).min(1),
   scoring: ScoringSchema,
   initialVariables: z.record(z.string(), z.number()).optional(),
+  initialStringVariables: z.record(z.string(), z.string()).optional(),
   visibility: z.array(VisibilityRuleSchema),
   ui: UISchema,
 });
