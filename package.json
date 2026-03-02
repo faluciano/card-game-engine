@@ -1,8 +1,11 @@
 {
   "name": "card-game-engine",
   "private": true,
+  "license": "MIT",
   "packageManager": "bun@1.2.19",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev:client": "cd packages/client && bun run dev",
     "build:client": "cd packages/client && bun run build",
