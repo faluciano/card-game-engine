@@ -5,6 +5,9 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -22,6 +25,9 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
       - run: bun install
 
       - name: Build client
@@ -34,12 +40,20 @@ jobs:
         run: bunx expo prebuild --clean --platform android
         working-directory: packages/host
 
-      - name: Fix Gradle JDK path
+      - name: Optimize Gradle for CI
         run: |
-          printf '\norg.gradle.java.home=%s\n' "$JAVA_HOME" >> packages/host/android/gradle.properties
+          cat >> packages/host/android/gradle.properties << EOF
+          org.gradle.java.home=$JAVA_HOME
+          org.gradle.daemon=false
+          org.gradle.caching=true
+          org.gradle.configureondemand=true
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError
+          kotlin.incremental=false
+          kotlin.compiler.execution.strategy=in-process
+          EOF
 
       - name: Build APK
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
         working-directory: packages/host/android
 
       - name: Upload APK artifact
