@@ -40,11 +40,15 @@ config.resolver.unstable_enableSymlinks = true;
 // Resolve real paths for critical singleton packages to prevent duplicates.
 // Bun's .bun/ cache can contain multiple versions (e.g. react@18.3.1 AND react@19.1.0).
 // Without this, react-native's internal modules may resolve to the wrong React copy.
+const singletonSearchPaths = [hostNodeModules, path.resolve(root, "node_modules")];
+const reactPath = resolvePackage("react", singletonSearchPaths);
+const reactNativePath = resolvePackage("react-native", singletonSearchPaths);
+
 const singletonPackages = {
-  react: fs.realpathSync(path.resolve(hostNodeModules, "react")),
-  "react-native": fs.realpathSync(path.resolve(hostNodeModules, "react-native")),
-  "react/jsx-runtime": fs.realpathSync(path.resolve(hostNodeModules, "react")) + "/jsx-runtime",
-  "react/jsx-dev-runtime": fs.realpathSync(path.resolve(hostNodeModules, "react")) + "/jsx-dev-runtime",
+  react: reactPath,
+  "react-native": reactNativePath,
+  "react/jsx-runtime": reactPath + "/jsx-runtime",
+  "react/jsx-dev-runtime": reactPath + "/jsx-dev-runtime",
 };
 
 config.resolver.extraNodeModules = {
