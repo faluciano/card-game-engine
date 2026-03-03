@@ -61,7 +61,6 @@ jobs:
             echo "org.gradle.daemon=false"
             echo "org.gradle.caching=true"
             echo "org.gradle.configureondemand=true"
-            echo "org.gradle.configuration-cache=true"
             echo "org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError"
             echo "kotlin.incremental=false"
           } >> "$PROPS"
