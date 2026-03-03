@@ -15,7 +15,7 @@ import { useGameHost } from "@couch-kit/host";
 import type { IPlayer } from "@couch-kit/core";
 import type { HostAction, HostGameState } from "../types/host-state";
 
-import QRCode from "react-native-qrcode-svg";
+import { QRDisplay } from "../components/QRDisplay";
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -100,33 +100,6 @@ export function Lobby(): React.JSX.Element {
           />
         </View>
       </View>
-    </View>
-  );
-}
-
-// ─── QR Display ────────────────────────────────────────────────────
-
-function QRDisplay({
-  url,
-}: {
-  readonly url: string | null;
-}): React.JSX.Element {
-  if (!url) {
-    return (
-      <View style={styles.qrBox}>
-        <Text style={styles.qrText}>Starting server…</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.qrBox}>
-      <QRCode
-        value={url}
-        size={200}
-        color="black"
-        backgroundColor="white"
-      />
     </View>
   );
 }
@@ -230,20 +203,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingRight: 32,
-  },
-  qrBox: {
-    width: 240,
-    height: 240,
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-  },
-  qrText: {
-    color: "#333333",
-    fontSize: 16,
-    textAlign: "center",
   },
   gameName: {
     color: "#ffffff",

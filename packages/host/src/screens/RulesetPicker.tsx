@@ -17,6 +17,7 @@ import type { CardGameRuleset } from "@card-engine/shared";
 import type { HostAction, HostGameState } from "../types/host-state";
 import { useRulesetStore } from "../hooks/useRulesetStore";
 import { ImportModal } from "../components/ImportModal";
+import { QRDisplay } from "../components/QRDisplay";
 import blackjackJson from "../../../../rulesets/blackjack.cardgame.json";
 
 // ─── Built-in Rulesets ─────────────────────────────────────────────
@@ -45,7 +46,7 @@ interface RulesetItem {
 // ─── Component ─────────────────────────────────────────────────────
 
 export function RulesetPicker(): React.JSX.Element {
-  const { dispatch } = useGameHost<HostGameState, HostAction>();
+  const { dispatch, serverUrl } = useGameHost<HostGameState, HostAction>();
   const {
     rulesets: storedRulesets,
     isLoading,
@@ -83,7 +84,13 @@ export function RulesetPicker(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>CHOOSE A GAME</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>CHOOSE A GAME</Text>
+        <View style={styles.qrSection}>
+          <QRDisplay url={serverUrl} size={100} />
+          <Text style={styles.qrHint}>Scan to connect{"\n"}your phone</Text>
+        </View>
+      </View>
 
       {isLoading ? (
         <Text style={styles.loadingText}>Loading rulesets...</Text>
@@ -204,13 +211,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 48,
     paddingTop: 48,
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 32,
+  },
   title: {
     color: "#ffffff",
     fontSize: 48,
     fontWeight: "800",
     letterSpacing: 2,
-    marginBottom: 32,
-    textAlign: "center",
+  },
+  qrSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  qrHint: {
+    color: "#888888",
+    fontSize: 18,
+    lineHeight: 26,
   },
   listContent: {
     paddingBottom: 48,
