@@ -28,16 +28,28 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      - run: bun install
+      - run: bun install --frozen-lockfile
 
-      - name: Build client
-        run: bun run build:client
-
-      - name: Bundle client for host
-        run: bun run bundle:client
+      - name: Derive version from release tag
+        if: github.event_name == 'release'
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          echo "VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          # Inject version into app.json so expo prebuild generates correct build.gradle
+          node -e "
+            const fs = require('fs');
+            const app = JSON.parse(fs.readFileSync('packages/host/app.json', 'utf8'));
+            app.expo.version = '${VERSION}';
+            app.expo.android.versionCode = ${VERSION_CODE};
+            fs.writeFileSync('packages/host/app.json', JSON.stringify(app, null, 2) + '\n');
+          "
 
       - name: Generate native project
-        run: bunx expo prebuild --clean --platform android
+        run: bunx expo prebuild --platform android
         working-directory: packages/host
 
       - name: Optimize Gradle for CI
@@ -49,13 +61,43 @@ jobs:
             echo "org.gradle.daemon=false"
             echo "org.gradle.caching=true"
             echo "org.gradle.configureondemand=true"
+            echo "org.gradle.configuration-cache=true"
             echo "org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError"
             echo "kotlin.incremental=false"
           } >> "$PROPS"
 
+      - name: Build client
+        run: bun run build:client
+
+      - name: Bundle client for host
+        run: bun run bundle:client
+
       - name: Build APK
-        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+        run: ./gradlew assembleRelease
         working-directory: packages/host/android
+
+      - name: Analyze APK
+        run: |
+          APK=$(find packages/host/android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "## APK Analysis" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          FILE_SIZE=$(stat -c%s "$APK" 2>/dev/null || stat -f%z "$APK")
+          FILE_SIZE_MB=$(echo "scale=2; $FILE_SIZE / 1048576" | bc)
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **APK file size** | ${FILE_SIZE_MB} MB |" >> "$GITHUB_STEP_SUMMARY"
+
+          if command -v $ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer &>/dev/null; then
+            DOWNLOAD_SIZE=$($ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer apk download-size "$APK")
+            DOWNLOAD_MB=$(echo "scale=2; $DOWNLOAD_SIZE / 1048576" | bc)
+            DEX_REFS=$($ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer dex references "$APK" | tail -1)
+            echo "| **Download size** | ${DOWNLOAD_MB} MB |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| **DEX method refs** | ${DEX_REFS} |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK: \`$(basename $APK)\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -70,3 +112,8 @@ jobs:
         run: |
           APK=$(find packages/host/android/app/build/outputs/apk/release -name "*.apk" | head -1)
           gh release upload "${{ github.event.release.tag_name }}" "$APK" --clobber
+          FILE_SIZE=$(stat -c%s "$APK" 2>/dev/null || stat -f%z "$APK")
+          FILE_SIZE_MB=$(echo "scale=2; $FILE_SIZE / 1048576" | bc)
+          CURRENT_BODY=$(gh release view "${{ github.event.release.tag_name }}" --json body -q .body)
+          printf -v NOTES '%s\n\n---\n**APK size:** %s MB' "$CURRENT_BODY" "$FILE_SIZE_MB"
+          gh release edit "${{ github.event.release.tag_name }}" --notes "$NOTES"
