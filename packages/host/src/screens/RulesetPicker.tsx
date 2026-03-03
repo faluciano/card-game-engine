@@ -46,7 +46,7 @@ interface RulesetItem {
 // ─── Component ─────────────────────────────────────────────────────
 
 export function RulesetPicker(): React.JSX.Element {
-  const { dispatch, serverUrl } = useGameHost<HostGameState, HostAction>();
+  const { state, dispatch, serverUrl } = useGameHost<HostGameState, HostAction>();
   const {
     rulesets: storedRulesets,
     isLoading,
@@ -54,7 +54,7 @@ export function RulesetPicker(): React.JSX.Element {
     importWithSlug,
     deleteRuleset,
     allSlugs,
-  } = useRulesetStore(BUILT_IN_SLUGS);
+  } = useRulesetStore(BUILT_IN_SLUGS, state.installedSlugs);
   const [modalVisible, setModalVisible] = useState(false);
 
   const rulesetItems: readonly RulesetItem[] = useMemo(() => {

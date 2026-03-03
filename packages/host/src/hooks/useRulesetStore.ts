@@ -31,9 +31,17 @@ interface UseRulesetStoreResult {
  * for importing from a URL and deleting rulesets, both of
  * which automatically refresh the list.
  *
+ * When `installedSlugs` changes (e.g. a phone installs or removes a game
+ * via CouchKit sync), the hook automatically re-fetches from disk so the
+ * TV's RulesetPicker grid stays up to date.
+ *
  * @param builtInSlugs - Slugs of built-in rulesets, used for duplicate detection.
+ * @param installedSlugs - CouchKit-synced slug list; triggers a refresh when it changes.
  */
-export function useRulesetStore(builtInSlugs: readonly string[]): UseRulesetStoreResult {
+export function useRulesetStore(
+  builtInSlugs: readonly string[],
+  installedSlugs?: readonly { slug: string; version: string }[],
+): UseRulesetStoreResult {
   const storeRef = useRef(new FileRulesetStore());
   const [rulesets, setRulesets] = useState<readonly StoredRuleset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,6 +79,15 @@ export function useRulesetStore(builtInSlugs: readonly string[]): UseRulesetStor
       cancelled = true;
     };
   }, []);
+
+  // Re-fetch from disk when external installs/uninstalls update the synced slug list
+  const slugKey = installedSlugs
+    ? installedSlugs.map((s) => `${s.slug}@${s.version}`).join(",")
+    : "";
+  useEffect(() => {
+    if (!slugKey) return;
+    void refresh();
+  }, [slugKey, refresh]);
 
   const importFromUrl = useCallback(
     async (url: string): Promise<ImportResult> => {
