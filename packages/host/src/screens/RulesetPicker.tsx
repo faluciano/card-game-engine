@@ -18,7 +18,7 @@ import type { HostAction, HostGameState } from "../types/host-state";
 import { useRulesetStore } from "../hooks/useRulesetStore";
 import { ImportModal } from "../components/ImportModal";
 import { QRDisplay } from "../components/QRDisplay";
-import blackjackJson from "../../../../rulesets/blackjack.cardgame.json";
+import crazyEightsJson from "../../../../rulesets/crazy-eights.cardgame.json";
 
 // ─── Built-in Rulesets ─────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ import blackjackJson from "../../../../rulesets/blackjack.cardgame.json";
  * Throws fast at startup if the bundled JSON is malformed.
  */
 const BUILT_IN_RULESETS: readonly CardGameRuleset[] = [
-  loadRuleset(blackjackJson),
+  loadRuleset(crazyEightsJson),
 ];
 
 /** Slugs of all built-in rulesets, used for duplicate detection. */
