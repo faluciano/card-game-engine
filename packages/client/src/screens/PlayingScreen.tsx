@@ -107,16 +107,22 @@ export function PlayingScreen({
           result={myResult}
           playerScore={myScore}
           opponentScores={npcScores}
-          onNewRound={() =>
+          onNewRound={() => {
+            // Find the first available declare action for this phase
+            // instead of hardcoding a declaration name.
+            const declareAction = validActions.find(
+              (a) => a.actionName !== "play_card",
+            );
+            if (!declareAction) return;
             handleSendAction({
               type: "GAME_ACTION",
               action: {
                 kind: "declare",
                 playerId: playerView.myPlayerId,
-                declaration: "new_round",
+                declaration: declareAction.actionName,
               },
-            })
-          }
+            });
+          }}
         />
       )}
     </div>

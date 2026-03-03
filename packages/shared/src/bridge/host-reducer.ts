@@ -123,6 +123,9 @@ function handleSelectRuleset(
   state: HostGameState,
   ruleset: CardGameRuleset,
 ): HostGameState {
+  // Guard: block during active game — can only select from picker or lobby
+  if (state.screen.tag === "game_table") return state;
+
   const screen: HostScreen = { tag: "lobby", ruleset };
 
   return {
@@ -260,12 +263,20 @@ function handleUninstallRuleset(
   state: HostGameState,
   slug: string,
 ): HostGameState {
-  // Guard: can only uninstall from the ruleset picker screen
-  if (state.screen.tag !== "ruleset_picker") return state;
+  // Guard: can only uninstall from picker or lobby
+  if (state.screen.tag === "game_table") return state;
 
   // Guard: slug must be in the installed list
   const isInstalled = state.installedSlugs.some((ig) => ig.slug === slug);
   if (!isInstalled) return state;
+
+  // Guard: cannot uninstall the currently-selected lobby game
+  if (
+    state.screen.tag === "lobby" &&
+    state.screen.ruleset.meta.slug === slug
+  ) {
+    return state;
+  }
 
   return {
     ...state,

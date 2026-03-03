@@ -14,6 +14,8 @@ interface GameCardProps {
   readonly isUninstalling?: boolean;
   readonly onInstall: (game: CatalogGame) => void;
   readonly onUninstall?: () => void;
+  readonly onSelect?: () => void;
+  readonly isSelected?: boolean;
 }
 
 // ─── Styles ────────────────────────────────────────────────────────
@@ -127,6 +129,8 @@ export function GameCard({
   isUninstalling = false,
   onInstall,
   onUninstall,
+  onSelect,
+  isSelected = false,
 }: GameCardProps): React.JSX.Element {
   // ── Derive button appearance ───────────────────────────────────
   const renderAction = (): React.JSX.Element => {
@@ -177,6 +181,43 @@ export function GameCard({
         <div style={actionColumnStyle}>
           <button type="button" style={updateStyle} onClick={() => onInstall(game)}>
             Update
+          </button>
+          {onUninstall && (
+            <button type="button" style={removeButtonStyle} onClick={onUninstall}>
+              Remove
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // Installed in lobby context — show Select / Selected button
+    if (isInstalled && onSelect) {
+      if (isSelected) {
+        const selectedStyle: CSSProperties = {
+          ...baseButtonStyle,
+          backgroundColor: "var(--color-success)",
+          color: "#fff",
+          cursor: "default",
+          opacity: 0.8,
+        };
+        return (
+          <div style={actionColumnStyle}>
+            <button type="button" style={selectedStyle} disabled>
+              {"Selected \u2713"}
+            </button>
+          </div>
+        );
+      }
+      const selectStyle: CSSProperties = {
+        ...baseButtonStyle,
+        backgroundColor: "var(--color-accent)",
+        color: "#fff",
+      };
+      return (
+        <div style={actionColumnStyle}>
+          <button type="button" style={selectStyle} onClick={onSelect}>
+            Select
           </button>
           {onUninstall && (
             <button type="button" style={removeButtonStyle} onClick={onUninstall}>

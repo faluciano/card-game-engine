@@ -64,9 +64,13 @@ export function App(): React.JSX.Element {
   }
 
   if (state.status === "lobby") {
-    const player = state.players[playerId];
-    const playerName = player?.name ?? "Player";
-    return <LobbyScreen playerName={playerName} />;
+    return (
+      <LobbyScreen
+        state={state}
+        sendAction={sendAction}
+        playerId={playerId}
+      />
+    );
   }
 
   // Game states — need engineState and playerView

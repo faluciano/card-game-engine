@@ -1,6 +1,7 @@
 // ─── Hand Viewer ───────────────────────────────────────────────────
 // Renders the player's hand zones and other visible zones.
-// Groups cards by zone, showing the player's own hand first.
+// Groups cards by zone, showing context zones (discard, community) at the
+// top and the player's own hand at the bottom for thumb-friendly mobile UX.
 // When onCardSelect is provided, cards in the player's own zones become
 // interactive — enabling card selection for play_card actions.
 
@@ -109,7 +110,22 @@ export function HandViewer({
 
   return (
     <div style={containerStyle}>
-      {/* Player's personal zones — always shown first, interactive when onCardSelect provided */}
+      {/* Other visible zones (discard, community) — shown at top for read-only context */}
+      {otherZones.map(([name, zone]) => (
+        <div key={name} style={zoneStyle}>
+          <p style={zoneLabelStyle}>{formatZoneName(name)}</p>
+          <div style={cardsRowStyle}>
+            {zone.cards.map((card, index) => (
+              <CardMini
+                key={card?.id ?? `hidden-${name}-${index}`}
+                card={card}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* Player's personal zones — shown at bottom for thumb-friendly interaction */}
       {myZones.map(([name, zone]) => (
         <div key={name} style={zoneStyle}>
           <p style={zoneLabelStyle}>{formatZoneName(name)}</p>
@@ -120,21 +136,6 @@ export function HandViewer({
                 card={card}
                 selected={card?.id === selectedCardId}
                 onSelect={onCardSelect ? makeSelectHandler(name) : undefined}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-
-      {/* Other visible zones — not interactive */}
-      {otherZones.map(([name, zone]) => (
-        <div key={name} style={zoneStyle}>
-          <p style={zoneLabelStyle}>{formatZoneName(name)}</p>
-          <div style={cardsRowStyle}>
-            {zone.cards.map((card, index) => (
-              <CardMini
-                key={card?.id ?? `hidden-${name}-${index}`}
-                card={card}
               />
             ))}
           </div>

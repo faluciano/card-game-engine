@@ -190,14 +190,21 @@ function ZoneDisplay({
   readonly name: string;
   readonly zone: ZoneState;
 }): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false);
   const { cards } = zone;
   const allFaceDown =
     cards.length > 0 && cards.every((card) => !card.faceUp);
   const shouldCollapse =
     allFaceDown && cards.length > STACK_COLLAPSE_THRESHOLD;
+  const hasFaceUpCards = cards.some((c) => c.faceUp);
+  const shouldShowTopOnly =
+    !allFaceDown && hasFaceUpCards && cards.length > 1 && !expanded;
 
   return (
-    <View style={styles.zone}>
+    <Pressable
+      style={styles.zone}
+      onPress={() => setExpanded((prev) => !prev)}
+    >
       <Text style={styles.zoneName}>
         {formatZoneName(name)} ({cards.length} cards)
       </Text>
@@ -208,11 +215,20 @@ function ZoneDisplay({
           </View>
         ) : shouldCollapse ? (
           <StackedDeck count={cards.length} />
+        ) : shouldShowTopOnly ? (
+          <>
+            <CardView card={cards[0]!} />
+            <View style={styles.topCardMoreIndicator}>
+              <Text style={styles.topCardMoreText}>
+                +{cards.length - 1} more
+              </Text>
+            </View>
+          </>
         ) : (
           <CappedCardList cards={cards} />
         )}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -794,6 +810,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   moreIndicatorText: {
+    color: "#81c784",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  // Top card only indicator (collapsed face-up zone)
+  topCardMoreIndicator: {
+    height: 72,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  topCardMoreText: {
     color: "#81c784",
     fontSize: 14,
     fontWeight: "700",

@@ -459,4 +459,102 @@ describe("catalog actions (host reducer)", () => {
       expect(next).toBeDefined();
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── SELECT_RULESET from lobby ────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("SELECT_RULESET from lobby", () => {
+    it("swaps the selected ruleset when already in lobby", () => {
+      const rulesetA = makeTestRuleset({ slug: "game-a", name: "Game A" });
+      const rulesetB = makeTestRuleset({ slug: "game-b", name: "Game B" });
+
+      // Start in lobby with rulesetA
+      let state = hostReducer(createHostInitialState(), {
+        type: "SELECT_RULESET",
+        ruleset: rulesetA,
+      });
+      expect(state.screen).toEqual({ tag: "lobby", ruleset: rulesetA });
+
+      // Swap to rulesetB
+      state = hostReducer(state, {
+        type: "SELECT_RULESET",
+        ruleset: rulesetB,
+      });
+      expect(state.screen).toEqual({ tag: "lobby", ruleset: rulesetB });
+      expect(state.status).toBe("lobby");
+      expect(state.engineState).toBeNull();
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── SELECT_RULESET from game_table (blocked) ─────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("SELECT_RULESET from game_table", () => {
+    it("is a no-op when on game_table screen", () => {
+      const gameState = makeGameTableState();
+      const newRuleset = makeTestRuleset({ slug: "new-game", name: "New Game" });
+
+      const next = hostReducer(gameState, {
+        type: "SELECT_RULESET",
+        ruleset: newRuleset,
+      });
+
+      expect(next).toBe(gameState);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── UNINSTALL_RULESET from lobby ─────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("UNINSTALL_RULESET from lobby", () => {
+    it("allows uninstalling a non-selected game from the lobby", () => {
+      const lobbyRuleset = makeTestRuleset({ slug: "selected-game", name: "Selected Game" });
+
+      // Enter lobby with lobbyRuleset
+      let state = hostReducer(createHostInitialState(), {
+        type: "SELECT_RULESET",
+        ruleset: lobbyRuleset,
+      });
+      // Install another game
+      state = {
+        ...state,
+        installedSlugs: [
+          { slug: "selected-game", version: "1.0.0" },
+          { slug: "other-game", version: "1.0.0" },
+        ],
+      };
+
+      const next = hostReducer(state, {
+        type: "UNINSTALL_RULESET",
+        slug: "other-game",
+      });
+
+      expect(next.pendingUninstall).toBe("other-game");
+    });
+
+    it("blocks uninstalling the currently-selected lobby game", () => {
+      const lobbyRuleset = makeTestRuleset({ slug: "selected-game", name: "Selected Game" });
+
+      let state = hostReducer(createHostInitialState(), {
+        type: "SELECT_RULESET",
+        ruleset: lobbyRuleset,
+      });
+      state = {
+        ...state,
+        installedSlugs: [{ slug: "selected-game", version: "1.0.0" }],
+      };
+
+      const next = hostReducer(state, {
+        type: "UNINSTALL_RULESET",
+        slug: "selected-game",
+      });
+
+      // Should be no-op — same state reference
+      expect(next).toBe(state);
+      expect(next.pendingUninstall).toBeNull();
+    });
+  });
 });

@@ -5,7 +5,7 @@
 
 import { useEffect, useRef } from "react";
 import { FileRulesetStore } from "../storage/file-ruleset-store";
-import { safeParseRuleset } from "@card-engine/schema";
+import { safeParseRuleset } from "@card-engine/shared";
 import type { HostAction, HostGameState } from "../types/host-state";
 
 /**
