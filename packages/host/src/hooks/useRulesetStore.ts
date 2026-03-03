@@ -81,17 +81,13 @@ export function useRulesetStore(
   }, []);
 
   // Re-fetch from disk when external installs/uninstalls update the synced slug list.
-  // Skip the initial empty state (boot default) but refresh on all subsequent changes,
-  // including when the last game is uninstalled (slugKey goes back to "").
-  const slugKey = installedSlugs
+  // Use `undefined` sentinel (no prop) vs `""` (empty list) so removing the last
+  // installed game still triggers a refresh instead of being swallowed by a falsy guard.
+  const slugKey = installedSlugs != null
     ? installedSlugs.map((s) => `${s.slug}@${s.version}`).join(",")
-    : "";
-  const hasReceivedSlugs = useRef(false);
+    : undefined;
   useEffect(() => {
-    if (!hasReceivedSlugs.current) {
-      if (!slugKey) return;
-      hasReceivedSlugs.current = true;
-    }
+    if (slugKey === undefined) return;
     void refresh();
   }, [slugKey, refresh]);
 
