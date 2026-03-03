@@ -137,6 +137,17 @@ const errorBannerStyle: CSSProperties = {
   textAlign: "center",
 };
 
+const retryButtonStyle: CSSProperties = {
+  padding: "8px 20px",
+  border: "none",
+  borderRadius: 999,
+  backgroundColor: "var(--color-accent)",
+  color: "#fff",
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
 // ─── Component ─────────────────────────────────────────────────────
 
 export function LobbyScreen({
@@ -144,7 +155,7 @@ export function LobbyScreen({
   sendAction,
   playerId,
 }: LobbyScreenProps): React.JSX.Element {
-  const catalog = useCatalog();
+  const { catalog, refetch } = useCatalog();
   const [installError, setInstallError] = useState<string | null>(null);
 
   const player = state.players[playerId];
@@ -272,6 +283,13 @@ export function LobbyScreen({
             <p style={{ ...mutedTextStyle, color: "var(--color-danger)" }}>
               {catalog.message}
             </p>
+            <button
+              type="button"
+              style={retryButtonStyle}
+              onClick={refetch}
+            >
+              Retry
+            </button>
           </div>
         )}
 

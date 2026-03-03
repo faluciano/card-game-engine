@@ -253,6 +253,16 @@ const filteredLabelStyle: CSSProperties = {
   padding: "2px 0",
 };
 
+const staleBannerStyle: CSSProperties = {
+  margin: "0 16px 8px",
+  padding: "6px 14px",
+  borderRadius: 8,
+  backgroundColor: "var(--color-surface-raised)",
+  color: "var(--color-text-muted)",
+  fontSize: 12,
+  textAlign: "center",
+};
+
 // ─── Style helpers ─────────────────────────────────────────────────
 
 function chipStyle(active: boolean): CSSProperties {
@@ -296,7 +306,7 @@ export function CatalogScreen({
   state,
   sendAction,
 }: CatalogScreenProps): React.JSX.Element {
-  const catalog = useCatalog();
+  const { catalog, refetch } = useCatalog();
   const [installError, setInstallError] = useState<string | null>(null);
 
   // ── Filter state ───────────────────────────────────────────────
@@ -380,7 +390,7 @@ export function CatalogScreen({
         <button
           type="button"
           style={retryButtonStyle}
-          onClick={() => window.location.reload()}
+          onClick={refetch}
         >
           Retry
         </button>
@@ -389,11 +399,12 @@ export function CatalogScreen({
   }
 
   // ── Loaded state ──
-  const { games } = catalog;
+  const { games, stale } = catalog;
 
   return (
     <CatalogLoaded
       games={games}
+      stale={stale}
       state={state}
       installError={installError}
       searchQuery={searchQuery}
@@ -419,6 +430,7 @@ export function CatalogScreen({
 
 interface CatalogLoadedProps {
   readonly games: readonly CatalogGame[];
+  readonly stale: boolean;
   readonly state: HostGameState;
   readonly installError: string | null;
   readonly searchQuery: string;
@@ -437,6 +449,7 @@ interface CatalogLoadedProps {
 
 function CatalogLoaded({
   games,
+  stale,
   state,
   installError,
   searchQuery,
@@ -476,6 +489,10 @@ function CatalogLoaded({
   return (
     <div style={containerStyle}>
       <h1 style={headerStyle}>Browse Games</h1>
+
+      {stale && (
+        <div style={staleBannerStyle}>Showing cached results</div>
+      )}
 
       {installError !== null && (
         <div style={errorBannerStyle}>{installError}</div>

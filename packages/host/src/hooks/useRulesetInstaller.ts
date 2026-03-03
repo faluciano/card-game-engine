@@ -3,7 +3,7 @@
 // the ruleset to FileRulesetStore, then dispatches SET_INSTALLED_SLUGS
 // to sync all clients. Handles updates by deleting the old version first.
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { FileRulesetStore } from "../storage/file-ruleset-store";
 import { safeParseRuleset } from "@card-engine/shared";
 import type { HostAction, HostGameState } from "../types/host-state";
@@ -13,18 +13,20 @@ import type { HostAction, HostGameState } from "../types/host-state";
  * a client requests an install. If the slug already exists, deletes
  * the old entry first (enabling seamless updates). Dispatches updated
  * slugs after saving. Reducer stays pure — all I/O happens here.
+ *
+ * Uses the standard React async effect cleanup pattern: if
+ * `pendingInstall` changes while a previous install is in-flight,
+ * React tears down the old effect (setting `aborted = true`) and
+ * fires a new one, so no install request is silently dropped.
  */
 export function useRulesetInstaller(
   pendingInstall: HostGameState["pendingInstall"],
   dispatch: (action: HostAction) => void,
 ): void {
-  const installingRef = useRef(false);
-
   useEffect(() => {
     if (!pendingInstall) return;
-    if (installingRef.current) return;
 
-    installingRef.current = true;
+    let aborted = false;
 
     async function install(): Promise<void> {
       try {
@@ -40,30 +42,50 @@ export function useRulesetInstaller(
 
         // If slug already exists, delete the old entry first (update path)
         const existing = await store.getBySlug(slug);
+        if (aborted) return;
+
         if (existing) {
           await store.delete(existing.id);
           console.log("[RulesetInstaller] Replacing existing:", slug);
         }
+        if (aborted) return;
 
         await store.saveWithSlug(ruleset, slug);
+        if (aborted) return;
         console.log("[RulesetInstaller] Installed:", slug);
 
         // Refresh the full slug + version list
         const rulesets = await store.list();
+        if (aborted) return;
         const slugs = rulesets.map((r) => ({
           slug: r.ruleset.meta.slug,
           version: r.ruleset.meta.version,
         }));
         dispatch({ type: "SET_INSTALLED_SLUGS", slugs });
       } catch (err) {
+        if (aborted) return;
         console.error("[RulesetInstaller] Install failed:", err);
-        // Clear pendingInstall even on error to avoid retry loop
-        dispatch({ type: "SET_INSTALLED_SLUGS", slugs: [] });
-      } finally {
-        installingRef.current = false;
+        // Re-read actual state from disk to clear pendingInstall without data loss
+        try {
+          const store = new FileRulesetStore();
+          const rulesets = await store.list();
+          if (aborted) return;
+          const slugs = rulesets.map((r) => ({
+            slug: r.ruleset.meta.slug,
+            version: r.ruleset.meta.version,
+          }));
+          dispatch({ type: "SET_INSTALLED_SLUGS", slugs });
+        } catch {
+          // Last resort: dispatch empty list to clear pending state
+          dispatch({ type: "SET_INSTALLED_SLUGS", slugs: [] });
+        }
       }
     }
 
     void install();
+
+    return () => {
+      aborted = true;
+    };
   }, [pendingInstall, dispatch]);
 }

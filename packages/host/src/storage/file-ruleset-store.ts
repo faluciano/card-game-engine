@@ -4,10 +4,14 @@
 
 import { File, Directory, Paths } from "expo-file-system";
 import type { CardGameRuleset } from "@card-engine/shared";
-import type { StoredRuleset } from "./ruleset-store";
 
-// Re-export StoredRuleset so consumers don't need to import from two files
-export type { StoredRuleset } from "./ruleset-store";
+/** A stored ruleset with metadata for the local database. */
+export interface StoredRuleset {
+  readonly id: string;
+  readonly ruleset: CardGameRuleset;
+  readonly importedAt: number;
+  readonly lastPlayedAt: number | null;
+}
 
 /** Metadata for a single stored ruleset (everything except the ruleset itself). */
 interface RulesetMetadataEntry {
