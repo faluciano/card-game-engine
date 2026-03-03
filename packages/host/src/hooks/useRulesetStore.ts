@@ -80,12 +80,18 @@ export function useRulesetStore(
     };
   }, []);
 
-  // Re-fetch from disk when external installs/uninstalls update the synced slug list
+  // Re-fetch from disk when external installs/uninstalls update the synced slug list.
+  // Skip the initial empty state (boot default) but refresh on all subsequent changes,
+  // including when the last game is uninstalled (slugKey goes back to "").
   const slugKey = installedSlugs
     ? installedSlugs.map((s) => `${s.slug}@${s.version}`).join(",")
     : "";
+  const hasReceivedSlugs = useRef(false);
   useEffect(() => {
-    if (!slugKey) return;
+    if (!hasReceivedSlugs.current) {
+      if (!slugKey) return;
+      hasReceivedSlugs.current = true;
+    }
     void refresh();
   }, [slugKey, refresh]);
 
