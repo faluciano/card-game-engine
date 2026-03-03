@@ -25,7 +25,8 @@
             "extraProguardRules": "# --- App-specific rules ---\n-keep public class com.cardgameengine.host.** extends android.app.Application { *; }\n-keep public class com.cardgameengine.host.** extends android.app.Activity { *; }\n\n# --- NitroModules safety net (defense-in-depth) ---\n-keep class com.margelo.nitro.** { *; }\n\n# --- Hermes engine ---\n-keep class com.facebook.hermes.unicode.** { *; }\n-keep class com.facebook.jni.** { *; }\n\n# --- Suppress warnings ---\n-dontwarn com.facebook.react.flipper.**\n-dontwarn com.facebook.jni.**"
           }
         }
-      ]
+      ],
+      "./plugins/withAndroidTV"
     ]
   }
 }

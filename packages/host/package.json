@@ -31,8 +31,8 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
-    "@expo/metro-config": "~54.0.0",
     "@couch-kit/cli": "^0.3.4",
+    "@expo/metro-config": "~54.0.0",
     "@types/react": "~19.1.10",
     "babel-preset-expo": "^54.0.10",
     "typescript": "~5.9.2",
