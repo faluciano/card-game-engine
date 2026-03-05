@@ -162,7 +162,6 @@ function makeBlackjackRuleset(): CardGameRuleset {
       tieCondition: "my_score == dealer_score && my_score <= 21",
       autoEndTurnCondition: "hand_value(current_player.hand, 21) >= 21",
     },
-    visibility: [],
     ui: { layout: "semicircle", tableColor: "felt_green" },
   };
 }
@@ -1621,7 +1620,6 @@ describe("Ruleset Interpreter", () => {
           winCondition: "false",
           bustCondition: "false",
         },
-        visibility: [],
         ui: { layout: "semicircle", tableColor: "felt_green" },
       } as CardGameRuleset;
     }
@@ -1866,7 +1864,6 @@ describe("Ruleset Interpreter", () => {
           method: "0",
           winCondition: "false",
         },
-        visibility: [],
         ui: { layout: "semicircle", tableColor: "felt_green" },
         ...(initialVariables !== undefined ? { initialVariables } : {}),
       };
@@ -2180,7 +2177,6 @@ describe("Ruleset Interpreter", () => {
           },
         ],
         initialVariables: { cards_played: 0 },
-        visibility: [],
         ui: { layout: "semicircle", tableColor: "felt_green" },
       };
     }
@@ -2496,7 +2492,6 @@ describe("Ruleset Interpreter", () => {
           },
         ],
         scoring: { method: "0", winCondition: "false" },
-        visibility: [],
         ui: { layout: "semicircle", tableColor: "felt_green" },
       };
     }
@@ -2591,7 +2586,6 @@ describe("Ruleset Interpreter", () => {
           },
         ],
         scoring: { method: "0", winCondition: "false" },
-        visibility: [],
         ui: { layout: "semicircle", tableColor: "felt_green" },
       };
     }

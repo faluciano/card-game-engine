@@ -78,7 +78,6 @@ function createMockState(
         winCondition: "true",
         bustCondition: "false",
       },
-      visibility: [],
       ui: { layout: "semicircle", tableColor: "felt_green" },
     } as CardGameState["ruleset"],
     status: { kind: "in_progress", startedAt: 0 },
@@ -392,28 +391,22 @@ describe("state-filter", () => {
   describe("phase override visibility", () => {
     it("uses default visibility when phase does not match override", () => {
       const cards = [ACE_SPADES, KING_HEARTS, QUEEN_DIAMONDS];
-      const state = stateWithZone(
-        "dealer_hand",
-        cards,
-        { kind: "partial", rule: "first_card_only" },
-        ["dealer"],
-        {
-          currentPhase: "player_turns",
-          ruleset: {
-            ...createMockState().ruleset,
-            visibility: [
-              {
-                zone: "dealer_hand",
-                visibility: { kind: "partial", rule: "first_card_only" },
-                phaseOverride: {
-                  phase: "dealer_turn",
-                  visibility: { kind: "public" },
-                },
-              },
-            ],
+      const state = createMockState({
+        currentPhase: "player_turns",
+        zones: {
+          dealer_hand: {
+            definition: {
+              name: "dealer_hand",
+              visibility: { kind: "partial", rule: "first_card_only" },
+              owners: ["dealer"],
+              phaseOverrides: [
+                { phase: "dealer_turn", visibility: { kind: "public" } },
+              ],
+            },
+            cards,
           },
-        }
-      );
+        },
+      });
 
       const view = createPlayerView(state, makePlayerId("p1"));
 
@@ -427,28 +420,22 @@ describe("state-filter", () => {
 
     it("uses override visibility when phase matches", () => {
       const cards = [ACE_SPADES, KING_HEARTS, QUEEN_DIAMONDS];
-      const state = stateWithZone(
-        "dealer_hand",
-        cards,
-        { kind: "partial", rule: "first_card_only" },
-        ["dealer"],
-        {
-          currentPhase: "dealer_turn",
-          ruleset: {
-            ...createMockState().ruleset,
-            visibility: [
-              {
-                zone: "dealer_hand",
-                visibility: { kind: "partial", rule: "first_card_only" },
-                phaseOverride: {
-                  phase: "dealer_turn",
-                  visibility: { kind: "public" },
-                },
-              },
-            ],
+      const state = createMockState({
+        currentPhase: "dealer_turn",
+        zones: {
+          dealer_hand: {
+            definition: {
+              name: "dealer_hand",
+              visibility: { kind: "partial", rule: "first_card_only" },
+              owners: ["dealer"],
+              phaseOverrides: [
+                { phase: "dealer_turn", visibility: { kind: "public" } },
+              ],
+            },
+            cards,
           },
-        }
-      );
+        },
+      });
 
       const view = createPlayerView(state, makePlayerId("p1"));
 
@@ -460,29 +447,19 @@ describe("state-filter", () => {
       ]);
     });
 
-    it("does not override zones without a matching rule", () => {
+    it("does not override zones without phaseOverrides", () => {
       const cards = [ACE_SPADES, KING_HEARTS];
       const state = createMockState({
         currentPhase: "dealer_turn",
-        ruleset: {
-          ...createMockState().ruleset,
-          visibility: [
-            {
-              zone: "dealer_hand",
-              visibility: { kind: "partial", rule: "first_card_only" },
-              phaseOverride: {
-                phase: "dealer_turn",
-                visibility: { kind: "public" },
-              },
-            },
-          ],
-        },
         zones: {
           dealer_hand: {
             definition: {
               name: "dealer_hand",
               visibility: { kind: "partial", rule: "first_card_only" },
               owners: ["dealer"],
+              phaseOverrides: [
+                { phase: "dealer_turn", visibility: { kind: "public" } },
+              ],
             },
             cards,
           },
@@ -505,36 +482,31 @@ describe("state-filter", () => {
         KING_HEARTS,
       ]);
 
-      // player_hand has no visibility rule → uses default owner_only
+      // player_hand has no phaseOverrides → uses default owner_only
       // p1 is "player" role, which is an owner
       expect(view.zones["player_hand"]!.cards).toEqual([QUEEN_DIAMONDS]);
     });
 
-    it("uses default when visibility rule has no phaseOverride", () => {
+    it("uses default when zone has no phaseOverrides", () => {
       const cards = [ACE_SPADES, KING_HEARTS];
-      const state = stateWithZone(
-        "dealer_hand",
-        cards,
-        { kind: "partial", rule: "first_card_only" },
-        ["dealer"],
-        {
-          currentPhase: "dealer_turn",
-          ruleset: {
-            ...createMockState().ruleset,
-            visibility: [
-              {
-                zone: "dealer_hand",
-                visibility: { kind: "partial", rule: "first_card_only" },
-                // No phaseOverride
-              },
-            ],
+      const state = createMockState({
+        currentPhase: "dealer_turn",
+        zones: {
+          dealer_hand: {
+            definition: {
+              name: "dealer_hand",
+              visibility: { kind: "partial", rule: "first_card_only" },
+              owners: ["dealer"],
+              // No phaseOverrides
+            },
+            cards,
           },
-        }
-      );
+        },
+      });
 
       const view = createPlayerView(state, makePlayerId("p1"));
 
-      // No phaseOverride → uses default partial rule
+      // No phaseOverrides → uses default partial rule
       expect(view.zones["dealer_hand"]!.cards).toEqual([
         ACE_SPADES,
         null,
@@ -543,28 +515,22 @@ describe("state-filter", () => {
 
     it("can override partial to hidden", () => {
       const cards = [ACE_SPADES, KING_HEARTS];
-      const state = stateWithZone(
-        "dealer_hand",
-        cards,
-        { kind: "public" },
-        ["dealer"],
-        {
-          currentPhase: "shuffle_phase",
-          ruleset: {
-            ...createMockState().ruleset,
-            visibility: [
-              {
-                zone: "dealer_hand",
-                visibility: { kind: "public" },
-                phaseOverride: {
-                  phase: "shuffle_phase",
-                  visibility: { kind: "hidden" },
-                },
-              },
-            ],
+      const state = createMockState({
+        currentPhase: "shuffle_phase",
+        zones: {
+          dealer_hand: {
+            definition: {
+              name: "dealer_hand",
+              visibility: { kind: "public" },
+              owners: ["dealer"],
+              phaseOverrides: [
+                { phase: "shuffle_phase", visibility: { kind: "hidden" } },
+              ],
+            },
+            cards,
           },
-        }
-      );
+        },
+      });
 
       const view = createPlayerView(state, makePlayerId("p1"));
 
@@ -764,8 +730,8 @@ describe("state-filter", () => {
   // ── Base name matching for visibility rules ────────────────────
   // ══════════════════════════════════════════════════════════════════
 
-  describe("base name matching for visibility rules", () => {
-    it("phase override targeting 'hand' applies to 'hand:0'", () => {
+  describe("zone-level phaseOverrides on per-player zones", () => {
+    it("phaseOverrides on hand:0 applies during matching phase", () => {
       const state = createMockState({
         currentPhase: "reveal",
         players: [
@@ -782,25 +748,15 @@ describe("state-filter", () => {
             connected: true,
           },
         ],
-        ruleset: {
-          ...createMockState().ruleset,
-          visibility: [
-            {
-              zone: "hand",
-              visibility: { kind: "owner_only" },
-              phaseOverride: {
-                phase: "reveal",
-                visibility: { kind: "public" },
-              },
-            },
-          ],
-        },
         zones: {
           "hand:0": {
             definition: {
               name: "hand:0",
               visibility: { kind: "owner_only" },
               owners: ["player"],
+              phaseOverrides: [
+                { phase: "reveal", visibility: { kind: "public" } },
+              ],
             },
             cards: [ACE_SPADES, KING_HEARTS],
           },
@@ -809,13 +765,16 @@ describe("state-filter", () => {
               name: "hand:1",
               visibility: { kind: "owner_only" },
               owners: ["player"],
+              phaseOverrides: [
+                { phase: "reveal", visibility: { kind: "public" } },
+              ],
             },
             cards: [QUEEN_DIAMONDS],
           },
         },
       });
 
-      // During "reveal" phase, the "hand" base rule makes all hand zones public
+      // During "reveal" phase, phaseOverrides make all hand zones public
       const bobView = createPlayerView(state, makePlayerId("bob"));
 
       // Bob can see Alice's hand:0 even though he's not the owner
@@ -827,7 +786,7 @@ describe("state-filter", () => {
       expect(bobView.zones["hand:1"]!.cards).toEqual([QUEEN_DIAMONDS]);
     });
 
-    it("phase override targeting 'hand' applies to 'hand:1'", () => {
+    it("phaseOverrides on hand:1 applies during matching phase", () => {
       const state = createMockState({
         currentPhase: "reveal",
         players: [
@@ -844,25 +803,15 @@ describe("state-filter", () => {
             connected: true,
           },
         ],
-        ruleset: {
-          ...createMockState().ruleset,
-          visibility: [
-            {
-              zone: "hand",
-              visibility: { kind: "owner_only" },
-              phaseOverride: {
-                phase: "reveal",
-                visibility: { kind: "public" },
-              },
-            },
-          ],
-        },
         zones: {
           "hand:1": {
             definition: {
               name: "hand:1",
               visibility: { kind: "owner_only" },
               owners: ["player"],
+              phaseOverrides: [
+                { phase: "reveal", visibility: { kind: "public" } },
+              ],
             },
             cards: [QUEEN_DIAMONDS, JACK_CLUBS],
           },
@@ -877,7 +826,7 @@ describe("state-filter", () => {
       ]);
     });
 
-    it("base name rule does NOT activate when phase doesn't match", () => {
+    it("phaseOverrides does NOT activate when phase doesn't match", () => {
       const state = createMockState({
         currentPhase: "player_turns",
         players: [
@@ -894,25 +843,15 @@ describe("state-filter", () => {
             connected: true,
           },
         ],
-        ruleset: {
-          ...createMockState().ruleset,
-          visibility: [
-            {
-              zone: "hand",
-              visibility: { kind: "owner_only" },
-              phaseOverride: {
-                phase: "reveal",
-                visibility: { kind: "public" },
-              },
-            },
-          ],
-        },
         zones: {
           "hand:0": {
             definition: {
               name: "hand:0",
               visibility: { kind: "owner_only" },
               owners: ["player"],
+              phaseOverrides: [
+                { phase: "reveal", visibility: { kind: "public" } },
+              ],
             },
             cards: [ACE_SPADES],
           },
@@ -929,8 +868,8 @@ describe("state-filter", () => {
   // ── Exact name takes priority over base name ───────────────────
   // ══════════════════════════════════════════════════════════════════
 
-  describe("exact name takes priority over base name", () => {
-    it("exact match 'hand:0' wins over base match 'hand'", () => {
+  describe("zone-specific phaseOverrides take precedence", () => {
+    it("hand:0 with its own overrides differs from hand:1 with different overrides", () => {
       const state = createMockState({
         currentPhase: "reveal",
         players: [
@@ -947,35 +886,16 @@ describe("state-filter", () => {
             connected: true,
           },
         ],
-        ruleset: {
-          ...createMockState().ruleset,
-          visibility: [
-            // Exact rule for hand:0 — stays hidden during reveal
-            {
-              zone: "hand:0",
-              visibility: { kind: "owner_only" },
-              phaseOverride: {
-                phase: "reveal",
-                visibility: { kind: "hidden" },
-              },
-            },
-            // Base rule for hand — becomes public during reveal
-            {
-              zone: "hand",
-              visibility: { kind: "owner_only" },
-              phaseOverride: {
-                phase: "reveal",
-                visibility: { kind: "public" },
-              },
-            },
-          ],
-        },
         zones: {
           "hand:0": {
             definition: {
               name: "hand:0",
               visibility: { kind: "owner_only" },
               owners: ["player"],
+              // Specific override: stays hidden during reveal
+              phaseOverrides: [
+                { phase: "reveal", visibility: { kind: "hidden" } },
+              ],
             },
             cards: [ACE_SPADES, KING_HEARTS],
           },
@@ -984,6 +904,10 @@ describe("state-filter", () => {
               name: "hand:1",
               visibility: { kind: "owner_only" },
               owners: ["player"],
+              // Different override: becomes public during reveal
+              phaseOverrides: [
+                { phase: "reveal", visibility: { kind: "public" } },
+              ],
             },
             cards: [QUEEN_DIAMONDS],
           },
@@ -992,14 +916,14 @@ describe("state-filter", () => {
 
       const bobView = createPlayerView(state, makePlayerId("bob"));
 
-      // hand:0 matches exact rule → override to hidden during "reveal"
+      // hand:0 has override to hidden during "reveal"
       expect(bobView.zones["hand:0"]!.cards).toEqual([null, null]);
 
-      // hand:1 has no exact rule → falls back to base "hand" rule → public
+      // hand:1 has override to public during "reveal"
       expect(bobView.zones["hand:1"]!.cards).toEqual([QUEEN_DIAMONDS]);
     });
 
-    it("exact match found first even when base rule appears earlier in array", () => {
+    it("zone without phaseOverrides uses default visibility while sibling zone uses override", () => {
       const state = createMockState({
         currentPhase: "reveal",
         players: [
@@ -1016,47 +940,38 @@ describe("state-filter", () => {
             connected: true,
           },
         ],
-        ruleset: {
-          ...createMockState().ruleset,
-          visibility: [
-            // Base rule appears FIRST in array
-            {
-              zone: "hand",
-              visibility: { kind: "owner_only" },
-              phaseOverride: {
-                phase: "reveal",
-                visibility: { kind: "public" },
-              },
-            },
-            // Exact rule appears SECOND
-            {
-              zone: "hand:0",
-              visibility: { kind: "owner_only" },
-              phaseOverride: {
-                phase: "reveal",
-                visibility: { kind: "hidden" },
-              },
-            },
-          ],
-        },
         zones: {
           "hand:0": {
             definition: {
               name: "hand:0",
               visibility: { kind: "owner_only" },
               owners: ["player"],
+              phaseOverrides: [
+                { phase: "reveal", visibility: { kind: "hidden" } },
+              ],
             },
             cards: [ACE_SPADES],
+          },
+          "hand:1": {
+            definition: {
+              name: "hand:1",
+              visibility: { kind: "owner_only" },
+              owners: ["player"],
+              // No phaseOverrides — uses default
+            },
+            cards: [QUEEN_DIAMONDS],
           },
         },
       });
 
       const bobView = createPlayerView(state, makePlayerId("bob"));
 
-      // Exact name "hand:0" rule takes priority over base "hand" rule,
-      // regardless of array ordering. So hand:0 keeps owner_only visibility,
-      // and bob (player 1) cannot see alice's (player 0) hand.
+      // hand:0 has phase override to hidden → hidden for bob
       expect(bobView.zones["hand:0"]!.cards).toEqual([null]);
+
+      // hand:1 has no phaseOverrides → uses default owner_only
+      // bob is index 1, so hand:1 is his → sees own cards
+      expect(bobView.zones["hand:1"]!.cards).toEqual([QUEEN_DIAMONDS]);
     });
   });
 

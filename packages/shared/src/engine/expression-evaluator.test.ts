@@ -48,7 +48,6 @@ function createMockState(overrides?: Partial<CardGameState>): CardGameState {
         winCondition: "true",
         bustCondition: "false",
       },
-      visibility: [],
       ui: { layout: "semicircle", tableColor: "felt_green" },
     } as CardGameState["ruleset"],
     status: { kind: "in_progress", startedAt: 0 },

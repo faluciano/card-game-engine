@@ -10,32 +10,27 @@ import type {
   FilteredZoneState,
   PlayerId,
   PlayerView,
-  VisibilityRule,
+  ZoneDefinition,
   ZoneVisibility,
 } from "../types/index";
 import { getValidActions } from "./action-validator";
 
 /**
  * Resolves the effective visibility for a zone, accounting for
- * phase-based overrides defined in the ruleset's visibility rules.
+ * phase-based overrides defined on the zone definition.
  */
 function getEffectiveVisibility(
   zoneName: string,
-  defaultVisibility: ZoneVisibility,
-  visibilityRules: readonly VisibilityRule[],
+  zoneDefinition: ZoneDefinition,
   currentPhase: string
 ): ZoneVisibility {
-  const baseName = zoneName.replace(/:(\d+)$/, "");
-  // Exact name match takes priority over base name match
-  const rule =
-    visibilityRules.find((r) => r.zone === zoneName) ??
-    (baseName !== zoneName
-      ? visibilityRules.find((r) => r.zone === baseName)
-      : undefined);
-  if (rule?.phaseOverride && rule.phaseOverride.phase === currentPhase) {
-    return rule.phaseOverride.visibility;
+  if (zoneDefinition.phaseOverrides) {
+    const override = zoneDefinition.phaseOverrides.find(
+      (o) => o.phase === currentPhase
+    );
+    if (override) return override.visibility;
   }
-  return defaultVisibility;
+  return zoneDefinition.visibility;
 }
 
 /** Determines if a player can act in the current phase. */
@@ -99,13 +94,11 @@ export function createPlayerView(
 
   const player = state.players[playerIndex]!;
   const filteredZones: Record<string, FilteredZoneState> = {};
-  const visibilityRules = state.ruleset.visibility;
 
   for (const [zoneName, zoneState] of Object.entries(state.zones)) {
     const effectiveVisibility = getEffectiveVisibility(
       zoneName,
-      zoneState.definition.visibility,
-      visibilityRules,
+      zoneState.definition,
       state.currentPhase
     );
 

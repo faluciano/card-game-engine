@@ -155,20 +155,6 @@
     "tieCondition": "my_score == dealer_score && my_score <= 21",
     "autoEndTurnCondition": "hand_value(current_player.hand, 21) >= 21"
   },
-  "visibility": [
-    {
-      "zone": "hand",
-      "visibility": { "kind": "public" }
-    },
-    {
-      "zone": "dealer_hand",
-      "visibility": { "kind": "partial", "rule": "face_up_only" }
-    },
-    {
-      "zone": "draw_pile",
-      "visibility": { "kind": "hidden" }
-    }
-  ],
   "ui": {
     "layout": "semicircle",
     "tableColor": "felt_green"

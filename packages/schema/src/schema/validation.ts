@@ -61,6 +61,10 @@ const ZoneSchema = z.object({
   visibility: ZoneVisibilitySchema,
   owners: z.array(z.string()),
   maxCards: z.number().int().min(1).optional(),
+  phaseOverrides: z.array(z.object({
+    phase: z.string().min(1),
+    visibility: ZoneVisibilitySchema,
+  })).optional(),
 });
 
 const RoleSchema = z.object({
@@ -98,15 +102,6 @@ const ScoringSchema = z.object({
   autoEndTurnCondition: z.string().optional(),
 });
 
-const VisibilityRuleSchema = z.object({
-  zone: z.string().min(1),
-  visibility: ZoneVisibilitySchema,
-  phaseOverride: z.object({
-    phase: z.string().min(1),
-    visibility: ZoneVisibilitySchema,
-  }).optional(),
-});
-
 const UISchema = z.object({
   layout: z.enum(["semicircle", "circle", "grid", "linear"]),
   tableColor: z.enum(["felt_green", "wood", "dark", "custom"]),
@@ -126,7 +121,6 @@ export const CardGameRulesetSchema = z.object({
   initialVariables: z.record(z.string(), z.number()).optional(),
   initialStringVariables: z.record(z.string(), z.string()).optional(),
   publicVariables: z.array(z.string().min(1)).optional(),
-  visibility: z.array(VisibilityRuleSchema),
   ui: UISchema,
 });
 

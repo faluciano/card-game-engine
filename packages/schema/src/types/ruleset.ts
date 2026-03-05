@@ -53,6 +53,11 @@ export interface ZoneConfig {
   readonly visibility: ZoneVisibility;
   readonly owners: readonly string[];
   readonly maxCards?: number;
+  /** Override visibility during specific game phases. */
+  readonly phaseOverrides?: readonly {
+    readonly phase: string;
+    readonly visibility: ZoneVisibility;
+  }[];
 }
 
 // ─── Roles ─────────────────────────────────────────────────────────
@@ -116,18 +121,6 @@ export interface ScoringConfig {
   readonly autoEndTurnCondition?: Expression;
 }
 
-// ─── Visibility Rules ──────────────────────────────────────────────
-
-export interface VisibilityRule {
-  readonly zone: string;
-  readonly visibility: ZoneVisibility;
-  /** Override visibility in a specific phase. */
-  readonly phaseOverride?: {
-    readonly phase: string;
-    readonly visibility: ZoneVisibility;
-  };
-}
-
 // ─── UI Hints ──────────────────────────────────────────────────────
 
 export type TableLayout = "semicircle" | "circle" | "grid" | "linear";
@@ -160,6 +153,5 @@ export interface CardGameRuleset {
    * Omit to expose all variables (backward compatible default).
    */
   readonly publicVariables?: readonly string[];
-  readonly visibility: readonly VisibilityRule[];
   readonly ui: UIConfig;
 }

@@ -85,6 +85,11 @@ export interface ZoneDefinition {
   readonly owners: readonly string[];
   /** Maximum number of cards this zone can hold, if any. */
   readonly maxCards?: number;
+  /** Override visibility during specific game phases. */
+  readonly phaseOverrides?: readonly {
+    readonly phase: string;
+    readonly visibility: ZoneVisibility;
+  }[];
 }
 
 /** Runtime state of a zone: its definition plus current contents. */

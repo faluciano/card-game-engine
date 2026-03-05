@@ -4,7 +4,7 @@
   "title": "Card Game Ruleset",
   "description": "Schema for .cardgame.json files defining a card game's rules.",
   "type": "object",
-  "required": ["meta", "deck", "zones", "roles", "phases", "scoring", "visibility", "ui"],
+  "required": ["meta", "deck", "zones", "roles", "phases", "scoring", "ui"],
   "additionalProperties": false,
   "properties": {
     "$schema": {
@@ -92,7 +92,25 @@
             }
           },
           "owners": { "type": "array", "items": { "type": "string" } },
-          "maxCards": { "type": "integer", "minimum": 1 }
+          "maxCards": { "type": "integer", "minimum": 1 },
+          "phaseOverrides": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["phase", "visibility"],
+              "properties": {
+                "phase": { "type": "string" },
+                "visibility": {
+                  "type": "object",
+                  "required": ["kind"],
+                  "properties": {
+                    "kind": { "type": "string", "enum": ["public", "owner_only", "hidden", "partial"] },
+                    "rule": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -181,39 +199,6 @@
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
       "description": "If specified, only these variable names are exposed in PlayerView. Omit to expose all."
-    },
-    "visibility": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["zone", "visibility"],
-        "properties": {
-          "zone": { "type": "string" },
-          "visibility": {
-            "type": "object",
-            "required": ["kind"],
-            "properties": {
-              "kind": { "type": "string", "enum": ["public", "owner_only", "hidden", "partial"] },
-              "rule": { "type": "string" }
-            }
-          },
-          "phaseOverride": {
-            "type": "object",
-            "required": ["phase", "visibility"],
-            "properties": {
-              "phase": { "type": "string" },
-              "visibility": {
-                "type": "object",
-                "required": ["kind"],
-                "properties": {
-                  "kind": { "type": "string", "enum": ["public", "owner_only", "hidden", "partial"] },
-                  "rule": { "type": "string" }
-                }
-              }
-            }
-          }
-        }
-      }
     },
     "ui": {
       "type": "object",

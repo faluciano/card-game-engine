@@ -53,12 +53,6 @@ function makeMinimalRuleset(
       method: "hand_value(current_player.hand, 21)",
       winCondition: "my_score > 0",
     },
-    visibility: [
-      {
-        zone: "draw_pile",
-        visibility: { kind: "hidden" },
-      },
-    ],
     ui: {
       layout: "semicircle",
       tableColor: "felt_green",

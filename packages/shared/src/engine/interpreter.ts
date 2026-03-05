@@ -1338,6 +1338,7 @@ function initializeZones(
           visibility: zoneConfig.visibility,
           owners: zoneConfig.owners,
           maxCards: zoneConfig.maxCards,
+          phaseOverrides: zoneConfig.phaseOverrides,
         };
         zones[name] = { definition, cards: [] };
       }
@@ -1347,6 +1348,7 @@ function initializeZones(
         visibility: zoneConfig.visibility,
         owners: zoneConfig.owners,
         maxCards: zoneConfig.maxCards,
+        phaseOverrides: zoneConfig.phaseOverrides,
       };
       zones[zoneConfig.name] = { definition, cards: [] };
     }

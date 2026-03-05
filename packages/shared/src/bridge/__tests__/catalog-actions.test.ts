@@ -44,7 +44,6 @@ function makeTestRuleset(
       method: "card_count(hand)",
       winCondition: "highest_wins",
     },
-    visibility: [{ zone: "hand", visibility: { kind: "owner_only" } }],
     ui: {
       layout: "semicircle",
       tableColor: "felt_green",

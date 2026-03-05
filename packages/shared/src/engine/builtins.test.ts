@@ -118,7 +118,6 @@ function makeMinimalRuleset(): CardGameRuleset {
       bustCondition: "my_score > 21",
       tieCondition: "my_score == dealer_score && my_score <= 21",
     },
-    visibility: [],
     ui: { layout: "semicircle", tableColor: "felt_green" },
   };
 }
@@ -1244,7 +1243,6 @@ describe("builtins", () => {
             method: "0",
             winCondition: "false",
           },
-          visibility: [],
           ui: { layout: "semicircle", tableColor: "felt_green" },
         };
       }
@@ -2699,7 +2697,6 @@ describe("builtins", () => {
             'count_cards_by_suit(concat("won:", current_player_index), "hearts")',
           winCondition: "my_score == 0",
         },
-        visibility: [],
         ui: { layout: "circle", tableColor: "felt_green" },
       };
     }
@@ -3222,12 +3219,6 @@ describe("builtins", () => {
           winCondition:
             "get_cumulative_score(current_player_index) == min_cumulative_score()",
         },
-        visibility: [
-          { zone: "draw_pile", visibility: { kind: "hidden" } },
-          { zone: "hand", visibility: { kind: "owner_only" } },
-          { zone: "trick", visibility: { kind: "public" } },
-          { zone: "won", visibility: { kind: "hidden" } },
-        ],
         ui: { layout: "circle", tableColor: "felt_green" },
       };
     }

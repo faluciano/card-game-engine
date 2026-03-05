@@ -178,7 +178,6 @@ function makeMinimalRuleset(
       bustCondition: "my_score > 21",
       tieCondition: "my_score == dealer_score && my_score <= 21",
     },
-    visibility: [],
     ui: { layout: "semicircle", tableColor: "felt_green" },
   };
 }

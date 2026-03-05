@@ -201,24 +201,6 @@
     "bustCondition": "false",
     "tieCondition": "false"
   },
-  "visibility": [
-    {
-      "zone": "draw_pile",
-      "visibility": { "kind": "hidden" }
-    },
-    {
-      "zone": "hand",
-      "visibility": { "kind": "owner_only" }
-    },
-    {
-      "zone": "discard",
-      "visibility": { "kind": "public" }
-    },
-    {
-      "zone": "stash",
-      "visibility": { "kind": "hidden" }
-    }
-  ],
   "ui": {
     "layout": "circle",
     "tableColor": "felt_green"

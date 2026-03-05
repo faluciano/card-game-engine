@@ -119,6 +119,9 @@ function makeBlackjackRuleset(): CardGameRuleset {
         name: "dealer_hand",
         visibility: { kind: "partial", rule: "first_card_only" },
         owners: ["dealer"],
+        phaseOverrides: [
+          { phase: "dealer_turn", visibility: { kind: "public" } },
+        ],
       },
       { name: "discard", visibility: { kind: "public" }, owners: [] },
     ],
@@ -207,19 +210,6 @@ function makeBlackjackRuleset(): CardGameRuleset {
       tieCondition: "my_score == dealer_score && my_score <= 21",
       autoEndTurnCondition: "hand_value(current_player.hand, 21) >= 21",
     },
-    visibility: [
-      { zone: "hand", visibility: { kind: "owner_only" } },
-      {
-        zone: "dealer_hand",
-        visibility: { kind: "partial", rule: "first_card_only" },
-        phaseOverride: {
-          phase: "dealer_turn",
-          visibility: { kind: "public" },
-        },
-      },
-      { zone: "draw_pile", visibility: { kind: "hidden" } },
-      { zone: "discard", visibility: { kind: "public" } },
-    ],
     ui: { layout: "semicircle", tableColor: "felt_green" },
   };
 }
@@ -1219,12 +1209,6 @@ function makeCrazyEightsRuleset(): CardGameRuleset {
       bustCondition: "false",
       tieCondition: "false",
     },
-    visibility: [
-      { zone: "draw_pile", visibility: { kind: "hidden" } },
-      { zone: "hand", visibility: { kind: "owner_only" } },
-      { zone: "discard", visibility: { kind: "public" } },
-      { zone: "stash", visibility: { kind: "hidden" } },
-    ],
     ui: { layout: "circle", tableColor: "felt_green" },
   };
 }
