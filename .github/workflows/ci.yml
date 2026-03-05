@@ -13,17 +13,18 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.19"
+          cache: true
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
 
   build:
     runs-on: ubuntu-latest
-    needs: typecheck
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.19"
+          cache: true
       - run: bun install --frozen-lockfile
       - run: bun run build:client
 
@@ -34,6 +35,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.19"
+          cache: true
       - run: bun install --frozen-lockfile
       - name: Test shared
         run: bunx vitest run
@@ -52,5 +54,6 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.19"
+          cache: true
       - run: bun install --frozen-lockfile
       - run: bun run validate
