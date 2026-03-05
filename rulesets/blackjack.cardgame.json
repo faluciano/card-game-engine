@@ -69,7 +69,7 @@
       "transitions": [
         { "to": "player_turns", "when": "all_hands_dealt" }
       ],
-      "automaticSequence": [
+      "onEnter": [
         "shuffle(draw_pile)",
         "deal(draw_pile, hand, 2)",
         "deal(draw_pile, dealer_hand, 2)",
@@ -113,7 +113,7 @@
       "transitions": [
         { "to": "scoring", "when": "hand_value(dealer_hand) >= 17" }
       ],
-      "automaticSequence": [
+      "onEnter": [
         "reveal_all(dealer_hand)",
         "while(hand_value(dealer_hand) < 17, draw(draw_pile, dealer_hand, 1))"
       ]
@@ -125,7 +125,7 @@
       "transitions": [
         { "to": "round_end", "when": "scores_calculated" }
       ],
-      "automaticSequence": [
+      "onEnter": [
         "calculate_scores()",
         "determine_winners()"
       ]

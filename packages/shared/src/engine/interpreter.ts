@@ -589,13 +589,13 @@ function runAutomaticPhases(
     // This allows `while()` loops to apply effects between iterations
     // so condition re-evaluation sees updated state (e.g., drawn cards).
     const phase = phaseMachine.getPhase(current.currentPhase);
-    if (phase.automaticSequence && phase.automaticSequence.length > 0) {
+    if (phase.onEnter && phase.onEnter.length > 0) {
       const ctx: MutableEvalContext = {
         state: current,
         effects: [],
         applyEffectsToState: (s, effs) => applyEffects(s, effs, rng),
       };
-      for (const expression of phase.automaticSequence) {
+      for (const expression of phase.onEnter) {
         evaluateExpression(expression, ctx);
       }
       // Apply any remaining unflushed effects

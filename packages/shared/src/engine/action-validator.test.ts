@@ -85,7 +85,7 @@ const DEAL_PHASE: PhaseDefinition = {
   kind: "automatic",
   actions: [],
   transitions: [{ to: "player_turns", when: "all_hands_dealt" }],
-  automaticSequence: [
+  onEnter: [
     'shuffle("draw_pile")',
     'deal("draw_pile", "hand", 2)',
     'deal("draw_pile", "dealer_hand", 2)',
@@ -130,7 +130,7 @@ const SCORING_PHASE: PhaseDefinition = {
   kind: "automatic",
   actions: [],
   transitions: [{ to: "deal", when: "scores_calculated" }],
-  automaticSequence: ["calculate_scores()", "determine_winners()"],
+  onEnter: ["calculate_scores()", "determine_winners()"],
 };
 
 const ALL_PHASES = [

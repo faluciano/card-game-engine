@@ -135,7 +135,7 @@ function makeBlackjackRuleset(): CardGameRuleset {
         kind: "automatic",
         actions: [],
         transitions: [{ to: "player_turns", when: "all_hands_dealt" }],
-        automaticSequence: [
+        onEnter: [
           "shuffle(draw_pile)",
           "deal(draw_pile, hand, 2)",
           "deal(draw_pile, dealer_hand, 2)",
@@ -183,7 +183,7 @@ function makeBlackjackRuleset(): CardGameRuleset {
         transitions: [
           { to: "scoring", when: "hand_value(dealer_hand) >= 17" },
         ],
-        automaticSequence: [
+        onEnter: [
           "reveal_all(dealer_hand)",
           "while(hand_value(dealer_hand) < 17, draw(draw_pile, dealer_hand, 1))",
         ],
@@ -193,14 +193,14 @@ function makeBlackjackRuleset(): CardGameRuleset {
         kind: "automatic",
         actions: [],
         transitions: [{ to: "round_end", when: "scores_calculated" }],
-        automaticSequence: ["calculate_scores()", "determine_winners()"],
+        onEnter: ["calculate_scores()", "determine_winners()"],
       },
       {
         name: "round_end",
         kind: "automatic",
         actions: [],
         transitions: [{ to: "deal", when: "continue_game" }],
-        automaticSequence: ["collect_all_to(draw_pile)", "reset_round()"],
+        onEnter: ["collect_all_to(draw_pile)", "reset_round()"],
       },
     ],
     scoring: {
@@ -1075,7 +1075,7 @@ function makeCrazyEightsRuleset(): CardGameRuleset {
         kind: "automatic",
         actions: [],
         transitions: [{ to: "player_turns", when: "all_hands_dealt" }],
-        automaticSequence: [
+        onEnter: [
           "shuffle(draw_pile)",
           "deal(draw_pile, hand, 5)",
           "move_top(draw_pile, discard, 1)",
@@ -1170,7 +1170,7 @@ function makeCrazyEightsRuleset(): CardGameRuleset {
         transitions: [
           { to: "player_turns", when: "card_count(draw_pile) > 0" },
         ],
-        automaticSequence: [
+        onEnter: [
           "move_top(discard, stash, 1)",
           "move_all(discard, draw_pile)",
           "shuffle(draw_pile)",
@@ -1182,7 +1182,7 @@ function makeCrazyEightsRuleset(): CardGameRuleset {
         kind: "automatic",
         actions: [],
         transitions: [{ to: "round_end", when: "scores_calculated" }],
-        automaticSequence: [
+        onEnter: [
           "calculate_scores()",
           "determine_winners()",
         ],
@@ -1959,7 +1959,7 @@ describe("Crazy Eights Integration — Full Game Lifecycle", () => {
 
       expect(reshufflePhase).toBeDefined();
       expect(reshufflePhase!.kind).toBe("automatic");
-      expect(reshufflePhase!.automaticSequence).toEqual([
+      expect(reshufflePhase!.onEnter).toEqual([
         "move_top(discard, stash, 1)",
         "move_all(discard, draw_pile)",
         "shuffle(draw_pile)",

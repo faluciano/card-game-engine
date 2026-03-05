@@ -72,7 +72,7 @@
       "transitions": [
         { "to": "player_turns", "when": "all_hands_dealt" }
       ],
-      "automaticSequence": [
+      "onEnter": [
         "shuffle(draw_pile)",
         "deal(draw_pile, hand, 5)",
         "move_top(draw_pile, discard, 1)",
@@ -158,7 +158,7 @@
       "transitions": [
         { "to": "player_turns", "when": "card_count(draw_pile) > 0" }
       ],
-      "automaticSequence": [
+      "onEnter": [
         "move_top(discard, stash, 1)",
         "move_all(discard, draw_pile)",
         "shuffle(draw_pile)",
@@ -172,7 +172,7 @@
       "transitions": [
         { "to": "round_end", "when": "scores_calculated" }
       ],
-      "automaticSequence": [
+      "onEnter": [
         "calculate_scores()",
         "determine_winners()"
       ]

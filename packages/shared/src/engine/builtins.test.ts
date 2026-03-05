@@ -1196,7 +1196,7 @@ describe("builtins", () => {
       }
 
       function makeEffectTestRuleset(
-        automaticSequence: string[],
+        onEnter: string[],
       ): CardGameRuleset {
         return {
           meta: {
@@ -1229,7 +1229,7 @@ describe("builtins", () => {
               kind: "automatic",
               actions: [],
               transitions: [{ to: "play", when: "all_hands_dealt" }],
-              automaticSequence,
+              onEnter,
             },
             {
               name: "play",

@@ -90,7 +90,8 @@ const PhaseSchema = z.object({
   kind: z.enum(["automatic", "turn_based", "all_players"]),
   actions: z.array(PhaseActionSchema),
   transitions: z.array(PhaseTransitionSchema),
-  automaticSequence: z.array(z.string()).optional(),
+  onEnter: z.array(z.string()).optional(),
+  onExit: z.array(z.string()).optional(),
   turnOrder: z.enum(["clockwise", "counterclockwise", "fixed"]).optional(),
 });
 

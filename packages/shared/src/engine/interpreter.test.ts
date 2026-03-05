@@ -97,7 +97,7 @@ function makeBlackjackRuleset(): CardGameRuleset {
         kind: "automatic",
         actions: [],
         transitions: [{ to: "player_turns", when: "all_hands_dealt" }],
-        automaticSequence: [
+        onEnter: [
           "shuffle(draw_pile)",
           "deal(draw_pile, hand, 2)",
           "deal(draw_pile, dealer_hand, 2)",
@@ -134,7 +134,7 @@ function makeBlackjackRuleset(): CardGameRuleset {
         kind: "automatic",
         actions: [],
         transitions: [{ to: "scoring", when: "hand_value(dealer_hand) >= 17" }],
-        automaticSequence: [
+        onEnter: [
           "reveal_all(dealer_hand)",
           "while(hand_value(dealer_hand) < 17, draw(draw_pile, dealer_hand, 1))",
         ],
@@ -144,14 +144,14 @@ function makeBlackjackRuleset(): CardGameRuleset {
         kind: "automatic",
         actions: [],
         transitions: [{ to: "round_end", when: "scores_calculated" }],
-        automaticSequence: ["calculate_scores()", "determine_winners()"],
+        onEnter: ["calculate_scores()", "determine_winners()"],
       },
       {
         name: "round_end",
         kind: "automatic",
         actions: [],
         transitions: [{ to: "deal", when: "continue_game" }],
-        automaticSequence: ["collect_all_to(draw_pile)", "reset_round()"],
+        onEnter: ["collect_all_to(draw_pile)", "reset_round()"],
       },
     ],
     scoring: {
@@ -1402,7 +1402,7 @@ describe("Ruleset Interpreter", () => {
                     effect: ["collect_all_to(draw_pile)", "reset_round()"],
                   },
                 ],
-                automaticSequence: undefined,
+                onEnter: undefined,
               }
             : phase.name === "player_turns"
               ? {
@@ -1581,7 +1581,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [{ to: "player_turns", when: "true" }],
-            automaticSequence: ["deal(draw_pile, hand, 1)"],
+            onEnter: ["deal(draw_pile, hand, 1)"],
           },
           {
             name: "player_turns",
@@ -1836,7 +1836,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [{ to: "play", when: "true" }],
-            automaticSequence: [],
+            onEnter: [],
           },
           {
             name: "play",
@@ -2016,7 +2016,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [{ to: "play", when: "true" }],
-            automaticSequence: [],
+            onEnter: [],
           },
           {
             name: "play",
@@ -2041,7 +2041,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [{ to: "deal", when: "true" }],
-            automaticSequence: ["reset_round()"],
+            onEnter: ["reset_round()"],
           },
         ],
       };
@@ -2154,7 +2154,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [{ to: "play_turn", when: "true" }],
-            automaticSequence: [
+            onEnter: [
               'shuffle("draw_pile")',
               'deal("draw_pile", "hand", 5)',
             ],
@@ -2180,7 +2180,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [],
-            automaticSequence: [],
+            onEnter: [],
           },
         ],
         variables: { cards_played: { type: "number", initial: 0 } },        ui: { layout: "semicircle", tableColor: "felt_green" },
@@ -2338,7 +2338,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [{ to: "play_turn", when: "true" }],
-            automaticSequence: [
+            onEnter: [
               'shuffle("draw_pile")',
               'deal("draw_pile", "hand", 5)',
             ],
@@ -2366,7 +2366,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [],
-            automaticSequence: [],
+            onEnter: [],
           },
         ],
         variables: { chosen: { type: "number", initial: 0 }, cards_played: { type: "number", initial: 0 } },
@@ -2481,7 +2481,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [{ to: "play", when: "all_hands_dealt" }],
-            automaticSequence: [
+            onEnter: [
               "shuffle(draw_pile)",
               "deal(draw_pile, hand, 1)",
               "deal(draw_pile, dealer_hand, 1)",
@@ -2576,7 +2576,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [{ to: "play", when: "all_hands_dealt" }],
-            automaticSequence: [
+            onEnter: [
               "shuffle(draw_pile)",
               "deal(draw_pile, hand, 1)",
             ],

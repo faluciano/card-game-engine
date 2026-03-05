@@ -163,7 +163,8 @@
               }
             }
           },
-          "automaticSequence": { "type": "array", "items": { "type": "string" } },
+          "onEnter": { "type": "array", "items": { "type": "string" } },
+          "onExit": { "type": "array", "items": { "type": "string" } },
           "turnOrder": { "type": "string", "enum": ["clockwise", "counterclockwise", "fixed"] }
         }
       }

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { PhaseMachine, type TransitionResult } from "./phase-machine";
-import { registerAllBuiltins, type EffectDescription } from "./builtins";
+import { registerAllBuiltins } from "./builtins";
 import {
   clearBuiltins,
   evaluateExpression,
@@ -161,7 +161,7 @@ const DEAL_PHASE: PhaseDefinition = {
   kind: "automatic",
   actions: [],
   transitions: [{ to: "player_turns", when: "all_hands_dealt" }],
-  automaticSequence: [
+  onEnter: [
     'shuffle("draw_pile")',
     'deal("draw_pile", "hand", 2)',
     'deal("draw_pile", "dealer_hand", 2)',
@@ -194,7 +194,7 @@ const SCORING_PHASE: PhaseDefinition = {
   kind: "automatic",
   actions: [],
   transitions: [{ to: "round_end", when: "scores_calculated" }],
-  automaticSequence: [
+  onEnter: [
     'reveal_all("dealer_hand")',
     "calculate_scores()",
     "determine_winners()",
@@ -206,7 +206,7 @@ const ROUND_END_PHASE: PhaseDefinition = {
   kind: "automatic",
   actions: [],
   transitions: [{ to: "deal", when: "continue_game" }],
-  automaticSequence: ['collect_all_to("discard")', "reset_round()"],
+  onEnter: ['collect_all_to("discard")', "reset_round()"],
 };
 
 const ALL_PHASES = [
@@ -550,135 +550,6 @@ describe("PhaseMachine", () => {
     });
   });
 
-  // ── executeAutomaticPhase ──
-
-  describe("executeAutomaticPhase", () => {
-    it("executes the deal phase automatic sequence and returns effects", () => {
-      const machine = new PhaseMachine(ALL_PHASES);
-      const state = makeGameState(
-        {
-          draw_pile: makeZone("draw_pile", []),
-          hand: makeZone("hand", []),
-          dealer_hand: makeZone("dealer_hand", []),
-        },
-        { currentPhase: "deal" },
-      );
-
-      const effects = machine.executeAutomaticPhase(state);
-
-      expect(effects).toEqual([
-        { kind: "shuffle", params: { zone: "draw_pile" } },
-        { kind: "deal", params: { from: "draw_pile", to: "hand", count: 2 } },
-        {
-          kind: "deal",
-          params: { from: "draw_pile", to: "dealer_hand", count: 2 },
-        },
-        {
-          kind: "set_face_up",
-          params: { zone: "dealer_hand", cardIndex: 0, faceUp: true },
-        },
-      ]);
-    });
-
-    it("executes the scoring phase automatic sequence", () => {
-      const machine = new PhaseMachine(ALL_PHASES);
-      const state = makeGameState(
-        {
-          dealer_hand: makeZone("dealer_hand", []),
-        },
-        { currentPhase: "scoring" },
-      );
-
-      const effects = machine.executeAutomaticPhase(state);
-
-      expect(effects).toEqual([
-        { kind: "reveal_all", params: { zone: "dealer_hand" } },
-        { kind: "calculate_scores", params: {} },
-        { kind: "determine_winners", params: {} },
-      ]);
-    });
-
-    it("executes the round_end phase automatic sequence", () => {
-      const machine = new PhaseMachine(ALL_PHASES);
-      const state = makeGameState({}, { currentPhase: "round_end" });
-
-      const effects = machine.executeAutomaticPhase(state);
-
-      expect(effects).toEqual([
-        { kind: "collect_all_to", params: { zone: "discard" } },
-        { kind: "reset_round", params: {} },
-      ]);
-    });
-
-    it("returns empty array when automaticSequence is empty", () => {
-      const emptyAutoPhase: PhaseDefinition = {
-        name: "empty_auto",
-        kind: "automatic",
-        actions: [],
-        transitions: [],
-        automaticSequence: [],
-      };
-      const machine = new PhaseMachine([emptyAutoPhase]);
-      const state = makeGameState({}, { currentPhase: "empty_auto" });
-
-      expect(machine.executeAutomaticPhase(state)).toEqual([]);
-    });
-
-    it("returns empty array when automaticSequence is undefined", () => {
-      const noSeqPhase: PhaseDefinition = {
-        name: "no_seq",
-        kind: "automatic",
-        actions: [],
-        transitions: [],
-      };
-      const machine = new PhaseMachine([noSeqPhase]);
-      const state = makeGameState({}, { currentPhase: "no_seq" });
-
-      expect(machine.executeAutomaticPhase(state)).toEqual([]);
-    });
-
-    it("throws when called on a non-automatic phase", () => {
-      const machine = new PhaseMachine(ALL_PHASES);
-      const state = makeGameState({}, { currentPhase: "player_turns" });
-
-      expect(() => machine.executeAutomaticPhase(state)).toThrow(
-        'Cannot execute automatic sequence on "player_turns": phase kind is "turn_based", expected "automatic"',
-      );
-    });
-
-    it("throws for unknown current phase", () => {
-      const machine = new PhaseMachine(ALL_PHASES);
-      const state = makeGameState({}, { currentPhase: "nonexistent" });
-
-      expect(() => machine.executeAutomaticPhase(state)).toThrow(
-        'Unknown phase: "nonexistent"',
-      );
-    });
-
-    it("effects accumulate across multiple sequence expressions", () => {
-      const multiEffectPhase: PhaseDefinition = {
-        name: "multi",
-        kind: "automatic",
-        actions: [],
-        transitions: [],
-        automaticSequence: [
-          'shuffle("draw_pile")',
-          'shuffle("draw_pile")',
-          'shuffle("draw_pile")',
-        ],
-      };
-      const machine = new PhaseMachine([multiEffectPhase]);
-      const state = makeGameState(
-        { draw_pile: makeZone("draw_pile", []) },
-        { currentPhase: "multi" },
-      );
-
-      const effects = machine.executeAutomaticPhase(state);
-      expect(effects).toHaveLength(3);
-      expect(effects.every((e) => e.kind === "shuffle")).toBe(true);
-    });
-  });
-
   // ── getValidActionsForPhase ──
 
   describe("getValidActionsForPhase", () => {
@@ -771,11 +642,14 @@ describe("PhaseMachine", () => {
   // ── Integration: Full Blackjack Cycle ──
 
   describe("integration: full blackjack phase cycle", () => {
-    it("deal → execute → transition → player_turns → transition → scoring → execute → transition → round_end → execute → transition → deal", () => {
+    it("deal → transition → player_turns → transition → scoring → transition → round_end → transition → deal", () => {
       const machine = new PhaseMachine(ALL_PHASES);
 
       // 1. Start at deal phase (automatic)
       expect(machine.isAutomaticPhase("deal")).toBe(true);
+      const dealPhase = machine.getPhase("deal");
+      expect(dealPhase.onEnter).toBeDefined();
+      expect(dealPhase.onEnter!.length).toBeGreaterThan(0);
 
       const dealState = makeGameState(
         {
@@ -785,10 +659,6 @@ describe("PhaseMachine", () => {
         },
         { currentPhase: "deal" },
       );
-
-      // Execute the automatic sequence
-      const dealEffects = machine.executeAutomaticPhase(dealState);
-      expect(dealEffects.length).toBeGreaterThan(0);
 
       // Evaluate transition: deal → player_turns
       const afterDeal = machine.evaluateTransitions(dealState);
@@ -809,22 +679,24 @@ describe("PhaseMachine", () => {
 
       // 3. Scoring (automatic)
       expect(machine.isAutomaticPhase("scoring")).toBe(true);
+      const scoringPhase = machine.getPhase("scoring");
+      expect(scoringPhase.onEnter).toBeDefined();
+      expect(scoringPhase.onEnter!.length).toBe(3);
+
       const scoringState = makeGameState(
         { dealer_hand: makeZone("dealer_hand", []) },
         { currentPhase: "scoring" },
       );
-      const scoringEffects = machine.executeAutomaticPhase(scoringState);
-      expect(scoringEffects.length).toBe(3);
-
       const afterScoring = machine.evaluateTransitions(scoringState);
       expect(afterScoring).toEqual({ kind: "advance", nextPhase: "round_end" });
 
       // 4. Round end (automatic)
       expect(machine.isAutomaticPhase("round_end")).toBe(true);
-      const reState = makeGameState({}, { currentPhase: "round_end" });
-      const reEffects = machine.executeAutomaticPhase(reState);
-      expect(reEffects.length).toBe(2);
+      const roundEndPhase = machine.getPhase("round_end");
+      expect(roundEndPhase.onEnter).toBeDefined();
+      expect(roundEndPhase.onEnter!.length).toBe(2);
 
+      const reState = makeGameState({}, { currentPhase: "round_end" });
       const afterRE = machine.evaluateTransitions(reState);
       expect(afterRE).toEqual({ kind: "advance", nextPhase: "deal" });
     });

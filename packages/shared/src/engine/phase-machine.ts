@@ -10,11 +10,9 @@ import type {
 } from "../types/index";
 import {
   evaluateCondition,
-  evaluateExpression,
   ExpressionError,
   type EvalContext,
 } from "./expression-evaluator";
-import type { MutableEvalContext, EffectDescription } from "./builtins";
 
 /** The result of evaluating a phase transition. */
 export type TransitionResult =
@@ -89,37 +87,6 @@ export class PhaseMachine {
     }
 
     return { kind: "stay" };
-  }
-
-  /**
-   * Executes an automatic phase's `automaticSequence` expressions.
-   * Returns the collected effect descriptions without mutating state.
-   *
-   * @throws {Error} if the phase is not of kind "automatic".
-   */
-  executeAutomaticPhase(state: CardGameState): EffectDescription[] {
-    const phase = this.getPhase(state.currentPhase);
-
-    if (phase.kind !== "automatic") {
-      throw new Error(
-        `Cannot execute automatic sequence on "${phase.name}": phase kind is "${phase.kind}", expected "automatic"`
-      );
-    }
-
-    if (!phase.automaticSequence || phase.automaticSequence.length === 0) {
-      return [];
-    }
-
-    const context: MutableEvalContext = {
-      state,
-      effects: [],
-    };
-
-    for (const expression of phase.automaticSequence) {
-      evaluateExpression(expression, context);
-    }
-
-    return context.effects;
   }
 
   /**

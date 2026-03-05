@@ -91,8 +91,10 @@ export interface PhaseDefinition {
   readonly kind: PhaseKind;
   readonly actions: readonly PhaseAction[];
   readonly transitions: readonly PhaseTransition[];
-  /** For automatic phases: the sequence to execute. */
-  readonly automaticSequence?: readonly Expression[];
+  /** Lifecycle hook: expressions executed when entering an automatic phase. */
+  readonly onEnter?: readonly Expression[];
+  /** Lifecycle hook: expressions executed when leaving any phase (not yet implemented). */
+  readonly onExit?: readonly Expression[];
   /** For turn_based phases: how turn order advances. */
   readonly turnOrder?: "clockwise" | "counterclockwise" | "fixed";
 }
