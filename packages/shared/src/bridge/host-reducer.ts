@@ -4,7 +4,7 @@
 // players, discriminated-union status). Handles screen navigation,
 // game lifecycle, and delegates in-game actions to the engine reducer.
 
-import { createReducer, createInitialState } from "../engine/index";
+import { createReducer, createInitialState, validateAction } from "../engine/index";
 import type {
   CardGameAction,
   CardGameRuleset,
@@ -197,12 +197,29 @@ function handleGameAction(
   if (state.engineState === null) return state;
 
   const engineReducer = getOrCreateReducer(state.screen.ruleset);
-  const engineState = engineReducer(state.engineState, action);
+  const prevEngineState = state.engineState;
+  const engineState = engineReducer(prevEngineState, action);
 
+  // Referential equality check: if the engine returned the same object,
+  // the action was rejected (validation failure inside the engine reducer).
+  if (engineState === prevEngineState) {
+    // Determine the rejection reason via validateAction
+    const validation = validateAction(prevEngineState, action);
+    const playerId = "playerId" in action ? (action as { playerId: string }).playerId : "unknown";
+    const reason = !validation.valid ? validation.reason : "Action rejected by engine";
+
+    return {
+      ...state,
+      actionError: { playerId, reason, timestamp: Date.now() },
+    };
+  }
+
+  // Successful action — update engine state and clear any previous error
   return {
     ...state,
     status: deriveStatus(state.screen, engineState),
     engineState,
+    actionError: null,
   };
 }
 

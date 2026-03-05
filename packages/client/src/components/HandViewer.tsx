@@ -16,6 +16,8 @@ interface HandViewerProps {
   readonly onCardSelect?: (cardId: CardInstanceId, zoneName: string) => void;
   /** The currently selected card ID (highlighted in the UI). */
   readonly selectedCardId?: CardInstanceId;
+  /** Set of card IDs that are playable (satisfy play_card condition). */
+  readonly playableCardIds?: ReadonlySet<string>;
 }
 
 const containerStyle: CSSProperties = {
@@ -69,6 +71,7 @@ export function HandViewer({
   playerView,
   onCardSelect,
   selectedCardId,
+  playableCardIds,
 }: HandViewerProps): React.JSX.Element {
   const { zones, myPlayerId, players } = playerView;
 
@@ -136,6 +139,7 @@ export function HandViewer({
                 card={card}
                 selected={card?.id === selectedCardId}
                 onSelect={onCardSelect ? makeSelectHandler(name) : undefined}
+                playable={card ? playableCardIds?.has(card.id) : undefined}
               />
             ))}
           </div>

@@ -77,6 +77,12 @@ export interface HostGameState extends IGameState {
   readonly pendingInstall: { readonly ruleset: CardGameRuleset; readonly slug: string } | null;
   /** Transient: set by reducer when client requests uninstall, cleared by host hook after I/O. */
   readonly pendingUninstall: string | null;
+  /** Transient: set when a GAME_ACTION is rejected by the engine, cleared on successful actions. */
+  readonly actionError?: {
+    readonly playerId: string;
+    readonly reason: string;
+    readonly timestamp: number;
+  } | null;
 }
 
 // ─── Host Actions ──────────────────────────────────────────────────

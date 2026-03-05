@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   getValidActions,
+  getPlayableCardIndices,
   validateAction,
   executePhaseAction,
   type ValidAction,
@@ -1255,6 +1256,327 @@ describe("Action Validator", () => {
       });
       const actions = getValidActions(state, makePlayerId("p1"));
       expect(actions).toEqual([]);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── getPlayableCardIndices ──────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("getPlayableCardIndices", () => {
+    it("returns empty array when no play_card action in current phase", () => {
+      // player_turns phase has "hit" and "stand", but no "play_card"
+      const state = makeGameState(makeDefaultZones());
+
+      const indices = getPlayableCardIndices(
+        state,
+        state.ruleset,
+        0,
+      );
+
+      expect(indices).toEqual([]);
+    });
+
+    it("returns empty array for unknown phase", () => {
+      const state = makeGameState(makeDefaultZones(), {
+        currentPhase: "nonexistent_phase",
+      });
+
+      const indices = getPlayableCardIndices(
+        state,
+        state.ruleset,
+        0,
+      );
+
+      expect(indices).toEqual([]);
+    });
+
+    it("returns all indices when play_card has no condition", () => {
+      const PLAY_NO_COND_PHASE: PhaseDefinition = {
+        name: "play_turn",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play_card",
+            label: "Play Card",
+            effect: [],
+          },
+        ],
+        transitions: [],
+        turnOrder: "clockwise",
+      };
+
+      const handCards = [
+        makeCard("A", "Hearts"),
+        makeCard("K", "Spades"),
+        makeCard("5", "Diamonds"),
+      ];
+
+      const zones: Record<string, ZoneState> = {
+        "hand:0": makeZone("hand:0", handCards),
+        discard: makeZone("discard", []),
+      };
+
+      const state = makeGameState(zones, {
+        currentPhase: "play_turn",
+        ruleset: makeMinimalRuleset([PLAY_NO_COND_PHASE]),
+      });
+
+      const indices = getPlayableCardIndices(
+        state,
+        state.ruleset,
+        0,
+      );
+
+      expect(indices).toEqual([0, 1, 2]);
+    });
+
+    it("returns only matching indices when play_card has a condition", () => {
+      const PLAY_SUIT_COND_PHASE: PhaseDefinition = {
+        name: "play_turn",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play_card",
+            label: "Play Card",
+            condition:
+              'card_suit(current_player.hand, played_card_index) == "Hearts"',
+            effect: [],
+          },
+        ],
+        transitions: [],
+        turnOrder: "clockwise",
+      };
+
+      const handCards = [
+        makeCard("A", "Hearts"),
+        makeCard("K", "Spades"),
+        makeCard("5", "Hearts"),
+        makeCard("10", "Diamonds"),
+      ];
+
+      const zones: Record<string, ZoneState> = {
+        "hand:0": makeZone("hand:0", handCards),
+        discard: makeZone("discard", []),
+      };
+
+      const state = makeGameState(zones, {
+        currentPhase: "play_turn",
+        ruleset: makeMinimalRuleset([PLAY_SUIT_COND_PHASE]),
+      });
+
+      const indices = getPlayableCardIndices(
+        state,
+        state.ruleset,
+        0,
+      );
+
+      // Only indices 0 (A of Hearts) and 2 (5 of Hearts) match
+      expect(indices).toEqual([0, 2]);
+    });
+
+    it("returns empty array when no cards match the condition", () => {
+      const PLAY_SUIT_COND_PHASE: PhaseDefinition = {
+        name: "play_turn",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play_card",
+            label: "Play Card",
+            condition:
+              'card_suit(current_player.hand, played_card_index) == "Clubs"',
+            effect: [],
+          },
+        ],
+        transitions: [],
+        turnOrder: "clockwise",
+      };
+
+      const handCards = [
+        makeCard("A", "Hearts"),
+        makeCard("K", "Spades"),
+        makeCard("5", "Diamonds"),
+      ];
+
+      const zones: Record<string, ZoneState> = {
+        "hand:0": makeZone("hand:0", handCards),
+        discard: makeZone("discard", []),
+      };
+
+      const state = makeGameState(zones, {
+        currentPhase: "play_turn",
+        ruleset: makeMinimalRuleset([PLAY_SUIT_COND_PHASE]),
+      });
+
+      const indices = getPlayableCardIndices(
+        state,
+        state.ruleset,
+        0,
+      );
+
+      expect(indices).toEqual([]);
+    });
+
+    it("returns empty array when hand zone is empty", () => {
+      const PLAY_NO_COND_PHASE: PhaseDefinition = {
+        name: "play_turn",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play_card",
+            label: "Play Card",
+            effect: [],
+          },
+        ],
+        transitions: [],
+        turnOrder: "clockwise",
+      };
+
+      const zones: Record<string, ZoneState> = {
+        "hand:0": makeZone("hand:0", []),
+        discard: makeZone("discard", []),
+      };
+
+      const state = makeGameState(zones, {
+        currentPhase: "play_turn",
+        ruleset: makeMinimalRuleset([PLAY_NO_COND_PHASE]),
+      });
+
+      const indices = getPlayableCardIndices(
+        state,
+        state.ruleset,
+        0,
+      );
+
+      expect(indices).toEqual([]);
+    });
+
+    it("returns empty array when hand zone does not exist", () => {
+      const PLAY_NO_COND_PHASE: PhaseDefinition = {
+        name: "play_turn",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play_card",
+            label: "Play Card",
+            effect: [],
+          },
+        ],
+        transitions: [],
+        turnOrder: "clockwise",
+      };
+
+      const zones: Record<string, ZoneState> = {
+        discard: makeZone("discard", []),
+      };
+
+      const state = makeGameState(zones, {
+        currentPhase: "play_turn",
+        ruleset: makeMinimalRuleset([PLAY_NO_COND_PHASE]),
+      });
+
+      const indices = getPlayableCardIndices(
+        state,
+        state.ruleset,
+        0,
+      );
+
+      expect(indices).toEqual([]);
+    });
+
+    it("works correctly with the Crazy Eights play_card condition pattern", () => {
+      // The Crazy Eights condition uses played_card_matches_top() which
+      // checks if the card matches the top of the discard pile by suit or rank.
+      // It also includes the sentinel check: played_card_index == -1 || ...
+      // When evaluated per-card, the sentinel check is false, so the real
+      // conditions are evaluated.
+      const CRAZY_EIGHTS_PLAY_PHASE: PhaseDefinition = {
+        name: "play_turn",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play_card",
+            label: "Play Card",
+            condition:
+              'played_card_index == -1 || card_rank_name(current_player.hand, played_card_index) == "8" || played_card_matches_top(discard)',
+            effect: [],
+          },
+        ],
+        transitions: [],
+        turnOrder: "clockwise",
+      };
+
+      // Top of discard pile: 7 of Hearts
+      // Hand: 8 of Spades (rank=8, always playable), Q of Hearts (same suit),
+      //        3 of Diamonds (no match), K of Clubs (no match)
+      const handCards = [
+        makeCard("8", "Spades"),
+        makeCard("Q", "Hearts"),
+        makeCard("3", "Diamonds"),
+        makeCard("K", "Clubs"),
+      ];
+
+      const zones: Record<string, ZoneState> = {
+        "hand:0": makeZone("hand:0", handCards),
+        discard: makeZone("discard", [makeCard("7", "Hearts")]),
+      };
+
+      const state = makeGameState(zones, {
+        currentPhase: "play_turn",
+        currentPlayerIndex: 0,
+        ruleset: makeMinimalRuleset([CRAZY_EIGHTS_PLAY_PHASE]),
+      });
+
+      const indices = getPlayableCardIndices(
+        state,
+        state.ruleset,
+        0,
+      );
+
+      // Index 0: 8 of Spades — rank is "8", matches
+      // Index 1: Q of Hearts — same suit as top card (Hearts), matches
+      // Index 2: 3 of Diamonds — no match
+      // Index 3: K of Clubs — no match
+      expect(indices).toEqual([0, 1]);
+    });
+
+    it("works with a different player index", () => {
+      const PLAY_NO_COND_PHASE: PhaseDefinition = {
+        name: "play_turn",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play_card",
+            label: "Play Card",
+            effect: [],
+          },
+        ],
+        transitions: [],
+        turnOrder: "clockwise",
+      };
+
+      const zones: Record<string, ZoneState> = {
+        "hand:0": makeZone("hand:0", [makeCard("A", "Hearts")]),
+        "hand:1": makeZone("hand:1", [
+          makeCard("K", "Spades"),
+          makeCard("Q", "Diamonds"),
+        ]),
+        discard: makeZone("discard", []),
+      };
+
+      const state = makeGameState(zones, {
+        currentPhase: "play_turn",
+        ruleset: makeMinimalRuleset([PLAY_NO_COND_PHASE]),
+      });
+
+      // Player 1's hand has 2 cards
+      const indices = getPlayableCardIndices(
+        state,
+        state.ruleset,
+        1,
+      );
+
+      expect(indices).toEqual([0, 1]);
     });
   });
 });

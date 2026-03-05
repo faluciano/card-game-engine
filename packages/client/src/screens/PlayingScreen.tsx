@@ -3,7 +3,7 @@
 // Receives the player's view and a function to send actions to the host.
 // Manages card selection state for play_card actions.
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { PlayerView, HostAction, CardInstanceId } from "@card-engine/shared";
 import { type ValidAction } from "@card-engine/shared";
@@ -11,6 +11,7 @@ import { GameInfo } from "../components/GameInfo.js";
 import { HandViewer } from "../components/HandViewer.js";
 import { ActionBar } from "../components/ActionBar.js";
 import { RoundResultsBanner } from "../components/RoundResultsBanner.js";
+import { OpponentInfo } from "../components/OpponentInfo.js";
 
 /** Tracks which card the player has tapped for a play_card action. */
 interface SelectedCard {
@@ -22,6 +23,7 @@ interface PlayingScreenProps {
   readonly playerView: PlayerView;
   readonly validActions: readonly ValidAction[];
   readonly sendAction: (action: HostAction) => void;
+  readonly playableCardIds: ReadonlySet<string>;
 }
 
 const containerStyle: CSSProperties = {
@@ -42,8 +44,27 @@ export function PlayingScreen({
   playerView,
   validActions,
   sendAction,
+  playableCardIds,
 }: PlayingScreenProps): React.JSX.Element {
   const [selectedCard, setSelectedCard] = useState<SelectedCard | null>(null);
+
+  // ─── Turn notification: detect false → true transition ──────────
+  const prevIsMyTurnRef = useRef<boolean>(playerView.isMyTurn);
+  const [turnPulse, setTurnPulse] = useState(false);
+
+  useEffect(() => {
+    const wasMyTurn = prevIsMyTurnRef.current;
+    prevIsMyTurnRef.current = playerView.isMyTurn;
+
+    if (!wasMyTurn && playerView.isMyTurn) {
+      // Haptic feedback: double-pulse vibration pattern
+      navigator.vibrate?.([100, 50, 100]);
+      // Trigger pulse animation for ~2s
+      setTurnPulse(true);
+      const timer = setTimeout(() => setTurnPulse(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [playerView.isMyTurn]);
 
   // Clear selection when the set of available actions changes
   // (e.g., after submitting an action, turn change, phase change).
@@ -89,11 +110,13 @@ export function PlayingScreen({
 
   return (
     <div style={containerStyle}>
-      <GameInfo playerView={playerView} />
+      <GameInfo playerView={playerView} turnPulse={turnPulse} />
+      <OpponentInfo playerView={playerView} />
       <HandViewer
         playerView={playerView}
         onCardSelect={showCardSelection ? handleCardSelect : undefined}
         selectedCardId={selectedCard?.cardId}
+        playableCardIds={playableCardIds}
       />
       <ActionBar
         playerView={playerView}

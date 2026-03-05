@@ -14,6 +14,8 @@ interface CardMiniProps {
   readonly selected?: boolean;
   /** Called when the card is tapped. Presence enables interactivity. */
   readonly onSelect?: (cardId: CardInstanceId) => void;
+  /** Whether this card is playable (satisfies play_card condition). undefined = no filtering. */
+  readonly playable?: boolean;
 }
 
 const SUIT_SYMBOLS: Readonly<Record<string, string>> = {
@@ -75,6 +77,7 @@ export function CardMini({
   card,
   selected = false,
   onSelect,
+  playable,
 }: CardMiniProps): React.JSX.Element {
   const handleClick = useCallback(() => {
     if (!card || !onSelect) return;
@@ -96,6 +99,11 @@ export function CardMini({
   const cardStyle: CSSProperties = {
     ...(selected ? faceUpSelectedStyle : faceUpStyle),
     ...(isInteractive ? faceUpInteractiveStyle : {}),
+    // Playability styling: undefined means no filtering applied
+    ...(playable === false ? { opacity: 0.4, filter: "grayscale(0.3)" } : {}),
+    ...(playable === true && !selected
+      ? { boxShadow: "0 0 6px var(--color-success)" }
+      : {}),
   };
 
   return (
@@ -103,7 +111,7 @@ export function CardMini({
       style={cardStyle}
       role={isInteractive ? "button" : undefined}
       tabIndex={isInteractive ? 0 : undefined}
-      aria-label={`${card.rank} of ${card.suit}${selected ? " (selected)" : ""}`}
+      aria-label={`${card.rank} of ${card.suit}${selected ? " (selected)" : ""}${playable === false ? " (not playable)" : ""}`}
       aria-pressed={isInteractive ? selected : undefined}
       onClick={isInteractive ? handleClick : undefined}
       onKeyDown={

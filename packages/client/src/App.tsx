@@ -10,6 +10,7 @@ import {
   createHostInitialState,
   createPlayerView,
   getValidActions,
+  getPlayableCardIndices,
   type HostGameState,
   type HostAction,
   type PlayerId,
@@ -22,6 +23,7 @@ import { CatalogScreen } from "./screens/CatalogScreen.js";
 import { LobbyScreen } from "./screens/LobbyScreen.js";
 import { PlayingScreen } from "./screens/PlayingScreen.js";
 import { ResultScreen } from "./screens/ResultScreen.js";
+import { Toast } from "./components/Toast.js";
 
 const initialState = createHostInitialState();
 
@@ -50,6 +52,31 @@ export function App(): React.JSX.Element {
       return getValidActions(state.engineState, playerId as PlayerId);
     } catch {
       return [];
+    }
+  }, [state.engineState, playerId]);
+
+  const playableCardIds = useMemo((): ReadonlySet<string> => {
+    if (!state.engineState || !playerId) return new Set();
+    try {
+      const playerIndex = state.engineState.players.findIndex(
+        (p) => p.id === playerId
+      );
+      if (playerIndex === -1) return new Set();
+      const indices = getPlayableCardIndices(
+        state.engineState,
+        state.engineState.ruleset,
+        playerIndex
+      );
+      const handZone = state.engineState.zones[`hand:${playerIndex}`];
+      if (!handZone) return new Set();
+      const ids = new Set<string>();
+      for (const idx of indices) {
+        const card = handZone.cards[idx];
+        if (card) ids.add(card.id);
+      }
+      return ids;
+    } catch {
+      return new Set();
     }
   }, [state.engineState, playerId]);
 
@@ -83,11 +110,22 @@ export function App(): React.JSX.Element {
   }
 
   // game:in_progress or game:waiting_for_players or any other game: state
+  const actionError = state.actionError;
+  const isMyError =
+    actionError != null && actionError.playerId === playerId;
+
   return (
-    <PlayingScreen
-      playerView={playerView}
-      validActions={validActions}
-      sendAction={sendAction}
-    />
+    <>
+      <PlayingScreen
+        playerView={playerView}
+        validActions={validActions}
+        sendAction={sendAction}
+        playableCardIds={playableCardIds}
+      />
+      <Toast
+        message={isMyError ? actionError.reason : null}
+        triggerKey={isMyError ? actionError.timestamp : 0}
+      />
+    </>
   );
 }

@@ -83,3 +83,18 @@ body {
     transform: translateY(0);
   }
 }
+
+@keyframes turnPulseNotify {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 var(--color-accent);
+  }
+  30% {
+    transform: scale(1.15);
+    box-shadow: 0 0 12px 4px var(--color-accent-dim);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 var(--color-accent);
+  }
+}

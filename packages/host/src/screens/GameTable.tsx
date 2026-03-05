@@ -3,8 +3,9 @@
 // public view of the game state: zones with cards, player info, phase
 // indicator, scores, and an end-of-game results overlay.
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
   Pressable,
   StyleSheet,
   Text,
@@ -192,6 +193,31 @@ function ZoneDisplay({
 }): React.JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const { cards } = zone;
+
+  // Track previous card count to detect newly dealt cards
+  const prevCardCountRef = useRef(cards.length);
+  const newCardStartIndex = useRef(-1);
+
+  // Detect new cards on each render
+  if (cards.length > prevCardCountRef.current) {
+    // Cards were added — mark the start index of new cards
+    newCardStartIndex.current = prevCardCountRef.current;
+  } else if (cards.length !== prevCardCountRef.current) {
+    // Cards were removed or count changed — reset
+    newCardStartIndex.current = -1;
+  }
+  prevCardCountRef.current = cards.length;
+
+  // Clear the "new" marker after animation completes (~500ms should cover stagger)
+  useEffect(() => {
+    if (newCardStartIndex.current >= 0) {
+      const timer = setTimeout(() => {
+        newCardStartIndex.current = -1;
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [cards.length]);
+
   const allFaceDown =
     cards.length > 0 && cards.every((card) => !card.faceUp);
   const shouldCollapse =
@@ -225,7 +251,10 @@ function ZoneDisplay({
             </View>
           </>
         ) : (
-          <CappedCardList cards={cards} />
+          <CappedCardList
+            cards={cards}
+            newCardStartIndex={newCardStartIndex.current}
+          />
         )}
       </View>
     </Pressable>
@@ -261,12 +290,16 @@ function StackedDeck({
 
 function CappedCardList({
   cards,
+  newCardStartIndex = -1,
 }: {
   readonly cards: readonly Card[];
+  readonly newCardStartIndex?: number;
 }): React.JSX.Element {
   const hiddenCount = cards.length - MAX_VISIBLE_CARDS;
   const visibleCards =
     hiddenCount > 0 ? cards.slice(-MAX_VISIBLE_CARDS) : cards;
+  // Adjust the start index for visible slice
+  const visibleOffset = hiddenCount > 0 ? hiddenCount : 0;
 
   return (
     <>
@@ -275,9 +308,24 @@ function CappedCardList({
           <Text style={styles.moreIndicatorText}>+{hiddenCount} more</Text>
         </View>
       )}
-      {visibleCards.map((card) => (
-        <CardView key={card.id} card={card} />
-      ))}
+      {visibleCards.map((card, i) => {
+        const globalIndex = visibleOffset + i;
+        const isNewCard =
+          newCardStartIndex >= 0 && globalIndex >= newCardStartIndex;
+
+        if (isNewCard) {
+          const staggerDelay = (globalIndex - newCardStartIndex) * 80;
+          return (
+            <AnimatedCardView
+              key={card.id}
+              card={card}
+              delay={staggerDelay}
+            />
+          );
+        }
+
+        return <CardView key={card.id} card={card} />;
+      })}
     </>
   );
 }
@@ -309,6 +357,47 @@ function CardView({
         {suitSymbol}
       </Text>
     </View>
+  );
+}
+
+// ─── Animated Card View ────────────────────────────────────────────
+
+/**
+ * Wraps a CardView with a slide-in + fade-in animation on mount.
+ * Used for freshly dealt cards to create a dealing effect.
+ */
+function AnimatedCardView({
+  card,
+  delay,
+}: {
+  readonly card: Card;
+  readonly delay: number;
+}): React.JSX.Element {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(-20)).current;
+
+  useEffect(() => {
+    const animation = Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 250,
+        delay,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 250,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]);
+    animation.start();
+  }, [opacity, translateY, delay]);
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      <CardView card={card} />
+    </Animated.View>
   );
 }
 

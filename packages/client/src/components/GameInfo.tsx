@@ -4,9 +4,12 @@
 import React from "react";
 import type { CSSProperties } from "react";
 import type { PlayerView } from "@card-engine/shared";
+import { ActiveSuitBadge } from "./ActiveSuitBadge.js";
 
 interface GameInfoProps {
   readonly playerView: PlayerView;
+  /** When true, plays a more noticeable pulse animation on the turn badge. */
+  readonly turnPulse?: boolean;
 }
 
 const containerStyle: CSSProperties = {
@@ -52,6 +55,11 @@ const turnIndicatorStyle: CSSProperties = {
   animation: "pulse 1.5s ease-in-out infinite",
 };
 
+const turnIndicatorPulseStyle: CSSProperties = {
+  ...turnIndicatorStyle,
+  animation: "turnPulseNotify 1s ease-out, pulse 1.5s ease-in-out 1s infinite",
+};
+
 /**
  * Formats a phase name for display.
  * "player_turn" -> "Player Turn"
@@ -64,11 +72,13 @@ function formatPhaseName(phase: string): string {
 
 export function GameInfo({
   playerView,
+  turnPulse = false,
 }: GameInfoProps): React.JSX.Element {
-  const { currentPhase, turnNumber, scores, isMyTurn, myPlayerId } =
+  const { currentPhase, turnNumber, scores, isMyTurn, myPlayerId, stringVariables } =
     playerView;
 
   const myScore = scores[myPlayerId] ?? 0;
+  const activeSuit = stringVariables?.active_suit ?? "";
 
   return (
     <div style={containerStyle}>
@@ -86,7 +96,12 @@ export function GameInfo({
           {myScore}
         </span>
       </div>
-      {isMyTurn && <div style={turnIndicatorStyle}>Your Turn</div>}
+      {isMyTurn && (
+        <div style={turnPulse ? turnIndicatorPulseStyle : turnIndicatorStyle}>
+          Your Turn
+        </div>
+      )}
+      <ActiveSuitBadge activeSuit={activeSuit} />
     </div>
   );
 }

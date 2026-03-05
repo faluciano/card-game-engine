@@ -4,6 +4,7 @@
 
 import type {
   CardGameAction,
+  CardGameRuleset,
   CardGameState,
   PlayerId,
   PhaseAction,
@@ -119,6 +120,79 @@ export function getValidActions(
   }
 
   return result;
+}
+
+/**
+ * Returns the indices of cards in the current player's hand zone
+ * that would satisfy the play_card action condition.
+ *
+ * Evaluates the `play_card` condition for each card in the player's
+ * hand zone (`hand:${playerIndex}`) with `played_card_index` bound to
+ * the card's index, rather than the sentinel `-1` used in
+ * `getValidActions`.
+ */
+export function getPlayableCardIndices(
+  state: CardGameState,
+  ruleset: CardGameRuleset,
+  playerIndex: number
+): number[] {
+  // Ensure builtins are registered (idempotent)
+  registerAllBuiltins();
+
+  // Resolve the current phase
+  const machine = new PhaseMachine(ruleset.phases);
+  let phase;
+  try {
+    phase = machine.getPhase(state.currentPhase);
+  } catch {
+    return [];
+  }
+
+  // Find the play_card action in the current phase
+  const playCardAction = phase.actions.find((a) => a.name === "play_card");
+  if (!playCardAction) {
+    return [];
+  }
+
+  // Resolve the player's hand zone
+  const handZoneName = `hand:${playerIndex}`;
+  const handZone = state.zones[handZoneName];
+  if (!handZone || handZone.cards.length === 0) {
+    return [];
+  }
+
+  // If the play_card action has no condition, all cards are playable
+  if (!playCardAction.condition) {
+    return handZone.cards.map((_, i) => i);
+  }
+
+  // Evaluate the condition for each card index
+  const playableIndices: number[] = [];
+
+  for (let i = 0; i < handZone.cards.length; i++) {
+    const ctx: EvalContext = {
+      state,
+      playerIndex,
+      bindings: {
+        played_card_index: { kind: "number", value: i },
+      },
+    };
+
+    try {
+      const conditionMet = evaluateCondition(playCardAction.condition, ctx);
+      if (conditionMet) {
+        playableIndices.push(i);
+      }
+    } catch (error) {
+      if (error instanceof ExpressionError) {
+        // Condition evaluation failed for this card — treat as not playable
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  return playableIndices;
 }
 
 /**
