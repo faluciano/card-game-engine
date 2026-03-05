@@ -4,7 +4,7 @@
 
 import { loadRuleset } from "@card-engine/shared";
 import type { CardGameRuleset } from "@card-engine/shared";
-import crazyEightsJson from "../../../../rulesets/crazy-eights.cardgame.json";
+import crazyEightsJson from "../../../rulesets/crazy-eights.cardgame.json";
 
 /**
  * Parse built-in rulesets once at module level.
