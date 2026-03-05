@@ -200,6 +200,18 @@
       },
       "description": "Variable definitions with type, initial value, and optional public visibility"
     },
+    "globalTransitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["to", "when"],
+        "properties": {
+          "to": { "type": "string" },
+          "when": { "type": "string" }
+        }
+      },
+      "description": "Cross-cutting transitions evaluated after phase-specific ones"
+    },
     "ui": {
       "type": "object",
       "required": ["layout", "tableColor"],

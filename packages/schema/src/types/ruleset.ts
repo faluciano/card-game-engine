@@ -164,5 +164,7 @@ export interface CardGameRuleset {
    * initial value, and optional public visibility.
    */
   readonly variables?: Readonly<Record<string, VariableDefinition>>;
+  /** Cross-cutting transitions evaluated after phase-specific ones. */
+  readonly globalTransitions?: readonly PhaseTransition[];
   readonly ui: UIConfig;
 }

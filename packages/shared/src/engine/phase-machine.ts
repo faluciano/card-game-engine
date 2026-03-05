@@ -7,6 +7,7 @@ import type {
   CardGameState,
   PhaseAction,
   PhaseDefinition,
+  PhaseTransition,
 } from "../types/index";
 import {
   evaluateCondition,
@@ -25,8 +26,12 @@ export type TransitionResult =
  */
 export class PhaseMachine {
   private readonly phasesByName: ReadonlyMap<string, PhaseDefinition>;
+  private readonly globalTransitions: readonly PhaseTransition[];
 
-  constructor(phases: readonly PhaseDefinition[]) {
+  constructor(
+    phases: readonly PhaseDefinition[],
+    globalTransitions: readonly PhaseTransition[] = []
+  ) {
     const map = new Map<string, PhaseDefinition>();
     for (const phase of phases) {
       if (map.has(phase.name)) {
@@ -35,6 +40,7 @@ export class PhaseMachine {
       map.set(phase.name, phase);
     }
     this.phasesByName = map;
+    this.globalTransitions = globalTransitions;
   }
 
   /** Returns the phase definition for the given name, or throws. */
@@ -57,6 +63,7 @@ export class PhaseMachine {
     const phase = this.getPhase(state.currentPhase);
     const context: EvalContext = { state };
 
+    // 1. Evaluate phase-specific transitions first
     for (const transition of phase.transitions) {
       // Validate that the target phase exists before evaluating the condition.
       // Fail fast: a misconfigured ruleset should be caught immediately.
@@ -82,6 +89,31 @@ export class PhaseMachine {
           continue;
         }
         // Re-throw non-expression errors (programming bugs, etc.)
+        throw error;
+      }
+    }
+
+    // 2. Evaluate global transitions (fallback after phase-specific ones)
+    for (const transition of this.globalTransitions) {
+      if (!this.phasesByName.has(transition.to)) {
+        throw new Error(
+          `Global transition targets unknown phase: "${transition.to}"`
+        );
+      }
+
+      try {
+        const conditionMet = evaluateCondition(transition.when, context);
+        if (conditionMet) {
+          return { kind: "advance", nextPhase: transition.to };
+        }
+      } catch (error) {
+        if (error instanceof ExpressionError) {
+          console.warn(
+            `Global transition condition "${transition.when}" ` +
+              `failed to evaluate: ${error.message}. Treating as not met.`
+          );
+          continue;
+        }
         throw error;
       }
     }

@@ -178,7 +178,7 @@ export function createReducer(
   // Ensure builtins are registered (idempotent)
   registerAllBuiltins();
 
-  const phaseMachine = new PhaseMachine(ruleset.phases);
+  const phaseMachine = new PhaseMachine(ruleset.phases, ruleset.globalTransitions);
   const rng = createRng(seed);
 
   return (state: CardGameState, action: CardGameAction): CardGameState => {

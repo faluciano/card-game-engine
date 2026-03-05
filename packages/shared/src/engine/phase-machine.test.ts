@@ -701,4 +701,141 @@ describe("PhaseMachine", () => {
       expect(afterRE).toEqual({ kind: "advance", nextPhase: "deal" });
     });
   });
+
+  // ── globalTransitions ──
+
+  describe("globalTransitions", () => {
+    it("evaluates global transitions after phase-specific ones", () => {
+      const phases: PhaseDefinition[] = [
+        {
+          name: "playing",
+          kind: "turn_based",
+          actions: [],
+          transitions: [{ to: "next_round", when: "false" }],
+        },
+        {
+          name: "next_round",
+          kind: "automatic",
+          actions: [],
+          transitions: [],
+        },
+        {
+          name: "game_over",
+          kind: "automatic",
+          actions: [],
+          transitions: [],
+        },
+      ];
+      const globalTransitions = [{ to: "game_over", when: "true" }];
+      const machine = new PhaseMachine(phases, globalTransitions);
+      const state = makeGameState({}, { currentPhase: "playing" });
+
+      // Phase-specific transition is false, so global transition kicks in
+      const result = machine.evaluateTransitions(state);
+      expect(result).toEqual({ kind: "advance", nextPhase: "game_over" });
+    });
+
+    it("phase-specific transitions take priority over global", () => {
+      const phases: PhaseDefinition[] = [
+        {
+          name: "playing",
+          kind: "turn_based",
+          actions: [],
+          transitions: [{ to: "next_round", when: "true" }],
+        },
+        {
+          name: "next_round",
+          kind: "automatic",
+          actions: [],
+          transitions: [],
+        },
+        {
+          name: "game_over",
+          kind: "automatic",
+          actions: [],
+          transitions: [],
+        },
+      ];
+      const globalTransitions = [{ to: "game_over", when: "true" }];
+      const machine = new PhaseMachine(phases, globalTransitions);
+      const state = makeGameState({}, { currentPhase: "playing" });
+
+      // Both match, but phase-specific wins
+      const result = machine.evaluateTransitions(state);
+      expect(result).toEqual({ kind: "advance", nextPhase: "next_round" });
+    });
+
+    it("global transitions are skipped when none configured", () => {
+      const phases: PhaseDefinition[] = [
+        {
+          name: "playing",
+          kind: "turn_based",
+          actions: [],
+          transitions: [{ to: "end", when: "false" }],
+        },
+        {
+          name: "end",
+          kind: "automatic",
+          actions: [],
+          transitions: [],
+        },
+      ];
+      // No global transitions (default empty)
+      const machine = new PhaseMachine(phases);
+      const state = makeGameState({}, { currentPhase: "playing" });
+
+      const result = machine.evaluateTransitions(state);
+      expect(result).toEqual({ kind: "stay" });
+    });
+
+    it("throws for global transition targeting unknown phase", () => {
+      const phases: PhaseDefinition[] = [
+        {
+          name: "playing",
+          kind: "turn_based",
+          actions: [],
+          transitions: [],
+        },
+      ];
+      const globalTransitions = [{ to: "does_not_exist", when: "true" }];
+      const machine = new PhaseMachine(phases, globalTransitions);
+      const state = makeGameState({}, { currentPhase: "playing" });
+
+      expect(() => machine.evaluateTransitions(state)).toThrow(
+        'Global transition targets unknown phase: "does_not_exist"',
+      );
+    });
+
+    it("treats ExpressionError in global transitions as condition-not-met", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const phases: PhaseDefinition[] = [
+        {
+          name: "playing",
+          kind: "turn_based",
+          actions: [],
+          transitions: [],
+        },
+        {
+          name: "fallback",
+          kind: "automatic",
+          actions: [],
+          transitions: [],
+        },
+      ];
+      const globalTransitions = [
+        { to: "fallback", when: "totally_unknown_identifier_abc" },
+      ];
+      const machine = new PhaseMachine(phases, globalTransitions);
+      const state = makeGameState({}, { currentPhase: "playing" });
+
+      const result = machine.evaluateTransitions(state);
+      expect(result).toEqual({ kind: "stay" });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Global transition condition"),
+      );
+
+      warnSpy.mockRestore();
+    });
+  });
 });

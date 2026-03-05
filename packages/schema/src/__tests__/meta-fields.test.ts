@@ -468,3 +468,48 @@ describe("card value numeric shorthand", () => {
     expect(result.success).toBe(false);
   });
 });
+
+// ─── globalTransitions ────────────────────────────────────────────
+
+describe("globalTransitions field", () => {
+  it("parses ruleset with globalTransitions", () => {
+    const ruleset = makeMinimalRuleset({
+      globalTransitions: [
+        { to: "play", when: "card_count(current_player.hand) == 0" },
+      ],
+    });
+
+    const result = safeParseRuleset(ruleset);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.globalTransitions).toEqual([
+        { to: "play", when: "card_count(current_player.hand) == 0" },
+      ]);
+    }
+  });
+
+  it("parses ruleset without globalTransitions (backward compat)", () => {
+    const ruleset = makeMinimalRuleset();
+
+    const result = safeParseRuleset(ruleset);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.globalTransitions).toBeUndefined();
+    }
+  });
+
+  it("accepts empty globalTransitions array", () => {
+    const ruleset = makeMinimalRuleset({
+      globalTransitions: [],
+    });
+
+    const result = safeParseRuleset(ruleset);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.globalTransitions).toEqual([]);
+    }
+  });
+});
