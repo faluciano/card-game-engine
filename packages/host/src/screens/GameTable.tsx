@@ -16,6 +16,7 @@ import type {
   Card,
   CardGameState,
   Player,
+  UIConfig,
   ZoneState,
 } from "@card-engine/shared";
 import type { HostAction, HostGameState } from "../types/host-state";
@@ -37,6 +38,12 @@ const MAX_VISIBLE_CARDS = 12;
 
 /** Threshold above which an all-face-down zone collapses to a stacked icon. */
 const STACK_COLLAPSE_THRESHOLD = 6;
+
+const TABLE_COLORS: Readonly<Record<string, string>> = {
+  felt_green: "#0d3320",
+  wood: "#5c3d2e",
+  dark: "#1a1a2e",
+};
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -62,11 +69,12 @@ export function GameTable(): React.JSX.Element {
   }
 
   const engineState = state.engineState;
+  const tableColor = resolveTableColor(engineState.ruleset.ui);
   const isFinished = engineState.status.kind === "finished";
   const isRoundEnd = engineState.currentPhase === "round_end";
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: tableColor }]}>
       <StatusBar engineState={engineState} />
 
       <View style={styles.tableLayout}>
@@ -243,7 +251,7 @@ function ZoneDisplay({
           <StackedDeck count={cards.length} />
         ) : shouldShowTopOnly ? (
           <>
-            <CardView card={cards[0]!} />
+            <FlippableCardView card={cards[0]!} />
             <View style={styles.topCardMoreIndicator}>
               <Text style={styles.topCardMoreText}>
                 +{cards.length - 1} more
@@ -324,7 +332,7 @@ function CappedCardList({
           );
         }
 
-        return <CardView key={card.id} card={card} />;
+        return <FlippableCardView key={card.id} card={card} />;
       })}
     </>
   );
@@ -396,6 +404,64 @@ function AnimatedCardView({
 
   return (
     <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      <CardView card={card} />
+    </Animated.View>
+  );
+}
+
+// ─── Flippable Card View ───────────────────────────────────────────
+
+/**
+ * Wraps CardView with a 3D flip animation when faceUp changes
+ * from false to true. Uses rotateY to simulate turning a card over.
+ */
+function FlippableCardView({
+  card,
+}: {
+  readonly card: Card;
+}): React.JSX.Element {
+  const flipAnim = useRef(new Animated.Value(card.faceUp ? 1 : 0)).current;
+  const wasFaceUpRef = useRef(card.faceUp);
+
+  useEffect(() => {
+    if (card.faceUp && !wasFaceUpRef.current) {
+      // Card just flipped face-up — animate
+      flipAnim.setValue(0);
+      Animated.timing(flipAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    }
+    wasFaceUpRef.current = card.faceUp;
+  }, [card.faceUp, flipAnim]);
+
+  const rotateY = flipAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ["0deg", "90deg", "0deg"],
+  });
+
+  const cardOpacity = flipAnim.interpolate({
+    inputRange: [0, 0.49, 0.5, 1],
+    outputRange: [1, 1, 1, 1],
+  });
+
+  // Show back for first half, face for second half
+  const showFace = flipAnim.interpolate({
+    inputRange: [0, 0.49, 0.5, 1],
+    outputRange: [0, 0, 1, 1],
+  });
+
+  // We can't conditionally render based on animated value,
+  // so we use a simpler approach: just animate the rotation
+  // and let CardView render the current state
+  return (
+    <Animated.View
+      style={{
+        opacity: cardOpacity,
+        transform: [{ perspective: 800 }, { rotateY }],
+      }}
+    >
       <CardView card={card} />
     </Animated.View>
   );
@@ -711,6 +777,13 @@ function formatStatusKind(kind: string): string {
     default:
       return kind;
   }
+}
+
+/** Resolves the table background color from UI config. */
+function resolveTableColor(ui: UIConfig | undefined): string {
+  if (!ui) return TABLE_COLORS.felt_green!;
+  if (ui.tableColor === "custom" && ui.customColor) return ui.customColor;
+  return TABLE_COLORS[ui.tableColor] ?? TABLE_COLORS.felt_green!;
 }
 
 // ─── Styles ────────────────────────────────────────────────────────

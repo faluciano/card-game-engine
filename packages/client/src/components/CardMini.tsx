@@ -16,6 +16,8 @@ interface CardMiniProps {
   readonly onSelect?: (cardId: CardInstanceId) => void;
   /** Whether this card is playable (satisfies play_card condition). undefined = no filtering. */
   readonly playable?: boolean;
+  /** Whether this card should be visually emphasized (e.g. top of discard pile). */
+  readonly emphasized?: boolean;
 }
 
 const SUIT_SYMBOLS: Readonly<Record<string, string>> = {
@@ -60,6 +62,15 @@ const faceUpInteractiveStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+const faceUpEmphasizedStyle: CSSProperties = {
+  ...baseCardStyle,
+  width: 64,
+  height: 90,
+  backgroundColor: "#fff",
+  border: "2px solid var(--color-warning)",
+  boxShadow: "0 0 8px rgba(255, 215, 0, 0.3)",
+};
+
 const faceDownStyle: CSSProperties = {
   ...baseCardStyle,
   backgroundColor: "var(--color-card-back)",
@@ -78,6 +89,7 @@ export function CardMini({
   selected = false,
   onSelect,
   playable,
+  emphasized = false,
 }: CardMiniProps): React.JSX.Element {
   const handleClick = useCallback(() => {
     if (!card || !onSelect) return;
@@ -97,7 +109,11 @@ export function CardMini({
 
   const isInteractive = onSelect !== undefined;
   const cardStyle: CSSProperties = {
-    ...(selected ? faceUpSelectedStyle : faceUpStyle),
+    ...(selected
+      ? faceUpSelectedStyle
+      : emphasized
+        ? faceUpEmphasizedStyle
+        : faceUpStyle),
     ...(isInteractive ? faceUpInteractiveStyle : {}),
     // Playability styling: undefined means no filtering applied
     ...(playable === false ? { opacity: 0.4, filter: "grayscale(0.3)" } : {}),

@@ -175,6 +175,7 @@ export function createPlayerView(
     variables: filterVariables(state.variables, publicVars),
     stringVariables: filterStringVariables(state.stringVariables, publicVars),
     turnNumber: state.turnNumber,
+    ui: state.ruleset.ui,
   };
 }
 

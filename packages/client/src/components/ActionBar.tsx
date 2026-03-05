@@ -8,6 +8,7 @@ import React, { useCallback } from "react";
 import type { CSSProperties } from "react";
 import type { HostAction, PlayerView, PlayerId, CardInstanceId } from "@card-engine/shared";
 import { type ValidAction } from "@card-engine/shared";
+import { SuitPicker } from "./SuitPicker.js";
 
 /** Tracks which card the player has tapped for a play_card action. */
 interface SelectedCard {
@@ -90,6 +91,21 @@ function handlePointerUp(e: React.PointerEvent<HTMLButtonElement>): void {
 /** Default target zone when a play_card action doesn't specify one. */
 const DEFAULT_PLAY_TARGET_ZONE = "discard";
 
+const SUIT_ACTION_NAMES = new Set([
+  "choose_hearts",
+  "choose_diamonds",
+  "choose_clubs",
+  "choose_spades",
+]);
+
+/** Returns true when every action is a suit-choice declaration. */
+function isSuitPickerPhase(actions: readonly ValidAction[]): boolean {
+  return (
+    actions.length > 0 &&
+    actions.every((a) => SUIT_ACTION_NAMES.has(a.actionName))
+  );
+}
+
 export function ActionBar({
   playerView,
   validActions,
@@ -139,6 +155,18 @@ export function ActionBar({
     return (
       <div style={containerStyle}>
         <p style={waitingStyle}>No actions available</p>
+      </div>
+    );
+  }
+
+  if (isSuitPickerPhase(validActions)) {
+    return (
+      <div style={containerStyle}>
+        <SuitPicker
+          validActions={validActions}
+          playerId={playerId}
+          sendAction={sendAction}
+        />
       </div>
     );
   }

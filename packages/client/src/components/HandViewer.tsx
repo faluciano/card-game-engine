@@ -122,6 +122,7 @@ export function HandViewer({
               <CardMini
                 key={card?.id ?? `hidden-${name}-${index}`}
                 card={card}
+                emphasized={index === 0}
               />
             ))}
           </div>

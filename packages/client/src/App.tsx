@@ -24,6 +24,8 @@ import { LobbyScreen } from "./screens/LobbyScreen.js";
 import { PlayingScreen } from "./screens/PlayingScreen.js";
 import { ResultScreen } from "./screens/ResultScreen.js";
 import { Toast } from "./components/Toast.js";
+import { ConnectionIndicator } from "./components/ConnectionIndicator.js";
+import { ScreenTransition } from "./components/ScreenTransition.js";
 
 const initialState = createHostInitialState();
 
@@ -85,47 +87,65 @@ export function App(): React.JSX.Element {
     return <ConnectingScreen status={status} />;
   }
 
-  // Route based on game status
-  if (state.status === "ruleset_picker") {
-    return <CatalogScreen state={state} sendAction={sendAction} />;
-  }
-
-  if (state.status === "lobby") {
-    return (
-      <LobbyScreen
-        state={state}
-        sendAction={sendAction}
-        playerId={playerId}
-      />
-    );
-  }
-
-  // Game states — need engineState and playerView
-  if (!playerView) {
-    return <WaitingScreen message="Loading game..." />;
-  }
-
-  if (state.status === "game:finished") {
-    return <ResultScreen playerView={playerView} />;
-  }
-
-  // game:in_progress or game:waiting_for_players or any other game: state
+  // ── Derive error state for Toast ──
   const actionError = state.actionError;
-  const isMyError =
-    actionError != null && actionError.playerId === playerId;
+  const isMyError = actionError != null && actionError.playerId === playerId;
+
+  // ── Route screens ──
+  const { screen, screenKey } = (() => {
+    if (state.status === "ruleset_picker") {
+      return {
+        screen: <CatalogScreen state={state} sendAction={sendAction} />,
+        screenKey: "catalog",
+      };
+    }
+    if (state.status === "lobby") {
+      return {
+        screen: (
+          <LobbyScreen
+            state={state}
+            sendAction={sendAction}
+            playerId={playerId}
+          />
+        ),
+        screenKey: "lobby",
+      };
+    }
+    if (!playerView) {
+      return {
+        screen: <WaitingScreen message="Loading game..." />,
+        screenKey: "waiting",
+      };
+    }
+    if (state.status === "game:finished") {
+      return {
+        screen: <ResultScreen playerView={playerView} />,
+        screenKey: "result",
+      };
+    }
+    return {
+      screen: (
+        <>
+          <PlayingScreen
+            playerView={playerView}
+            validActions={validActions}
+            sendAction={sendAction}
+            playableCardIds={playableCardIds}
+          />
+          <Toast
+            message={isMyError ? actionError.reason : null}
+            triggerKey={isMyError ? actionError.timestamp : 0}
+          />
+        </>
+      ),
+      screenKey: "playing",
+    };
+  })();
 
   return (
     <>
-      <PlayingScreen
-        playerView={playerView}
-        validActions={validActions}
-        sendAction={sendAction}
-        playableCardIds={playableCardIds}
-      />
-      <Toast
-        message={isMyError ? actionError.reason : null}
-        triggerKey={isMyError ? actionError.timestamp : 0}
-      />
+      <ConnectionIndicator status={status} />
+      <ScreenTransition key={screenKey}>{screen}</ScreenTransition>
     </>
   );
 }

@@ -3,7 +3,7 @@
 // State is always immutable — the reducer returns a new state.
 
 import type { Card, CardInstanceId, ZoneState } from "./card";
-import type { CardGameRuleset, PhaseKind } from "./ruleset";
+import type { CardGameRuleset, PhaseKind, UIConfig } from "./ruleset";
 
 // ─── Player ────────────────────────────────────────────────────────
 
@@ -135,6 +135,7 @@ export interface PlayerView {
   readonly variables: Readonly<Record<string, number>>;
   readonly stringVariables: Readonly<Record<string, string>>;
   readonly turnNumber: number;
+  readonly ui?: UIConfig;
 }
 
 /** A zone where hidden cards are replaced with placeholders. */
