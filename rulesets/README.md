@@ -45,10 +45,11 @@ A ruleset file requires these top-level sections:
 | `roles` | Player and NPC role definitions |
 | `phases` | Game flow as a finite state machine |
 | `scoring` | How to calculate and compare scores |
-| `visibility` | Who can see which cards |
 | `ui` | Layout and visual hints for renderers |
 
-Optional sections: `initialVariables` (custom numeric state), `initialStringVariables` (custom string state), `publicVariables` (restrict which variables are exposed to clients in `PlayerView`).
+Optional sections: `variables` (unified variable manifest — each key maps to `{ initial, public? }`), `globalTransitions` (fallback phase transitions evaluated when no phase-specific transition matches).
+
+Zone visibility is configured per-zone via the `visibility` field on each zone definition, with optional `phaseOverrides` for phase-specific visibility changes.
 
 For the full format specification, expression language reference, and annotated examples, see the **[Ruleset Authoring Guide](../docs/ruleset-authoring.md)**.
 

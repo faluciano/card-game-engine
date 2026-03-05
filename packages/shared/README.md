@@ -361,7 +361,7 @@ Mutating functions that record effect descriptions for the interpreter to apply.
 
 ### `CardGameRuleset`
 
-The top-level type for a fully parsed `.cardgame.json` file. Contains: `meta`, `deck`, `zones`, `roles`, `initialVariables?`, `initialStringVariables?`, `phases`, `scoring`, `visibility`, `ui`. Immutable by design.
+The top-level type for a fully parsed `.cardgame.json` file. Contains: `meta`, `deck`, `zones`, `roles`, `variables?`, `phases`, `scoring`, `globalTransitions?`, `ui`. Immutable by design.
 
 ### `CardGameState`
 
@@ -395,7 +395,7 @@ Runtime state of a zone: its `definition` (name, visibility, owners, maxCards) p
 
 ### `Phase`, `PhaseAction`, `PhaseTransition`
 
-`PhaseDefinition` has a `name`, `kind` (`automatic | turn_based | all_players`), `actions`, `transitions`, and optional `automaticSequence`/`turnOrder`. `PhaseAction` defines an action with `name`, `label`, optional `condition`, and `effect` expressions. `PhaseTransition` has a `to` phase and a `when` condition.
+`PhaseDefinition` has a `name`, `kind` (`automatic | turn_based | all_players`), `actions`, `transitions`, and optional `onEnter`/`onExit`/`turnOrder`/`autoEndTurnCondition`. `PhaseAction` defines an action with `name`, `label`, optional `condition`, and `effect` expressions. `PhaseTransition` has a `to` phase and a `when` condition.
 
 ### `FilteredZoneState`
 
@@ -403,7 +403,7 @@ A zone where hidden cards are replaced with `null` placeholders. Contains `name`
 
 ## Testing
 
-770 tests across 9 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, integration scenarios, and host bridge catalog actions.
+771 tests across 9 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, integration scenarios, and host bridge catalog actions.
 
 ```sh
 # Run all tests

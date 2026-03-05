@@ -12,6 +12,8 @@ running example throughout.
 4. [Roles](#4-roles)
 5. [Zones](#5-zones)
 6. [Phases (the FSM)](#6-phases-the-fsm)
+   - [Phase Lifecycle Hooks (onEnter / onExit)](#phase-lifecycle-hooks-onenter--onexit)
+   - [Phase Transitions & Global Transitions](#phase-transitions--global-transitions)
 7. [Actions](#7-actions)
    - [play_card Action Kind](#play_card-action-kind)
    - [Declare with Parameters](#declare-with-parameters)
@@ -19,7 +21,7 @@ running example throughout.
 9. [Turn Order](#9-turn-order)
 10. [Custom Variables](#10-custom-variables)
 11. [Scoring](#11-scoring)
-12. [Visibility](#12-visibility)
+12. [Zone Visibility & Phase Overrides](#12-zone-visibility--phase-overrides)
 13. [UI Hints](#13-ui-hints)
 14. [Complete Blackjack Example](#14-complete-blackjack-example)
 15. [Validation](#15-validation)
@@ -76,17 +78,15 @@ sections:
     "cardValues": { "...rank-to-value mappings" }
   },
   "roles": ["...array of role definitions"],
-  "zones": ["...array of zone definitions"],
-  "initialVariables": { "...optional name-to-number mappings" },
-  "initialStringVariables": { "...optional name-to-string mappings" },
-  "publicVariables": ["...optional list of variable names exposed to clients"],
+  "zones": { "...zone name to ZoneConfig mappings (includes phaseOverrides)" },
+  "variables": { "...optional variable name to VariableDefinition mappings" },
   "phases": ["...array of phase definitions (the FSM)"],
+  "globalTransitions": ["...optional fallback transition rules"],
   "scoring": {
     "method": "expression",
     "winCondition": "expression",
     "bustCondition": "expression (optional)"
   },
-  "visibility": ["...array of visibility rules"],
   "ui": {
     "layout": "semicircle | circle | grid | linear",
     "tableColor": "felt_green | wood | dark | custom"
@@ -185,6 +185,18 @@ Two kinds are supported:
   { "kind": "dual", "low": 1, "high": 11 }
   ```
 
+- **Numeric shorthand** -- bare numbers are accepted as shorthand for `fixed`
+  values. At parse time, `2` normalizes to `{ "kind": "fixed", "value": 2 }`.
+  ```json
+  "cardValues": {
+    "2": 2,
+    "3": 3,
+    "ace": { "kind": "choice", "options": [1, 11] }
+  }
+  ```
+  This makes simple value mappings much more concise. The object form is still
+  supported and required for `dual` or `choice` value kinds.
+
 ### Deterministic Card IDs
 
 When the deck is instantiated, each card receives a unique deterministic ID
@@ -231,12 +243,16 @@ exactly one zone at any time.
 
 ```json
 {
-  "zones": [
-    { "name": "draw_pile", "visibility": { "kind": "hidden" }, "owners": [] },
-    { "name": "hand", "visibility": { "kind": "owner_only" }, "owners": ["player"] },
-    { "name": "dealer_hand", "visibility": { "kind": "partial", "rule": "first_card_only" }, "owners": ["dealer"] },
-    { "name": "discard", "visibility": { "kind": "public" }, "owners": [] }
-  ]
+  "zones": {
+    "draw_pile": { "visibility": "hidden", "owners": [] },
+    "hand": { "visibility": "owner_only", "owners": ["player"] },
+    "dealer_hand": {
+      "visibility": "partial:first_card_only",
+      "owners": ["dealer"],
+      "phaseOverrides": { "dealer_turn": "visible" }
+    },
+    "discard": { "visibility": "visible", "owners": [] }
+  }
 }
 ```
 
@@ -244,10 +260,11 @@ Each zone definition has:
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | `string` | Unique identifier. Used in expressions and effect functions. |
-| `visibility` | `object` | Default visibility for this zone (see [Visibility](#12-visibility)). |
+| `name` | `string` | The key in the `zones` object. Used in expressions and effect functions. |
+| `visibility` | `string` | Default visibility for this zone (see [Zone Visibility & Phase Overrides](#12-zone-visibility--phase-overrides)). |
 | `owners` | `string[]` | Role names that own this zone. An empty array means the zone is shared ("house"). |
 | `maxCards` | `number?` | Optional card limit for the zone. |
+| `phaseOverrides` | `Record<string, string>?` | Optional map of phase name → visibility override string. |
 
 ### Per-Player Zones
 
@@ -288,7 +305,7 @@ Three kinds of phases exist:
 
 | Kind | Description |
 |---|---|
-| `automatic` | Runs a sequence of effects (`automaticSequence`) then immediately evaluates transitions. Used for dealing, scoring, and AI turns. |
+| `automatic` | Runs a sequence of effects (`onEnter`) then immediately evaluates transitions. Used for dealing, scoring, and AI turns. |
 | `turn_based` | Waits for player input. Players take turns choosing from a set of allowed actions. |
 | `all_players` | All players can act concurrently before transitions are evaluated. |
 
@@ -302,7 +319,7 @@ Three kinds of phases exist:
   "transitions": [
     { "to": "player_turns", "when": "all_hands_dealt" }
   ],
-  "automaticSequence": [
+  "onEnter": [
     "shuffle(draw_pile)",
     "deal(draw_pile, hand, 2)",
     "deal(draw_pile, dealer_hand, 2)",
@@ -319,30 +336,10 @@ Every phase has these fields:
 | `kind` | `"automatic" \| "turn_based" \| "all_players"` | How the phase advances. |
 | `actions` | `array` | Available player actions (empty for `automatic` phases). |
 | `transitions` | `array` | Ordered list of `{ to, when }` transition rules. |
-| `automaticSequence` | `string[]?` | Expressions executed in order when an automatic phase is entered. |
+| `onEnter` | `string[]?` | Expressions executed in order when the phase is entered. Replaces the former `automaticSequence` field. |
+| `onExit` | `string[]?` | Expressions executed when the phase is exited (available in schema, **not yet implemented** in the engine). |
 | `turnOrder` | `"clockwise" \| "counterclockwise" \| "fixed"?` | Turn order for `turn_based` phases. |
-
-### Transitions
-
-Transitions are evaluated in order. The first one whose `when` expression
-evaluates to `true` fires, advancing the game to the `to` phase. If no
-transition matches, the phase stays active.
-
-```json
-"transitions": [
-  { "to": "dealer_turn", "when": "all_players_done" },
-  { "to": "scoring", "when": "hand_value(current_player.hand) > 21" }
-]
-```
-
-**Tip:** If you need a guaranteed fallback transition (for phases that should
-always advance), use `"when": "true"` as the last entry:
-
-```json
-"transitions": [
-  { "to": "scoring", "when": "true" }
-]
-```
+| `autoEndTurnCondition` | `string?` | Expression evaluated after each player action. If `true`, the player's turn ends automatically. Useful for shedding games where playing a card should end the turn. |
 
 ### Blackjack Phase Flow
 
@@ -364,6 +361,113 @@ deal -> player_turns -> dealer_turn -> scoring -> round_end
    Transitions to `round_end`.
 5. **round_end** (automatic) -- Collects all cards back to the draw pile and
    resets the round. Transitions back to `deal` if the game should continue.
+
+### Phase Lifecycle Hooks (onEnter / onExit)
+
+When a phase is entered, the engine executes the `onEnter` expressions in order.
+This is the primary mechanism for automatic phases (dealing, scoring, AI turns)
+but can also be used on `turn_based` or `all_players` phases to run setup logic
+before players act.
+
+```json
+{
+  "name": "deal",
+  "kind": "automatic",
+  "onEnter": [
+    "shuffle(draw_pile)",
+    "deal(draw_pile, hand, 2)"
+  ],
+  "transitions": [{ "to": "player_turns", "when": "all_hands_dealt" }]
+}
+```
+
+The `onExit` field has the same format as `onEnter` — an array of expression
+strings. It is defined in the schema and accepted by the parser, but **not yet
+implemented** in the engine. It is reserved for future use (e.g., cleanup logic
+when leaving a phase).
+
+```json
+{
+  "name": "player_turns",
+  "kind": "turn_based",
+  "onExit": ["set_var(\"turns_taken\", turn_number)"],
+  "..."
+}
+```
+
+> **Migration note:** The field formerly named `automaticSequence` has been
+> renamed to `onEnter`. Update existing rulesets accordingly.
+
+### `autoEndTurnCondition` (per-phase)
+
+The `autoEndTurnCondition` field on a `PhaseDefinition` is an expression
+evaluated after each player action (including `play_card`). If it evaluates to
+`true`, the player's turn ends automatically without requiring an explicit
+`end_turn()` call.
+
+```json
+{
+  "name": "player_turns",
+  "kind": "turn_based",
+  "autoEndTurnCondition": "hand_count == 0",
+  "allowedActions": ["playCard"],
+  "transitions": [
+    { "to": "scoring", "when": "all_players_done" }
+  ]
+}
+```
+
+This is especially useful for shedding games (Crazy Eights, UNO) where playing
+a card should end the turn, or for games where the turn ends when a zone is
+empty.
+
+> **Migration note:** `autoEndTurnCondition` was previously located on the
+> `scoring` config object. It is now per-phase on `PhaseDefinition`.
+
+### Phase Transitions & Global Transitions
+
+Transitions are evaluated in order. The first one whose `when` expression
+evaluates to `true` fires, advancing the game to the `to` phase. If no
+transition matches, the phase stays active.
+
+```json
+"transitions": [
+  { "to": "dealer_turn", "when": "all_players_done" },
+  { "to": "scoring", "when": "hand_value(current_player.hand) > 21" }
+]
+```
+
+**Tip:** If you need a guaranteed fallback transition (for phases that should
+always advance), use `"when": "true"` as the last entry:
+
+```json
+"transitions": [
+  { "to": "scoring", "when": "true" }
+]
+```
+
+#### `globalTransitions`
+
+The `globalTransitions` field is a new top-level field on `CardGameRuleset`. It
+defines phase transitions that are evaluated as a **fallback** after the current
+phase's own `transitions` array. If no phase-specific transition matches, the
+engine checks `globalTransitions` next.
+
+This is useful for conditions that should trigger a phase change from *any*
+phase, such as a game-over check:
+
+```json
+{
+  "globalTransitions": [
+    { "to": "game_over", "condition": "rounds >= max_rounds" },
+    { "to": "game_over", "condition": "get_var(\"winner\") > -1" }
+  ]
+}
+```
+
+`globalTransitions` shares the same format as phase-level `transitions` — an
+array of `{ to, condition }` objects. Phase-specific transitions always take
+priority; global transitions only fire when no phase transition matched.
 
 ---
 
@@ -527,7 +631,7 @@ Expressions are the glue that connects everything. They appear in:
 - Phase transition `when` clauses
 - Action `condition` fields
 - Action `effect` arrays
-- Automatic phase `automaticSequence` arrays
+- Phase `onEnter` and `onExit` arrays
 - Scoring `method`, `winCondition`, and `bustCondition` fields
 
 The expression language is intentionally constrained -- it is **not**
@@ -736,29 +840,46 @@ if(turn_direction() == -1, "counterclockwise", "clockwise")
 
 ## 10. Custom Variables
 
-Custom variables let rulesets store numeric state that doesn't live in card zones.
-Use them for running totals, bid amounts, round counters, or any game-specific
-numeric tracking.
+Custom variables let rulesets store state that doesn't live in card zones.
+Use them for running totals, bid amounts, round counters, suit names, or any
+game-specific tracking.
 
-### Declaring Initial Variables
+### The `variables` Manifest
 
-Add an optional `initialVariables` field to the top level of your ruleset:
+Declare variables using the top-level `variables` field. Each key maps to a
+`VariableDefinition`:
 
 ```json
 {
-  "initialVariables": {
-    "running_total": 0,
-    "bust_player": -1
+  "variables": {
+    "score_0": { "initial": 0, "public": true },
+    "score_1": { "initial": 0, "public": true },
+    "current_suit": { "initial": "none" },
+    "round": { "initial": 1 }
   }
 }
 ```
 
-Variables are numeric only (`number` type). They are initialized when the game
-starts and reset to their initial values on `reset_round()`.
+A `VariableDefinition` has:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `initial` | `number \| string` | Yes | The starting value. Determines the variable type (numeric or string). |
+| `public` | `boolean` | No | If `true`, the variable is included in `PlayerView`. Defaults to `false`. |
+
+**Numeric variables** (where `initial` is a number) are read with `get_var(name)`,
+written with `set_var(name, value)` and `inc_var(name, amount)`.
+
+**String variables** (where `initial` is a string) are read with `get_str_var(name)`,
+written with `set_str_var(name, value)`.
+
+> **Migration note:** The former `initialVariables`, `initialStringVariables`,
+> and `publicVariables` fields have been consolidated into the single `variables`
+> manifest. Update existing rulesets to use the new format.
 
 ### Reading Variables
 
-Two ways to read a variable:
+Two ways to read a numeric variable:
 
 1. **`get_var(name)` builtin** — explicitly reads a variable by name:
    ```
@@ -771,6 +892,11 @@ Two ways to read a variable:
    ```
    Note: if a variable name collides with a zone name or score key, the zone
    or score takes precedence.
+
+For string variables, use `get_str_var(name)`:
+```
+get_str_var("current_suit") != "none"
+```
 
 ### Writing Variables
 
@@ -786,8 +912,8 @@ Two effect builtins modify variables:
 Custom variables are useful for tracking game state that isn't captured by zones or scores. For example, a running total:
 
 ```json
-"initialVariables": {
-  "running_total": 0
+"variables": {
+  "running_total": { "initial": 0, "public": true }
 }
 ```
 
@@ -819,37 +945,45 @@ Variables can appear in scoring expressions:
 
 ### Public Variables
 
-By default, all variables and string variables are exposed to clients in the `PlayerView`. To restrict which variables are visible, add a `publicVariables` array to the ruleset:
+By default, variables are **not** exposed to clients in the `PlayerView`. To
+make a variable visible to all players, set `"public": true` in its definition:
 
 ```json
 {
-  "publicVariables": ["score", "round"]
+  "variables": {
+    "score": { "initial": 0, "public": true },
+    "round": { "initial": 1, "public": true },
+    "internal_counter": { "initial": 0 }
+  }
 }
 ```
 
-When specified, only the named variables (both numeric and string) are included in the client-facing `PlayerView`. Variables not listed are hidden from all players. If omitted, all variables are exposed (backward compatible).
+In this example, `score` and `round` are included in the client-facing
+`PlayerView`, while `internal_counter` is hidden from all players.
 
 ### Variables in Player Views
 
-All variables are included in `PlayerView` by default — they are global game state visible
-to all players. The client can display them (e.g., showing the running total on
-the TV screen). Use `publicVariables` (see above) to restrict which variables are sent to clients.
+Only variables marked `"public": true` are included in `PlayerView`. The client
+can display them (e.g., showing the running total on the TV screen). Variables
+without `"public": true` are hidden from clients.
 
 ### Reset Behavior
 
-Variables reset to their `initialVariables` values when:
+Variables reset to their `initial` values (from the `variables` manifest) when:
 - `reset_round()` is called
 - A new round begins via the `handleResetRound` action
 
-If no `initialVariables` are defined, the variables map is empty `{}`.
+If no `variables` are defined, the variables map is empty `{}`.
 
 ### String Variables
 
-For storing text values (like suit names, player choices, etc.), use string variables:
+String variables are declared in the same `variables` manifest by using a
+string for the `initial` value:
 
 ```json
-"initialStringVariables": {
-  "active_suit": ""
+"variables": {
+  "active_suit": { "initial": "" },
+  "current_suit": { "initial": "none", "public": true }
 }
 ```
 
@@ -879,7 +1013,7 @@ Subsequent play validation checks the active suit:
 get_str_var("active_suit") != "" && card_suit(current_player.hand, played_card_index) == get_str_var("active_suit")
 ```
 
-String variables reset to their `initialStringVariables` values on `reset_round()`.
+String variables reset to their `initial` values on `reset_round()`.
 
 ---
 
@@ -933,7 +1067,7 @@ transition conditions to determine whether the game should end or continue.
 {
   "name": "scoring",
   "kind": "automatic",
-  "automaticSequence": [
+  "onEnter": [
     "calculate_scores()",
     "accumulate_scores()"
   ],
@@ -945,7 +1079,7 @@ transition conditions to determine whether the game should end or continue.
 ```
 
 The `reset_round()` effect automatically preserves all `cumulative_score_*`
-variables while resetting everything else to `initialVariables`.
+variables while resetting everything else to initial values.
 
 For final winner determination with cumulative scores, reference the cumulative
 builtins directly in the `winCondition`:
@@ -954,62 +1088,73 @@ builtins directly in the `winCondition`:
 "winCondition": "get_cumulative_score(current_player_index) == min_cumulative_score()"
 ```
 
+> **Note:** The `autoEndTurnCondition` field was formerly part of the scoring
+> config. It has been moved to `PhaseDefinition` — see
+> [Phase Lifecycle Hooks](#phase-lifecycle-hooks-onenter--onexit) for details.
+
 ---
 
-## 12. Visibility
+## 12. Zone Visibility & Phase Overrides
 
-Visibility rules control what each player can see. This is how hidden
-information works -- other players' hands are hidden, the draw pile is hidden,
-and the dealer's hole card is concealed until the appropriate phase.
+Visibility is now configured **per-zone** in the `zones` definition rather than
+as a separate top-level array. Each `ZoneConfig` has a `visibility` field and an
+optional `phaseOverrides` map that changes visibility during specific phases.
 
 ```json
 {
-  "visibility": [
-    { "zone": "draw_pile", "visibility": { "kind": "hidden" } },
-    { "zone": "hand", "visibility": { "kind": "owner_only" } },
-    {
-      "zone": "dealer_hand",
-      "visibility": { "kind": "partial", "rule": "first_card_only" },
-      "phaseOverride": {
-        "phase": "dealer_turn",
-        "visibility": { "kind": "public" }
-      }
+  "zones": {
+    "draw_pile": { "visibility": "hidden", "owners": [] },
+    "hand": { "visibility": "owner_only", "owners": ["player"], "maxCards": 10 },
+    "dealer_hand": {
+      "visibility": "partial:first_card_only",
+      "owners": ["dealer"],
+      "phaseOverrides": { "dealer_turn": "visible" }
     },
-    { "zone": "discard", "visibility": { "kind": "public" } }
-  ]
+    "discard": { "visibility": "visible" }
+  }
 }
 ```
 
-### Visibility Kinds
+### Visibility Values
 
-| Kind | Description |
+| Value | Description |
 |---|---|
-| `public` | All players can see all cards in this zone. |
-| `owner_only` | Only the zone's owner can see the cards. Other players see card backs. |
-| `hidden` | No one can see the cards (not even the owner). Used for draw piles. |
-| `partial` | Some cards are visible according to a `rule` string. |
+| `"visible"` | All players can see all cards in this zone (formerly `"public"`). |
+| `"owner_only"` | Only the zone's owner can see the cards. Other players see card backs. |
+| `"hidden"` | No one can see the cards (not even the owner). Used for draw piles. |
+| `"count_only"` | Players can see how many cards are in the zone, but not the card faces. |
+| `"partial:first_card_only"` | Only the first card in the zone is visible. |
 
-### Partial Visibility Rules
+### Phase Overrides (`phaseOverrides`)
 
-When `kind` is `"partial"`, the `rule` field specifies which cards are visible:
+The `phaseOverrides` field on a `ZoneConfig` is a map of phase name → visibility
+string. During that phase, the zone's visibility changes to the override value.
+When the phase ends, visibility reverts to the zone's default.
 
-- `"first_card_only"` -- only the first card in the zone is visible
-- Other rules can be defined as the engine evolves
-
-### Phase Overrides
-
-A single `phaseOverride` can change a zone's visibility during a specific phase.
-In blackjack, the dealer's hand uses `"partial"` visibility with
-`"first_card_only"` by default (the face-up card), but switches to `"public"`
-during the `dealer_turn` phase when all cards are revealed.
+In blackjack, the dealer's hand uses `"partial:first_card_only"` visibility by
+default (the face-up card), but switches to `"visible"` during the `dealer_turn`
+phase when all cards are revealed:
 
 ```json
-{
-  "zone": "dealer_hand",
-  "visibility": { "kind": "partial", "rule": "first_card_only" },
-  "phaseOverride": {
-    "phase": "dealer_turn",
-    "visibility": { "kind": "public" }
+"dealer_hand": {
+  "visibility": "partial:first_card_only",
+  "owners": ["dealer"],
+  "phaseOverrides": {
+    "dealer_turn": "visible"
+  }
+}
+```
+
+You can override visibility for multiple phases:
+
+```json
+"hand": {
+  "visibility": "hidden",
+  "owners": ["player"],
+  "maxCards": 10,
+  "phaseOverrides": {
+    "showdown": "visible",
+    "scoring": "visible"
   }
 }
 ```
@@ -1018,8 +1163,12 @@ during the `dealer_turn` phase when all cards are revealed.
 
 The engine's `createPlayerView()` function filters the full game state for each
 player. Hidden cards are replaced with `null` in the player's view, so there is
-no way for a client to access hidden information -- it is never sent over the
+no way for a client to access hidden information — it is never sent over the
 network.
+
+> **Migration note:** The top-level `visibility` array has been removed. Zone
+> visibility and phase overrides are now configured directly on each zone in
+> the `zones` definition.
 
 ---
 
@@ -1069,51 +1218,49 @@ section.
   // --- Deck ---
   // Two standard 52-card decks (104 cards total) with blackjack values.
   // Aces are dual-value: 1 or 11, optimized by the engine automatically.
+  // Numeric shorthand (e.g., "2": 2) normalizes to { kind: "fixed", value: 2 }.
   "deck": {
     "preset": "standard_52",
     "copies": 2,
     "cardValues": {
       "A":  { "kind": "dual", "low": 1, "high": 11 },
-      "2":  { "kind": "fixed", "value": 2 },
-      "3":  { "kind": "fixed", "value": 3 },
-      "4":  { "kind": "fixed", "value": 4 },
-      "5":  { "kind": "fixed", "value": 5 },
-      "6":  { "kind": "fixed", "value": 6 },
-      "7":  { "kind": "fixed", "value": 7 },
-      "8":  { "kind": "fixed", "value": 8 },
-      "9":  { "kind": "fixed", "value": 9 },
-      "10": { "kind": "fixed", "value": 10 },
-      "J":  { "kind": "fixed", "value": 10 },
-      "Q":  { "kind": "fixed", "value": 10 },
-      "K":  { "kind": "fixed", "value": 10 }
+      "2":  2,
+      "3":  3,
+      "4":  4,
+      "5":  5,
+      "6":  6,
+      "7":  7,
+      "8":  8,
+      "9":  9,
+      "10": 10,
+      "J":  10,
+      "Q":  10,
+      "K":  10
     }
   },
 
   // --- Zones ---
-  // Four zones: the shared draw pile and discard, per-player hands,
-  // and the dealer's hand.
-  "zones": [
-    {
-      "name": "draw_pile",
-      "visibility": { "kind": "hidden" },   // Nobody sees the draw pile
-      "owners": []                            // Shared (house) zone
+  // Four zones with visibility configured inline. The dealer's hand has
+  // a phaseOverride that reveals all cards during the dealer_turn phase.
+  "zones": {
+    "draw_pile": {
+      "visibility": "hidden",              // Nobody sees the draw pile
+      "owners": []                          // Shared (house) zone
     },
-    {
-      "name": "hand",
-      "visibility": { "kind": "owner_only" }, // Only the owner sees their hand
-      "owners": ["player"]                     // Expands to hand:0, hand:1, etc.
+    "hand": {
+      "visibility": "owner_only",          // Only the owner sees their hand
+      "owners": ["player"]                  // Expands to hand:0, hand:1, etc.
     },
-    {
-      "name": "dealer_hand",
-      "visibility": { "kind": "partial", "rule": "first_card_only" },
-      "owners": ["dealer"]                     // Single zone, owned by the dealer
+    "dealer_hand": {
+      "visibility": "partial:first_card_only",
+      "owners": ["dealer"],                 // Single zone, owned by the dealer
+      "phaseOverrides": { "dealer_turn": "visible" }
     },
-    {
-      "name": "discard",
-      "visibility": { "kind": "public" },     // Everyone can see the discard pile
-      "owners": []                             // Shared zone
+    "discard": {
+      "visibility": "visible",             // Everyone can see the discard pile
+      "owners": []                          // Shared zone
     }
-  ],
+  },
 
   // --- Roles ---
   // One human role per connected player, plus one AI dealer.
@@ -1134,7 +1281,7 @@ section.
       "transitions": [
         { "to": "player_turns", "when": "all_hands_dealt" }
       ],
-      "automaticSequence": [
+      "onEnter": [
         "shuffle(draw_pile)",                    // Shuffle the shoe
         "deal(draw_pile, hand, 2)",              // Deal 2 cards to each player
         "deal(draw_pile, dealer_hand, 2)",       // Deal 2 cards to the dealer
@@ -1181,7 +1328,7 @@ section.
       "transitions": [
         { "to": "scoring", "when": "hand_value(dealer_hand) >= 17" }
       ],
-      "automaticSequence": [
+      "onEnter": [
         "reveal_all(dealer_hand)",
         "while(hand_value(dealer_hand) < 17, draw(draw_pile, dealer_hand, 1))"
       ]
@@ -1194,7 +1341,7 @@ section.
       "transitions": [
         { "to": "round_end", "when": "scores_calculated" }
       ],
-      "automaticSequence": [
+      "onEnter": [
         "calculate_scores()",
         "determine_winners()"
       ]
@@ -1207,7 +1354,7 @@ section.
       "transitions": [
         { "to": "deal", "when": "continue_game" }
       ],
-      "automaticSequence": [
+      "onEnter": [
         "collect_all_to(draw_pile)",
         "reset_round()"
       ]
@@ -1222,32 +1369,6 @@ section.
     "winCondition": "hand_value <= 21 && (hand_value > dealer_value || dealer_value > 21)",
     "bustCondition": "hand_value > 21"
   },
-
-  // --- Visibility ---
-  // Controls what each player can see per zone, with a phase override
-  // for the dealer's hand during the dealer_turn phase.
-  "visibility": [
-    {
-      "zone": "hand",
-      "visibility": { "kind": "owner_only" }
-    },
-    {
-      "zone": "dealer_hand",
-      "visibility": { "kind": "partial", "rule": "first_card_only" },
-      "phaseOverride": {
-        "phase": "dealer_turn",
-        "visibility": { "kind": "public" }
-      }
-    },
-    {
-      "zone": "draw_pile",
-      "visibility": { "kind": "hidden" }
-    },
-    {
-      "zone": "discard",
-      "visibility": { "kind": "public" }
-    }
-  ],
 
   // --- UI Hints ---
   // Layout suggestion for the client renderer.
@@ -1478,20 +1599,20 @@ Trick-taking games typically use three per-player zone types:
 | `won` | hidden | Collected trick cards |
 
 ```json
-"zones": [
-  { "name": "draw_pile", "visibility": { "kind": "hidden" }, "owners": [] },
-  { "name": "hand", "visibility": { "kind": "owner_only" }, "owners": ["player"] },
-  { "name": "trick", "visibility": { "kind": "public" }, "owners": ["player"], "maxCards": 1 },
-  { "name": "won", "visibility": { "kind": "hidden" }, "owners": ["player"] }
-]
+"zones": {
+  "draw_pile": { "visibility": "hidden", "owners": [] },
+  "hand": { "visibility": "owner_only", "owners": ["player"] },
+  "trick": { "visibility": "visible", "owners": ["player"], "maxCards": 1 },
+  "won": { "visibility": "hidden", "owners": ["player"] }
+}
 ```
 
 ### Required Variables
 
 ```json
-"initialVariables": {
-  "lead_player": 0,
-  "tricks_played": 0
+"variables": {
+  "lead_player": { "initial": 0 },
+  "tricks_played": { "initial": 0 }
 }
 ```
 
@@ -1514,7 +1635,7 @@ setup → play_trick → resolve_trick → play_trick → ... → scoring
   "kind": "automatic",
   "actions": [],
   "transitions": [{ "to": "play_trick", "when": "all_hands_dealt" }],
-  "automaticSequence": [
+  "onEnter": [
     "shuffle(draw_pile)",
     "deal(draw_pile, hand, 13)",
     "set_lead_player(0)"
@@ -1554,7 +1675,7 @@ next trick.
     { "to": "scoring", "when": "get_var(\"tricks_played\") >= 13" },
     { "to": "play_trick", "when": "get_var(\"tricks_played\") < 13" }
   ],
-  "automaticSequence": [
+  "onEnter": [
     "collect_trick(\"trick\", concat(\"won:\", trick_winner(\"trick\")))",
     "set_lead_player(trick_winner(\"trick\"))",
     "inc_var(\"tricks_played\", 1)"
@@ -1571,10 +1692,10 @@ into the winner's `won` pile. The `set_lead_player()` builtin sets both the
 To enable trump suits, set a `trump_suit` variable:
 
 ```json
-"initialVariables": {
-  "lead_player": 0,
-  "trump_suit_code": 0,
-  "tricks_played": 0
+"variables": {
+  "lead_player": { "initial": 0 },
+  "trump_suit_code": { "initial": 0 },
+  "tricks_played": { "initial": 0 }
 }
 ```
 
@@ -1609,7 +1730,7 @@ reached:
 {
   "name": "scoring",
   "kind": "automatic",
-  "automaticSequence": ["calculate_scores()", "accumulate_scores()"],
+  "onEnter": ["calculate_scores()", "accumulate_scores()"],
   "transitions": [
     { "to": "game_over", "when": "max_cumulative_score() >= 100" },
     { "to": "round_end", "when": "max_cumulative_score() < 100" }
@@ -1623,7 +1744,7 @@ A dedicated `game_over` phase handles final winner determination:
 {
   "name": "game_over",
   "kind": "automatic",
-  "automaticSequence": ["determine_winners()", "end_game()"],
+  "onEnter": ["determine_winners()", "end_game()"],
   "transitions": []
 }
 ```
@@ -1654,7 +1775,7 @@ For single-round games, combine everything in one scoring phase:
 {
   "name": "scoring",
   "kind": "automatic",
-  "automaticSequence": ["calculate_scores()", "determine_winners()", "end_game()"]
+  "onEnter": ["calculate_scores()", "determine_winners()", "end_game()"]
 }
 ```
 

@@ -31,7 +31,7 @@ The TV runs the authoritative game engine: it loads the ruleset, advances the FS
 - **Phase-based FSM** — supports automatic, player_action, and simultaneous phase types
 - **Turn order mechanics** — clockwise/counterclockwise direction, reverse, skip, and set-next-player effects
 - **Seeded PRNG** — mulberry32 with `crypto.getRandomValues` seed hardening enables deterministic replay from an action log
-- **Hidden information** — per-player state filtering via `createPlayerView` with `publicVariables` support
+- **Hidden information** — per-player state filtering via `createPlayerView` with per-variable `public` visibility
 - **Security hardening** — internal actions (`advance_phase`, `reset_round`) blocked from client submissions, action log capped at 500 entries
 - **Zod schema validation** — rulesets are validated against a strict schema at load time
 - **2 deck presets + custom decks** — `standard52`, `standard54`, plus fully custom card lists
