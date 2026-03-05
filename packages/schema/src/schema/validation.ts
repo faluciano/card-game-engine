@@ -93,6 +93,7 @@ const PhaseSchema = z.object({
   onEnter: z.array(z.string()).optional(),
   onExit: z.array(z.string()).optional(),
   turnOrder: z.enum(["clockwise", "counterclockwise", "fixed"]).optional(),
+  autoEndTurnCondition: z.string().optional(),
 });
 
 const ScoringSchema = z.object({
@@ -100,7 +101,6 @@ const ScoringSchema = z.object({
   winCondition: z.string().min(1),
   bustCondition: z.string().optional(),
   tieCondition: z.string().optional(),
-  autoEndTurnCondition: z.string().optional(),
 });
 
 const UISchema = z.object({

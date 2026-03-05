@@ -128,6 +128,7 @@ function makeBlackjackRuleset(): CardGameRuleset {
           },
         ],
         turnOrder: "clockwise",
+        autoEndTurnCondition: "hand_value(current_player.hand, 21) >= 21",
       },
       {
         name: "dealer_turn",
@@ -160,7 +161,6 @@ function makeBlackjackRuleset(): CardGameRuleset {
         "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
       bustCondition: "my_score > 21",
       tieCondition: "my_score == dealer_score && my_score <= 21",
-      autoEndTurnCondition: "hand_value(current_player.hand, 21) >= 21",
     },
     ui: { layout: "semicircle", tableColor: "felt_green" },
   };
@@ -2144,9 +2144,6 @@ describe("Ruleset Interpreter", () => {
         scoring: {
           method: "manual",
           winCondition: "false",
-          ...(overrides?.autoEndTurnCondition
-            ? { autoEndTurnCondition: overrides.autoEndTurnCondition }
-            : {}),
         },
         phases: [
           {
@@ -2174,6 +2171,9 @@ describe("Ruleset Interpreter", () => {
               { to: "game_over", when: "all_players_done" },
             ],
             turnOrder: "clockwise",
+            ...(overrides?.autoEndTurnCondition
+              ? { autoEndTurnCondition: overrides.autoEndTurnCondition }
+              : {}),
           },
           {
             name: "game_over",

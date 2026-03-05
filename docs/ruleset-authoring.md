@@ -437,8 +437,8 @@ that can trigger phase effects. When a player dispatches a `play_card` action:
 
 The engine first moves the card from `fromZone` to `toZone` as usual. Then, if
 the current phase has a phase action named `"play_card"`, its effect expressions
-are executed automatically. The engine also checks `autoEndTurnCondition` and
-evaluates phase transitions after the effects run.
+are executed automatically. The engine also checks the phase's `autoEndTurnCondition`
+and evaluates phase transitions after the effects run.
 
 This is the recommended way to combine card movement with game logic. For
 example, in a game where playing a card should increment a counter:

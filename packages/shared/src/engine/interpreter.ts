@@ -332,25 +332,12 @@ function handleDeclare(
     action.params
   );
 
-  let newState = applyEffects(state, effects, rng);
+    let newState = applyEffects(state, effects, rng);
 
-  // ── Auto-end turn via expression ───────────────────────────────
-  // If the ruleset defines autoEndTurnCondition and the action didn't
-  // already end the turn, evaluate the condition for the current player.
-  // Examples: "hand_value(current_player.hand, 21) >= 21" (blackjack)
-  const { autoEndTurnCondition } = newState.ruleset.scoring;
-  if (
-    autoEndTurnCondition &&
-    !effects.some((e) => e.kind === "end_turn") &&
-    newState.currentPlayerIndex === state.currentPlayerIndex
-  ) {
-    const ctx: EvalContext = { state: newState, playerIndex };
-    if (evaluateCondition(autoEndTurnCondition, ctx)) {
-      newState = applyEndTurnEffect(newState);
-    }
-  }
+    // ── Auto-end turn via phase expression ──────────────────────────
+    newState = maybeAutoEndTurn(newState, state, effects, playerIndex, phaseMachine);
 
-  // Bump version and log
+    // Bump version and log
   newState = {
     ...newState,
     version: newState.version + 1,
@@ -418,18 +405,8 @@ function handlePlayCard(
 
     newState = applyEffects(newState, effects, rng);
 
-    // ── Auto-end turn via expression ─────────────────────────────
-    const { autoEndTurnCondition } = newState.ruleset.scoring;
-    if (
-      autoEndTurnCondition &&
-      !effects.some((e) => e.kind === "end_turn") &&
-      newState.currentPlayerIndex === state.currentPlayerIndex
-    ) {
-      const ctx: EvalContext = { state: newState, playerIndex };
-      if (evaluateCondition(autoEndTurnCondition, ctx)) {
-        newState = applyEndTurnEffect(newState);
-      }
-    }
+    // ── Auto-end turn via phase expression ──────────────────────────
+    newState = maybeAutoEndTurn(newState, state, effects, playerIndex, phaseMachine);
   }
 
   // Bump version and log
@@ -647,6 +624,39 @@ function checkTransitionsAndRunAuto(
 }
 
 // ─── Effect Application ────────────────────────────────────────────
+
+/**
+ * Evaluates the auto-end-turn condition for the current phase.
+ * If the condition is met and no end_turn effect was already applied,
+ * automatically ends the current player's turn.
+ */
+function maybeAutoEndTurn(
+  state: CardGameState,
+  previousState: CardGameState,
+  effects: readonly EffectDescription[],
+  playerIndex: number,
+  phaseMachine: PhaseMachine
+): CardGameState {
+  let phase;
+  try {
+    phase = phaseMachine.getPhase(state.currentPhase);
+  } catch {
+    return state;
+  }
+
+  const { autoEndTurnCondition } = phase;
+  if (
+    autoEndTurnCondition &&
+    !effects.some((e) => e.kind === "end_turn") &&
+    state.currentPlayerIndex === previousState.currentPlayerIndex
+  ) {
+    const ctx: EvalContext = { state, playerIndex };
+    if (evaluateCondition(autoEndTurnCondition, ctx)) {
+      return applyEndTurnEffect(state);
+    }
+  }
+  return state;
+}
 
 /**
  * Applies a sequence of effect descriptions to produce a new state.

@@ -97,6 +97,8 @@ export interface PhaseDefinition {
   readonly onExit?: readonly Expression[];
   /** For turn_based phases: how turn order advances. */
   readonly turnOrder?: "clockwise" | "counterclockwise" | "fixed";
+  /** Auto-ends the current player's turn when this condition is true. */
+  readonly autoEndTurnCondition?: Expression;
 }
 
 export interface PhaseTransition {
@@ -120,7 +122,6 @@ export interface ScoringConfig {
   readonly winCondition: Expression;
   readonly bustCondition?: Expression;
   readonly tieCondition?: Expression;
-  readonly autoEndTurnCondition?: Expression;
 }
 
 // ─── UI Hints ──────────────────────────────────────────────────────

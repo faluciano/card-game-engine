@@ -165,7 +165,11 @@
           },
           "onEnter": { "type": "array", "items": { "type": "string" } },
           "onExit": { "type": "array", "items": { "type": "string" } },
-          "turnOrder": { "type": "string", "enum": ["clockwise", "counterclockwise", "fixed"] }
+          "turnOrder": { "type": "string", "enum": ["clockwise", "counterclockwise", "fixed"] },
+          "autoEndTurnCondition": {
+            "type": "string",
+            "description": "Expression that auto-ends the current turn when true"
+          }
         }
       }
     },
@@ -179,10 +183,6 @@
         "tieCondition": {
           "type": "string",
           "description": "Expression evaluated to determine tie-breaking"
-        },
-        "autoEndTurnCondition": {
-          "type": "string",
-          "description": "Expression that auto-ends the current turn when true"
         }
       }
     },
