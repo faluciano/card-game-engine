@@ -132,6 +132,16 @@ export interface UIConfig {
   readonly customColor?: string;
 }
 
+// ─── Variable Definitions ──────────────────────────────────────────
+
+/**
+ * A unified variable definition declaring type, initial value, and
+ * optional public visibility in a single manifest entry.
+ */
+export type VariableDefinition =
+  | { readonly type: "number"; readonly initial: number; readonly public?: boolean }
+  | { readonly type: "string"; readonly initial: string; readonly public?: boolean };
+
 // ─── Complete Ruleset ──────────────────────────────────────────────
 
 /**
@@ -146,12 +156,10 @@ export interface CardGameRuleset {
   readonly roles: readonly RoleDefinition[];
   readonly phases: readonly PhaseDefinition[];
   readonly scoring: ScoringConfig;
-  readonly initialVariables?: Readonly<Record<string, number>>;
-  readonly initialStringVariables?: Readonly<Record<string, string>>;
   /**
-   * If specified, only these variable names are exposed to clients in PlayerView.
-   * Omit to expose all variables (backward compatible default).
+   * Unified variable manifest. Each entry declares a variable's type,
+   * initial value, and optional public visibility.
    */
-  readonly publicVariables?: readonly string[];
+  readonly variables?: Readonly<Record<string, VariableDefinition>>;
   readonly ui: UIConfig;
 }

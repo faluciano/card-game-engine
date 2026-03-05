@@ -108,6 +108,11 @@ const UISchema = z.object({
   customColor: z.string().optional(),
 });
 
+const VariableDefinitionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("number"), initial: z.number(), public: z.boolean().optional() }),
+  z.object({ type: z.literal("string"), initial: z.string(), public: z.boolean().optional() }),
+]);
+
 // ─── Complete Ruleset Schema ───────────────────────────────────────
 
 export const CardGameRulesetSchema = z.object({
@@ -118,9 +123,7 @@ export const CardGameRulesetSchema = z.object({
   roles: z.array(RoleSchema).min(1),
   phases: z.array(PhaseSchema).min(1),
   scoring: ScoringSchema,
-  initialVariables: z.record(z.string(), z.number()).optional(),
-  initialStringVariables: z.record(z.string(), z.string()).optional(),
-  publicVariables: z.array(z.string().min(1)).optional(),
+  variables: z.record(z.string(), VariableDefinitionSchema).optional(),
   ui: UISchema,
 });
 

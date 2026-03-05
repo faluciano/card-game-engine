@@ -1,7 +1,7 @@
 // ─── Schema Meta Fields & Bug Fixes Tests ─────────────────────────
 // Validates optional meta fields ($schema, description, tags, license),
 // their constraints, and verifies JSON Schema bug fixes for custom
-// decks, initialVariables, and tieCondition.
+// decks, variables manifest, and tieCondition.
 
 import { describe, it, expect } from "vitest";
 import { safeParseRuleset } from "../index";
@@ -288,12 +288,12 @@ describe("JSON Schema bug fixes verification", () => {
     }
   });
 
-  it("parses ruleset with initialVariables", () => {
+  it("parses ruleset with variables manifest", () => {
     const ruleset = makeMinimalRuleset({
-      initialVariables: {
-        round: 1,
-        maxRounds: 10,
-        bonusMultiplier: 2,
+      variables: {
+        round: { type: "number", initial: 1 },
+        maxRounds: { type: "number", initial: 10 },
+        bonusMultiplier: { type: "number", initial: 2 },
       },
     });
 
@@ -301,10 +301,10 @@ describe("JSON Schema bug fixes verification", () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.initialVariables).toEqual({
-        round: 1,
-        maxRounds: 10,
-        bonusMultiplier: 2,
+      expect(result.data.variables).toEqual({
+        round: { type: "number", initial: 1 },
+        maxRounds: { type: "number", initial: 10 },
+        bonusMultiplier: { type: "number", initial: 2 },
       });
     }
   });

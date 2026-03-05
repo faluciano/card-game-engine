@@ -1066,8 +1066,8 @@ function makeCrazyEightsRuleset(): CardGameRuleset {
     roles: [
       { name: "player", isHuman: true, count: "per_player" },
     ],
-    initialStringVariables: {
-      active_suit: "",
+    variables: {
+      active_suit: { type: "string", initial: "" },
     },
     phases: [
       {
@@ -1923,7 +1923,7 @@ describe("Crazy Eights Integration — Full Game Lifecycle", () => {
   // ══════════════════════════════════════════════════════════════════
 
   describe("string variables", () => {
-    it("stringVariables is initialized from ruleset initialStringVariables", () => {
+    it("stringVariables is initialized from ruleset variables manifest", () => {
       const { state } = startCrazyEightsGame(2);
 
       expect(state.stringVariables).toBeDefined();

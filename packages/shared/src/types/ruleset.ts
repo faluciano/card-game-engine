@@ -1,2 +1,2 @@
 // Re-export all ruleset types from the canonical schema package.
-export type { CardGameRuleset, CardTemplateConfig, DeckConfig, DeckPreset, Expression, PhaseAction, PhaseDefinition, PhaseKind, PhaseTransition, RoleDefinition, RulesetMeta, ScoringConfig, TableColor, TableLayout, UIConfig, ZoneConfig } from "@card-engine/schema";
+export type { CardGameRuleset, CardTemplateConfig, DeckConfig, DeckPreset, Expression, PhaseAction, PhaseDefinition, PhaseKind, PhaseTransition, RoleDefinition, RulesetMeta, ScoringConfig, TableColor, TableLayout, UIConfig, VariableDefinition, ZoneConfig } from "@card-engine/schema";

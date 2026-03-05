@@ -61,8 +61,8 @@
       "count": "per_player"
     }
   ],
-  "initialStringVariables": {
-    "active_suit": ""
+  "variables": {
+    "active_suit": { "type": "string", "initial": "" }
   },
   "phases": [
     {

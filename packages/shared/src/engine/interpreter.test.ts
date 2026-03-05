@@ -1772,7 +1772,7 @@ describe("Ruleset Interpreter", () => {
         turnsTakenThisPhase: 0,
         turnDirection: 1,
         scores: {},
-        variables: { ...(reversed.ruleset.initialVariables ?? {}) },
+        variables: {},
       };
       expect(resetState.turnDirection).toBe(1);
     });
@@ -1800,6 +1800,13 @@ describe("Ruleset Interpreter", () => {
     function makeVarRuleset(
       initialVariables?: Record<string, number>,
     ): CardGameRuleset {
+      // Convert flat initialVariables to unified manifest
+      const variables = initialVariables
+        ? Object.fromEntries(
+            Object.entries(initialVariables).map(([k, v]) => [k, { type: "number" as const, initial: v }])
+          )
+        : undefined;
+
       return {
         meta: {
           name: "Var Test",
@@ -1865,7 +1872,7 @@ describe("Ruleset Interpreter", () => {
           winCondition: "false",
         },
         ui: { layout: "semicircle", tableColor: "felt_green" },
-        ...(initialVariables !== undefined ? { initialVariables } : {}),
+        ...(variables !== undefined ? { variables } : {}),
       };
     }
 
@@ -2176,8 +2183,7 @@ describe("Ruleset Interpreter", () => {
             automaticSequence: [],
           },
         ],
-        initialVariables: { cards_played: 0 },
-        ui: { layout: "semicircle", tableColor: "felt_green" },
+        variables: { cards_played: { type: "number", initial: 0 } },        ui: { layout: "semicircle", tableColor: "felt_green" },
       };
     }
 
@@ -2363,7 +2369,7 @@ describe("Ruleset Interpreter", () => {
             automaticSequence: [],
           },
         ],
-        initialVariables: { chosen: 0, cards_played: 0 },
+        variables: { chosen: { type: "number", initial: 0 }, cards_played: { type: "number", initial: 0 } },
       };
 
       const reducer = createReducer(ruleset, FIXED_SEED);

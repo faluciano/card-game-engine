@@ -13,6 +13,7 @@ import type {
   Player,
   PlayerId,
   ResolvedAction,
+  VariableDefinition,
   ZoneDefinition,
   ZoneState,
 } from "../types/index";
@@ -34,6 +35,34 @@ import { isHumanPlayer } from "./role-utils";
 
 /** Maximum number of entries in the action log to prevent unbounded memory growth. */
 const MAX_ACTION_LOG_SIZE = 500;
+
+// ─── Variable Manifest Helpers ─────────────────────────────────────
+
+/** Extract initial numeric variables from the unified manifest. */
+function getInitialVariables(
+  manifest: Readonly<Record<string, VariableDefinition>> | undefined
+): Record<string, number> {
+  if (!manifest) return {};
+  const result: Record<string, number> = {};
+  for (const [key, def] of Object.entries(manifest)) {
+    if (def.type === "number") result[key] = def.initial;
+  }
+  return result;
+}
+
+/** Extract initial string variables from the unified manifest. */
+function getInitialStringVariables(
+  manifest: Readonly<Record<string, VariableDefinition>> | undefined
+): Record<string, string> {
+  if (!manifest) return {};
+  const result: Record<string, string> = {};
+  for (const [key, def] of Object.entries(manifest)) {
+    if (def.type === "string") result[key] = def.initial;
+  }
+  return result;
+}
+
+// ───────────────────────────────────────────────────────────────────
 
 /** Appends an entry to the action log, capping at MAX_ACTION_LOG_SIZE. */
 function appendToLog(
@@ -127,8 +156,8 @@ export function createInitialState(
     turnNumber: 1,
     turnDirection: 1,
     scores: {},
-    variables: { ...(ruleset.initialVariables ?? {}) },
-    stringVariables: { ...(ruleset.initialStringVariables ?? {}) },
+    variables: getInitialVariables(ruleset.variables),
+    stringVariables: getInitialStringVariables(ruleset.variables),
     actionLog: [],
     turnsTakenThisPhase: 0,
     version: 0,
@@ -509,6 +538,14 @@ function handleResetRound(
 ): CardGameState {
   const firstPhase = state.ruleset.phases[0]!.name;
 
+  // Preserve cumulative_score_* variables across round resets
+  const preserved: Record<string, number> = {};
+  for (const [key, value] of Object.entries(state.variables)) {
+    if (key.startsWith("cumulative_score_")) {
+      preserved[key] = value;
+    }
+  }
+
   let newState: CardGameState = {
     ...state,
     currentPhase: firstPhase,
@@ -517,8 +554,8 @@ function handleResetRound(
     turnsTakenThisPhase: 0,
     turnDirection: 1,
     scores: {},
-    variables: { ...(state.ruleset.initialVariables ?? {}) },
-    stringVariables: { ...(state.ruleset.initialStringVariables ?? {}) },
+    variables: { ...getInitialVariables(state.ruleset.variables), ...preserved },
+    stringVariables: getInitialStringVariables(state.ruleset.variables),
     version: state.version + 1,
   };
 
@@ -1004,8 +1041,8 @@ function applyResetRoundEffect(state: CardGameState): CardGameState {
     turnsTakenThisPhase: 0,
     turnDirection: 1,
     scores: {},
-    variables: { ...(state.ruleset.initialVariables ?? {}), ...preserved },
-    stringVariables: { ...(state.ruleset.initialStringVariables ?? {}) },
+    variables: { ...getInitialVariables(state.ruleset.variables), ...preserved },
+    stringVariables: getInitialStringVariables(state.ruleset.variables),
   };
 }
 

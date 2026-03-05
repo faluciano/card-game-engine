@@ -3207,10 +3207,10 @@ describe("builtins", () => {
           { name: "won", visibility: { kind: "hidden" }, owners: ["player"] },
         ],
         roles: [{ name: "player", isHuman: true, count: "per_player" }],
-        initialVariables: {
-          lead_player: 0,
-          hearts_broken: 0,
-          tricks_played: 0,
+        variables: {
+          lead_player: { type: "number", initial: 0 },
+          hearts_broken: { type: "number", initial: 0 },
+          tricks_played: { type: "number", initial: 0 },
         },
         phases: [],
         scoring: {

@@ -10,6 +10,7 @@ import type {
   FilteredZoneState,
   PlayerId,
   PlayerView,
+  VariableDefinition,
   ZoneDefinition,
   ZoneVisibility,
 } from "../types/index";
@@ -40,6 +41,28 @@ function isPlayerActive(state: CardGameState, playerIndex: number): boolean {
   );
   if (phase?.kind === "all_players") return true;
   return state.currentPlayerIndex === playerIndex;
+}
+
+/**
+ * Extracts public variable names from the unified manifest.
+ * Returns undefined if no variables explicitly set `public`
+ * (backward-compatible expose-all behavior).
+ * If any variable has an explicit `public` field, filtering mode activates
+ * and only those with `public: true` are exposed.
+ */
+function getPublicVarNames(
+  manifest: Readonly<Record<string, VariableDefinition>> | undefined
+): string[] | undefined {
+  if (!manifest) return undefined;
+  const entries = Object.entries(manifest);
+  // Check if any variable has the `public` field explicitly set
+  const hasExplicitPublic = entries.some(([_, def]) => def.public !== undefined);
+  if (!hasExplicitPublic) return undefined;
+  const names: string[] = [];
+  for (const [key, def] of entries) {
+    if (def.public) names.push(key);
+  }
+  return names;
 }
 
 /**
@@ -135,6 +158,8 @@ export function createPlayerView(
     }
   }
 
+  const publicVars = getPublicVarNames(state.ruleset.variables);
+
   return {
     sessionId: state.sessionId,
     status: state.status,
@@ -147,8 +172,8 @@ export function createPlayerView(
       .filter((a) => a.enabled)
       .map((a) => a.actionName as CardGameAction["kind"]),
     scores: remappedScores,
-    variables: filterVariables(state.variables, state.ruleset.publicVariables),
-    stringVariables: filterStringVariables(state.stringVariables, state.ruleset.publicVariables),
+    variables: filterVariables(state.variables, publicVars),
+    stringVariables: filterStringVariables(state.stringVariables, publicVars),
     turnNumber: state.turnNumber,
   };
 }

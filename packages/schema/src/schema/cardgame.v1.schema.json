@@ -185,20 +185,18 @@
         }
       }
     },
-    "initialVariables": {
+    "variables": {
       "type": "object",
-      "additionalProperties": { "type": "number" },
-      "description": "Initial game variables (key-value pairs, all numeric)"
-    },
-    "initialStringVariables": {
-      "type": "object",
-      "additionalProperties": { "type": "string" },
-      "description": "Initial string variables (key-value pairs, all strings)"
-    },
-    "publicVariables": {
-      "type": "array",
-      "items": { "type": "string", "minLength": 1 },
-      "description": "If specified, only these variable names are exposed in PlayerView. Omit to expose all."
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type", "initial"],
+        "properties": {
+          "type": { "type": "string", "enum": ["number", "string"] },
+          "initial": {},
+          "public": { "type": "boolean" }
+        }
+      },
+      "description": "Variable definitions with type, initial value, and optional public visibility"
     },
     "ui": {
       "type": "object",
