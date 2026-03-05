@@ -46,7 +46,12 @@
     {
       "name": "dealer_hand",
       "visibility": { "kind": "partial", "rule": "face_up_only" },
-      "owners": ["dealer"]
+      "owners": ["dealer"],
+      "phaseOverrides": [
+        { "phase": "dealer_turn", "visibility": { "kind": "public" } },
+        { "phase": "scoring", "visibility": { "kind": "public" } },
+        { "phase": "round_end", "visibility": { "kind": "public" } }
+      ]
     }
   ],
   "roles": [

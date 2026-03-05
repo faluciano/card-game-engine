@@ -62,7 +62,7 @@
     }
   ],
   "variables": {
-    "active_suit": { "type": "string", "initial": "" }
+    "active_suit": { "type": "string", "initial": "", "public": true }
   },
   "phases": [
     {
@@ -86,7 +86,7 @@
         {
           "name": "play_card",
           "label": "Play Card",
-          "condition": "played_card_index == -1 || card_rank_name(current_player.hand, played_card_index) == \"8\" || played_card_matches_top(discard) || (get_str_var(\"active_suit\") != \"\" && card_suit(current_player.hand, played_card_index) == get_str_var(\"active_suit\"))",
+          "condition": "played_card_index == -1 || card_rank_name(current_player.hand, played_card_index) == \"8\" || (get_str_var(\"active_suit\") == \"\" && played_card_matches_top(discard)) || (get_str_var(\"active_suit\") != \"\" && card_suit(current_player.hand, played_card_index) == get_str_var(\"active_suit\"))",
           "effect": [
             "set_str_var(\"active_suit\", \"\")",
             "if(card_rank_name(discard, 0) != \"8\", end_turn())"
@@ -95,7 +95,7 @@
         {
           "name": "draw",
           "label": "Draw Card",
-          "condition": "!has_playable_card(current_player.hand, discard) && count_rank(current_player.hand, \"8\") == 0 && (get_str_var(\"active_suit\") == \"\" || !has_card_matching_suit(current_player.hand, get_str_var(\"active_suit\")))",
+          "condition": "count_rank(current_player.hand, \"8\") == 0 && (get_str_var(\"active_suit\") == \"\" && !has_playable_card(current_player.hand, discard) || get_str_var(\"active_suit\") != \"\" && !has_card_matching_suit(current_player.hand, get_str_var(\"active_suit\")))",
           "effect": [
             "draw(draw_pile, current_player.hand, 1)",
             "end_turn()"
@@ -103,9 +103,9 @@
         }
       ],
       "transitions": [
+        { "to": "scoring", "when": "card_count(\"hand:0\") == 0 || card_count(\"hand:1\") == 0 || if(player_count > 2, card_count(\"hand:2\") == 0, false) || if(player_count > 3, card_count(\"hand:3\") == 0, false)" },
         { "to": "choose_suit", "when": "card_rank_name(discard, 0) == \"8\" && get_str_var(\"active_suit\") == \"\"" },
-        { "to": "reshuffle", "when": "card_count(draw_pile) == 0 && card_count(discard) > 1" },
-        { "to": "scoring", "when": "card_count(\"hand:0\") == 0 || card_count(\"hand:1\") == 0 || if(player_count > 2, card_count(\"hand:2\") == 0, false) || if(player_count > 3, card_count(\"hand:3\") == 0, false)" }
+        { "to": "reshuffle", "when": "card_count(draw_pile) == 0 && card_count(discard) > 1" }
       ],
       "turnOrder": "clockwise"
     },
