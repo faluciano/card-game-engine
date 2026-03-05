@@ -7,7 +7,7 @@
 
 import React, { useCallback } from "react";
 import type { CSSProperties } from "react";
-import type { PlayerView, CardInstanceId } from "@card-engine/shared";
+import type { Card, PlayerView, CardInstanceId } from "@card-engine/shared";
 import { CardMini } from "./CardMini.js";
 
 interface HandViewerProps {
@@ -114,20 +114,31 @@ export function HandViewer({
   return (
     <div style={containerStyle}>
       {/* Other visible zones (discard, community) — shown at top for read-only context */}
-      {otherZones.map(([name, zone]) => (
-        <div key={name} style={zoneStyle}>
-          <p style={zoneLabelStyle}>{formatZoneName(name)}</p>
-          <div style={cardsRowStyle}>
-            {zone.cards.map((card, index) => (
-              <CardMini
-                key={card?.id ?? `hidden-${name}-${index}`}
-                card={card}
-                emphasized={index === 0}
-              />
-            ))}
+      {otherZones.map(([name, zone]) => {
+        // For non-owner zones (e.g. discard pile), only show visible cards
+        // to avoid rendering dozens of face-down placeholders
+        const displayCards = zone.cards.filter(
+          (card): card is Card => card !== null,
+        );
+
+        return (
+          <div key={name} style={zoneStyle}>
+            <p style={zoneLabelStyle}>{formatZoneName(name)}</p>
+            <div style={cardsRowStyle}>
+              {displayCards.map((card, index) => (
+                <CardMini
+                  key={card.id}
+                  card={card}
+                  emphasized={
+                    displayCards.length > 0 &&
+                    index === displayCards.length - 1
+                  }
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Player's personal zones — shown at bottom for thumb-friendly interaction */}
       {myZones.map(([name, zone]) => (

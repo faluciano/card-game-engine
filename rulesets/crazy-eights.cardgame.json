@@ -88,6 +88,7 @@
           "label": "Play Card",
           "condition": "played_card_index == -1 || card_rank_name(current_player.hand, played_card_index) == \"8\" || (get_str_var(\"active_suit\") == \"\" && played_card_matches_top(discard)) || (get_str_var(\"active_suit\") != \"\" && card_suit(current_player.hand, played_card_index) == get_str_var(\"active_suit\"))",
           "effect": [
+            "set_face_up(\"discard\", 0, true)",
             "set_str_var(\"active_suit\", \"\")",
             "if(card_rank_name(discard, 0) != \"8\", end_turn())"
           ]
@@ -117,7 +118,7 @@
           "name": "choose_hearts",
           "label": "Hearts",
           "effect": [
-            "set_str_var(\"active_suit\", \"Hearts\")",
+            "set_str_var(\"active_suit\", \"hearts\")",
             "end_turn()"
           ]
         },
@@ -125,7 +126,7 @@
           "name": "choose_diamonds",
           "label": "Diamonds",
           "effect": [
-            "set_str_var(\"active_suit\", \"Diamonds\")",
+            "set_str_var(\"active_suit\", \"diamonds\")",
             "end_turn()"
           ]
         },
@@ -133,7 +134,7 @@
           "name": "choose_clubs",
           "label": "Clubs",
           "effect": [
-            "set_str_var(\"active_suit\", \"Clubs\")",
+            "set_str_var(\"active_suit\", \"clubs\")",
             "end_turn()"
           ]
         },
@@ -141,7 +142,7 @@
           "name": "choose_spades",
           "label": "Spades",
           "effect": [
-            "set_str_var(\"active_suit\", \"Spades\")",
+            "set_str_var(\"active_suit\", \"spades\")",
             "end_turn()"
           ]
         }

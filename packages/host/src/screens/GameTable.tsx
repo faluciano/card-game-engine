@@ -251,7 +251,7 @@ function ZoneDisplay({
           <StackedDeck count={cards.length} />
         ) : shouldShowTopOnly ? (
           <>
-            <FlippableCardView card={cards[0]!} />
+            <FlippableCardView card={cards[cards.length - 1]!} />
             <View style={styles.topCardMoreIndicator}>
               <Text style={styles.topCardMoreText}>
                 +{cards.length - 1} more

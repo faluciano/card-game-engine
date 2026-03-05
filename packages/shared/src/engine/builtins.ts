@@ -560,9 +560,11 @@ const cardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
   }
   const card = handZone.cards[cardIndex]!;
   const topCard = targetZone.cards[0]!;
+  const activeSuit = context.state.stringVariables["active_suit"] ?? "";
+  const matchSuit = activeSuit || topCard.suit;
   return {
     kind: "boolean",
-    value: card.suit === topCard.suit || card.rank === topCard.rank,
+    value: card.suit === matchSuit || card.rank === topCard.rank,
   };
 };
 
@@ -580,8 +582,10 @@ const hasPlayableCardBuiltin: BuiltinFunction = (args, context) => {
     return { kind: "boolean", value: false };
   }
   const topCard = targetZone.cards[0]!;
+  const activeSuit = context.state.stringVariables["active_suit"] ?? "";
+  const matchSuit = activeSuit || topCard.suit;
   const found = handZone.cards.some(
-    (card) => card.suit === topCard.suit || card.rank === topCard.rank,
+    (card) => card.suit === matchSuit || card.rank === topCard.rank,
   );
   return { kind: "boolean", value: found };
 };
@@ -1327,9 +1331,11 @@ const playedCardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
 
   const card = handZone.cards[cardIndex]!;
   const topCard = targetZone.cards[0]!;
+  const activeSuit = context.state.stringVariables["active_suit"] ?? "";
+  const matchSuit = activeSuit || topCard.suit;
   return {
     kind: "boolean",
-    value: card.suit === topCard.suit || card.rank === topCard.rank,
+    value: card.suit === matchSuit || card.rank === topCard.rank,
   };
 };
 

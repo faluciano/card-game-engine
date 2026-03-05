@@ -34,6 +34,7 @@ import type {
   GameReducer,
   CardGameRuleset,
   CardValue,
+  CardInstanceId,
 } from "../types/index";
 
 // ─── Branded Type Helpers ──────────────────────────────────────────
@@ -1091,6 +1092,7 @@ function makeCrazyEightsRuleset(): CardGameRuleset {
             label: "Play Card",
             condition: 'played_card_index == -1 || card_rank_name(current_player.hand, played_card_index) == "8" || played_card_matches_top(discard) || (get_str_var("active_suit") != "" && card_suit(current_player.hand, played_card_index) == get_str_var("active_suit"))',
             effect: [
+              'set_face_up("discard", 0, true)',
               'set_str_var("active_suit", "")',
               'if(card_rank_name(discard, 0) != "8", end_turn())',
             ],
@@ -1129,7 +1131,7 @@ function makeCrazyEightsRuleset(): CardGameRuleset {
             name: "choose_hearts",
             label: "Hearts",
             effect: [
-              'set_str_var("active_suit", "Hearts")',
+              'set_str_var("active_suit", "hearts")',
               "end_turn()",
             ],
           },
@@ -1137,7 +1139,7 @@ function makeCrazyEightsRuleset(): CardGameRuleset {
             name: "choose_diamonds",
             label: "Diamonds",
             effect: [
-              'set_str_var("active_suit", "Diamonds")',
+              'set_str_var("active_suit", "diamonds")',
               "end_turn()",
             ],
           },
@@ -1145,7 +1147,7 @@ function makeCrazyEightsRuleset(): CardGameRuleset {
             name: "choose_clubs",
             label: "Clubs",
             effect: [
-              'set_str_var("active_suit", "Clubs")',
+              'set_str_var("active_suit", "clubs")',
               "end_turn()",
             ],
           },
@@ -1153,7 +1155,7 @@ function makeCrazyEightsRuleset(): CardGameRuleset {
             name: "choose_spades",
             label: "Spades",
             effect: [
-              'set_str_var("active_suit", "Spades")',
+              'set_str_var("active_suit", "spades")',
               "end_turn()",
             ],
           },
@@ -1822,7 +1824,7 @@ describe("Crazy Eights Integration — Full Game Lifecycle", () => {
 
       // Should transition back to player_turns with active_suit set
       expect(afterChoose.currentPhase).toBe("player_turns");
-      expect(afterChoose.stringVariables["active_suit"]).toBe("Hearts");
+      expect(afterChoose.stringVariables["active_suit"]).toBe("hearts");
     });
 
     it("player can choose Diamonds after playing an 8", () => {
@@ -1840,7 +1842,7 @@ describe("Crazy Eights Integration — Full Game Lifecycle", () => {
       });
 
       expect(afterChoose.currentPhase).toBe("player_turns");
-      expect(afterChoose.stringVariables["active_suit"]).toBe("Diamonds");
+      expect(afterChoose.stringVariables["active_suit"]).toBe("diamonds");
     });
 
     it("player can choose Clubs after playing an 8", () => {
@@ -1858,7 +1860,7 @@ describe("Crazy Eights Integration — Full Game Lifecycle", () => {
       });
 
       expect(afterChoose.currentPhase).toBe("player_turns");
-      expect(afterChoose.stringVariables["active_suit"]).toBe("Clubs");
+      expect(afterChoose.stringVariables["active_suit"]).toBe("clubs");
     });
 
     it("player can choose Spades after playing an 8", () => {
@@ -1876,7 +1878,7 @@ describe("Crazy Eights Integration — Full Game Lifecycle", () => {
       });
 
       expect(afterChoose.currentPhase).toBe("player_turns");
-      expect(afterChoose.stringVariables["active_suit"]).toBe("Spades");
+      expect(afterChoose.stringVariables["active_suit"]).toBe("spades");
     });
 
     it("choosing a suit clears the active_suit after the next non-8 play", () => {
@@ -1894,13 +1896,13 @@ describe("Crazy Eights Integration — Full Game Lifecycle", () => {
         declaration: "choose_hearts",
       });
 
-      expect(afterChoose.stringVariables["active_suit"]).toBe("Hearts");
+      expect(afterChoose.stringVariables["active_suit"]).toBe("hearts");
 
       // Now it's the next player's turn. Find a non-8 Hearts card if they have one.
       const nextPlayerIdx = afterChoose.currentPlayerIndex;
       const nextHand = afterChoose.zones[`hand:${nextPlayerIdx}`]!.cards;
       const heartsCard = nextHand.find(
-        (c) => c.suit === "Hearts" && c.rank !== "8"
+        (c) => c.suit === "hearts" && c.rank !== "8"
       );
 
       if (heartsCard) {
@@ -2008,6 +2010,228 @@ describe("Crazy Eights Integration — Full Game Lifecycle", () => {
       const stashZone = ruleset.zones.find((z) => z.name === "stash");
       expect(stashZone).toBeDefined();
       expect(stashZone!.visibility).toEqual({ kind: "hidden" });
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Active Suit Matching After Playing an 8 ────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("active suit matching after choosing suit", () => {
+    /**
+     * Helper: Finds a seed where player 0 has an 8 and, after playing
+     * it and choosing a suit, the next player has a card of the chosen
+     * suit (but NOT matching the 8's original suit or rank). This lets
+     * us verify the active_suit matching works correctly.
+     */
+    function setupActiveSuitScenario(): {
+      stateAfterChoose: CardGameState;
+      reducer: GameReducer;
+      players: Player[];
+      chosenSuit: string;
+      nextPlayerIndex: number;
+      matchingCard: { id: CardInstanceId; suit: string; rank: string };
+    } | null {
+      for (let seed = 0; seed < 3000; seed++) {
+        try {
+          clearBuiltins();
+          registerAllBuiltins();
+          const game = startCrazyEightsGame(2, seed);
+          const hand0Cards = game.state.zones["hand:0"]!.cards;
+          const discardTop = game.state.zones["discard"]!.cards[0]!;
+
+          // Skip if discard top is an 8 (would complicate the test)
+          if (discardTop.rank === "8") continue;
+
+          const eightCard = hand0Cards.find((c) => c.rank === "8");
+          if (!eightCard) continue;
+
+          // Play the 8
+          const afterPlay = game.reducer(game.state, {
+            kind: "play_card",
+            playerId: game.players[0]!.id,
+            cardId: eightCard.id,
+            fromZone: "hand:0",
+            toZone: "discard",
+          });
+
+          if (afterPlay.currentPhase !== "choose_suit") continue;
+
+          // Try choosing each suit and check if next player has a matching card
+          // that does NOT match the 8's original suit (to prove active_suit works)
+          const suits = ["hearts", "diamonds", "clubs", "spades"];
+          const chooseActions = [
+            "choose_hearts",
+            "choose_diamonds",
+            "choose_clubs",
+            "choose_spades",
+          ];
+
+          for (let si = 0; si < suits.length; si++) {
+            const suit = suits[si]!;
+
+            // Skip if the chosen suit matches the 8's suit (we want to
+            // prove matching works via active_suit, not via the top card's suit)
+            if (suit === eightCard.suit) continue;
+
+            const afterChoose = game.reducer(afterPlay, {
+              kind: "declare",
+              playerId: game.players[0]!.id,
+              declaration: chooseActions[si]!,
+            });
+
+            if (afterChoose.currentPhase !== "player_turns") continue;
+            if (afterChoose.stringVariables["active_suit"] !== suit) continue;
+
+            const nextIdx = afterChoose.currentPlayerIndex;
+            const nextHand =
+              afterChoose.zones[`hand:${nextIdx}`]!.cards;
+
+            // Find a card that matches the chosen suit but NOT the 8's rank
+            // (since we want to test suit matching specifically)
+            const card = nextHand.find(
+              (c) =>
+                c.suit === suit &&
+                c.rank !== "8" &&
+                c.suit !== eightCard.suit,
+            );
+
+            if (card) {
+              return {
+                stateAfterChoose: afterChoose,
+                reducer: game.reducer,
+                players: game.players,
+                chosenSuit: suit,
+                nextPlayerIndex: nextIdx,
+                matchingCard: {
+                  id: card.id,
+                  suit: card.suit,
+                  rank: card.rank,
+                },
+              };
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+      return null;
+    }
+
+    it("next player can play a card of the chosen suit after an 8 is played", () => {
+      const scenario = setupActiveSuitScenario();
+      if (!scenario) {
+        expect(scenario).not.toBeNull();
+        return;
+      }
+
+      const {
+        stateAfterChoose,
+        reducer,
+        players,
+        chosenSuit,
+        nextPlayerIndex,
+        matchingCard,
+      } = scenario;
+
+      // Verify preconditions
+      expect(stateAfterChoose.currentPhase).toBe("player_turns");
+      expect(stateAfterChoose.stringVariables["active_suit"]).toBe(
+        chosenSuit,
+      );
+      expect(stateAfterChoose.zones["discard"]!.cards[0]!.rank).toBe("8");
+
+      // The matching card's suit is the chosen suit but NOT the 8's suit
+      expect(matchingCard.suit).toBe(chosenSuit);
+
+      // Play the matching card — this should succeed
+      const afterPlay = reducer(stateAfterChoose, {
+        kind: "play_card",
+        playerId: players[nextPlayerIndex]!.id,
+        cardId: matchingCard.id,
+        fromZone: `hand:${nextPlayerIndex}`,
+        toZone: "discard",
+      });
+
+      // The card should have been played (version advanced)
+      expect(afterPlay.version).toBeGreaterThan(stateAfterChoose.version);
+      // The matching card should now be on top of the discard pile
+      expect(afterPlay.zones["discard"]!.cards[0]!.rank).toBe(
+        matchingCard.rank,
+      );
+      expect(afterPlay.zones["discard"]!.cards[0]!.suit).toBe(
+        matchingCard.suit,
+      );
+      // active_suit should be cleared after playing a non-8 card
+      expect(afterPlay.stringVariables["active_suit"]).toBe("");
+    });
+
+    it("has_playable_card returns true when player has a card of the chosen suit", () => {
+      const scenario = setupActiveSuitScenario();
+      if (!scenario) {
+        expect(scenario).not.toBeNull();
+        return;
+      }
+
+      const { stateAfterChoose, chosenSuit, nextPlayerIndex } = scenario;
+
+      // Verify preconditions
+      expect(stateAfterChoose.stringVariables["active_suit"]).toBe(
+        chosenSuit,
+      );
+
+      // Evaluate has_playable_card for the next player's hand
+      const evalContext: EvalContext = {
+        state: stateAfterChoose,
+        playerIndex: nextPlayerIndex,
+      };
+      const result = evaluateExpression(
+        `has_playable_card("hand:${nextPlayerIndex}", discard)`,
+        evalContext,
+      );
+
+      expect(result.kind).toBe("boolean");
+      expect(result.value).toBe(true);
+    });
+
+    it("card_matches_top respects active_suit over the top card's suit", () => {
+      const scenario = setupActiveSuitScenario();
+      if (!scenario) {
+        expect(scenario).not.toBeNull();
+        return;
+      }
+
+      const {
+        stateAfterChoose,
+        chosenSuit,
+        nextPlayerIndex,
+        matchingCard,
+      } = scenario;
+
+      // Find the index of the matching card in the next player's hand
+      const nextHand =
+        stateAfterChoose.zones[`hand:${nextPlayerIndex}`]!.cards;
+      const cardIndex = nextHand.findIndex(
+        (c) => c.id === matchingCard.id,
+      );
+      expect(cardIndex).toBeGreaterThanOrEqual(0);
+
+      // Verify the card matches via active_suit, not the top card's suit
+      const topCard = stateAfterChoose.zones["discard"]!.cards[0]!;
+      expect(matchingCard.suit).toBe(chosenSuit);
+      expect(matchingCard.suit).not.toBe(topCard.suit); // different from 8's suit
+
+      const evalContext: EvalContext = {
+        state: stateAfterChoose,
+        playerIndex: nextPlayerIndex,
+      };
+      const result = evaluateExpression(
+        `card_matches_top("hand:${nextPlayerIndex}", ${cardIndex}, discard)`,
+        evalContext,
+      );
+
+      expect(result.kind).toBe("boolean");
+      expect(result.value).toBe(true);
     });
   });
 });
