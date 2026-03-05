@@ -22,6 +22,7 @@ import type { HostAction, HostGameState } from "../types/host-state";
 export function useRulesetInstaller(
   pendingInstall: HostGameState["pendingInstall"],
   dispatch: (action: HostAction) => void,
+  builtInInstalled: readonly { readonly slug: string; readonly version: string }[],
 ): void {
   useEffect(() => {
     if (!pendingInstall) return;
@@ -57,10 +58,15 @@ export function useRulesetInstaller(
         // Refresh the full slug + version list
         const rulesets = await store.list();
         if (aborted) return;
-        const slugs = rulesets.map((r) => ({
+        const fileSlugs = rulesets.map((r) => ({
           slug: r.ruleset.meta.slug,
           version: r.ruleset.meta.version,
         }));
+        const seen = new Set(builtInInstalled.map((bi) => bi.slug));
+        const slugs = [
+          ...builtInInstalled,
+          ...fileSlugs.filter((fs) => !seen.has(fs.slug)),
+        ];
         dispatch({ type: "SET_INSTALLED_SLUGS", slugs });
       } catch (err) {
         if (aborted) return;
@@ -70,14 +76,19 @@ export function useRulesetInstaller(
           const store = new FileRulesetStore();
           const rulesets = await store.list();
           if (aborted) return;
-          const slugs = rulesets.map((r) => ({
+          const fileSlugs = rulesets.map((r) => ({
             slug: r.ruleset.meta.slug,
             version: r.ruleset.meta.version,
           }));
+          const seen = new Set(builtInInstalled.map((bi) => bi.slug));
+          const slugs = [
+            ...builtInInstalled,
+            ...fileSlugs.filter((fs) => !seen.has(fs.slug)),
+          ];
           dispatch({ type: "SET_INSTALLED_SLUGS", slugs });
         } catch {
-          // Last resort: dispatch empty list to clear pending state
-          dispatch({ type: "SET_INSTALLED_SLUGS", slugs: [] });
+          // Last resort: dispatch built-in list to clear pending state
+          dispatch({ type: "SET_INSTALLED_SLUGS", slugs: [...builtInInstalled] });
         }
       }
     }
@@ -87,5 +98,5 @@ export function useRulesetInstaller(
     return () => {
       aborted = true;
     };
-  }, [pendingInstall, dispatch]);
+  }, [pendingInstall, dispatch, builtInInstalled]);
 }

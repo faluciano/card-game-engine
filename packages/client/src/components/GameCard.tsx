@@ -251,6 +251,25 @@ export function GameCard({
       );
     }
 
+    // Selected in lobby — show "Selected ✓" regardless of install state
+    // (covers built-in games that may not appear in installedSlugs)
+    if (isSelected) {
+      const selectedStyle: CSSProperties = {
+        ...baseButtonStyle,
+        backgroundColor: "var(--color-success)",
+        color: "#fff",
+        cursor: "default",
+        opacity: 0.8,
+      };
+      return (
+        <div style={actionColumnStyle}>
+          <button type="button" style={selectedStyle} disabled>
+            {"Selected \u2713"}
+          </button>
+        </div>
+      );
+    }
+
     // Not installed — "Get" button
     const getStyle: CSSProperties = {
       ...baseButtonStyle,

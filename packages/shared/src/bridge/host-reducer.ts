@@ -258,6 +258,12 @@ function handleInstallRuleset(
   ruleset: CardGameRuleset,
   slug: string,
 ): HostGameState {
+  // Guard: skip install if already installed with same version
+  const existing = state.installedSlugs.find((ig) => ig.slug === slug);
+  if (existing && existing.version === ruleset.meta.version) {
+    return state;
+  }
+
   return {
     ...state,
     pendingInstall: { ruleset, slug },

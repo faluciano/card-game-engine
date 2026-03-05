@@ -12,28 +12,12 @@ import {
   View,
 } from "react-native";
 import { useGameHost } from "@couch-kit/host";
-import { loadRuleset } from "@card-engine/shared";
 import type { CardGameRuleset } from "@card-engine/shared";
 import type { HostAction, HostGameState } from "../types/host-state";
 import { useRulesetStore } from "../hooks/useRulesetStore";
 import { ImportModal } from "../components/ImportModal";
 import { QRDisplay } from "../components/QRDisplay";
-import crazyEightsJson from "../../../../rulesets/crazy-eights.cardgame.json";
-
-// ─── Built-in Rulesets ─────────────────────────────────────────────
-
-/**
- * Parse built-in rulesets once at module level.
- * Throws fast at startup if the bundled JSON is malformed.
- */
-const BUILT_IN_RULESETS: readonly CardGameRuleset[] = [
-  loadRuleset(crazyEightsJson),
-];
-
-/** Slugs of all built-in rulesets, used for duplicate detection. */
-const BUILT_IN_SLUGS: readonly string[] = BUILT_IN_RULESETS.map(
-  (rs) => rs.meta.slug,
-);
+import { BUILT_IN_RULESETS, BUILT_IN_SLUGS } from "../built-in-rulesets";
 
 // ─── Types ─────────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@ import type { HostAction, HostGameState } from "../types/host-state";
 export function useRulesetUninstaller(
   pendingUninstall: HostGameState["pendingUninstall"],
   dispatch: (action: HostAction) => void,
+  builtInInstalled: readonly { readonly slug: string; readonly version: string }[],
 ): void {
   const uninstallingRef = useRef(false);
 
@@ -37,10 +38,15 @@ export function useRulesetUninstaller(
 
         // Refresh the full slug + version list
         const rulesets = await store.list();
-        const slugs = rulesets.map((r) => ({
+        const fileSlugs = rulesets.map((r) => ({
           slug: r.ruleset.meta.slug,
           version: r.ruleset.meta.version,
         }));
+        const seen = new Set(builtInInstalled.map((bi) => bi.slug));
+        const slugs = [
+          ...builtInInstalled,
+          ...fileSlugs.filter((fs) => !seen.has(fs.slug)),
+        ];
         dispatch({ type: "SET_INSTALLED_SLUGS", slugs });
       } catch (err) {
         console.error("[RulesetUninstaller] Uninstall failed:", err);
@@ -48,14 +54,19 @@ export function useRulesetUninstaller(
         try {
           const store = new FileRulesetStore();
           const rulesets = await store.list();
-          const slugs = rulesets.map((r) => ({
+          const fileSlugs = rulesets.map((r) => ({
             slug: r.ruleset.meta.slug,
             version: r.ruleset.meta.version,
           }));
+          const seen = new Set(builtInInstalled.map((bi) => bi.slug));
+          const slugs = [
+            ...builtInInstalled,
+            ...fileSlugs.filter((fs) => !seen.has(fs.slug)),
+          ];
           dispatch({ type: "SET_INSTALLED_SLUGS", slugs });
         } catch {
-          // Last resort: dispatch empty list to clear pending state
-          dispatch({ type: "SET_INSTALLED_SLUGS", slugs: [] });
+          // Last resort: dispatch built-in list to clear pending state
+          dispatch({ type: "SET_INSTALLED_SLUGS", slugs: [...builtInInstalled] });
         }
       } finally {
         uninstallingRef.current = false;
@@ -63,5 +74,5 @@ export function useRulesetUninstaller(
     }
 
     void uninstall();
-  }, [pendingUninstall, dispatch]);
+  }, [pendingUninstall, dispatch, builtInInstalled]);
 }
