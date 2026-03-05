@@ -360,3 +360,111 @@ describe("Deck copies boundary validation", () => {
     expect(result.success).toBe(false);
   });
 });
+
+// ─── Card Value Numeric Shorthand ─────────────────────────────────
+
+describe("card value numeric shorthand", () => {
+  it("normalizes numeric shorthand to fixed card value", () => {
+    const ruleset = makeMinimalRuleset({
+      deck: {
+        preset: "standard_52",
+        copies: 1,
+        cardValues: { "2": 2 },
+      },
+    });
+
+    const result = safeParseRuleset(ruleset);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.deck.cardValues["2"]).toEqual({ kind: "fixed", value: 2 });
+    }
+  });
+
+  it("passes through full fixed object form unchanged", () => {
+    const ruleset = makeMinimalRuleset({
+      deck: {
+        preset: "standard_52",
+        copies: 1,
+        cardValues: { "2": { kind: "fixed", value: 2 } },
+      },
+    });
+
+    const result = safeParseRuleset(ruleset);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.deck.cardValues["2"]).toEqual({ kind: "fixed", value: 2 });
+    }
+  });
+
+  it("passes through dual object form unchanged", () => {
+    const ruleset = makeMinimalRuleset({
+      deck: {
+        preset: "standard_52",
+        copies: 1,
+        cardValues: { A: { kind: "dual", low: 1, high: 11 } },
+      },
+    });
+
+    const result = safeParseRuleset(ruleset);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.deck.cardValues["A"]).toEqual({ kind: "dual", low: 1, high: 11 });
+    }
+  });
+
+  it("handles mixed shorthand and object forms together", () => {
+    const ruleset = makeMinimalRuleset({
+      deck: {
+        preset: "standard_52",
+        copies: 1,
+        cardValues: {
+          A: { kind: "dual", low: 1, high: 11 },
+          "2": 2,
+          "3": { kind: "fixed", value: 3 },
+          K: 10,
+        },
+      },
+    });
+
+    const result = safeParseRuleset(ruleset);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.deck.cardValues["A"]).toEqual({ kind: "dual", low: 1, high: 11 });
+      expect(result.data.deck.cardValues["2"]).toEqual({ kind: "fixed", value: 2 });
+      expect(result.data.deck.cardValues["3"]).toEqual({ kind: "fixed", value: 3 });
+      expect(result.data.deck.cardValues["K"]).toEqual({ kind: "fixed", value: 10 });
+    }
+  });
+
+  it("rejects invalid card value types (string)", () => {
+    const ruleset = makeMinimalRuleset({
+      deck: {
+        preset: "standard_52",
+        copies: 1,
+        cardValues: { "2": "two" },
+      },
+    });
+
+    const result = safeParseRuleset(ruleset);
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid card value types (boolean)", () => {
+    const ruleset = makeMinimalRuleset({
+      deck: {
+        preset: "standard_52",
+        copies: 1,
+        cardValues: { "2": true },
+      },
+    });
+
+    const result = safeParseRuleset(ruleset);
+
+    expect(result.success).toBe(false);
+  });
+});

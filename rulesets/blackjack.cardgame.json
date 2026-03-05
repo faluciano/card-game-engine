@@ -18,18 +18,18 @@
     "copies": 2,
     "cardValues": {
       "A": { "kind": "dual", "low": 1, "high": 11 },
-      "2": { "kind": "fixed", "value": 2 },
-      "3": { "kind": "fixed", "value": 3 },
-      "4": { "kind": "fixed", "value": 4 },
-      "5": { "kind": "fixed", "value": 5 },
-      "6": { "kind": "fixed", "value": 6 },
-      "7": { "kind": "fixed", "value": 7 },
-      "8": { "kind": "fixed", "value": 8 },
-      "9": { "kind": "fixed", "value": 9 },
-      "10": { "kind": "fixed", "value": 10 },
-      "J": { "kind": "fixed", "value": 10 },
-      "Q": { "kind": "fixed", "value": 10 },
-      "K": { "kind": "fixed", "value": 10 }
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9,
+      "10": 10,
+      "J": 10,
+      "Q": 10,
+      "K": 10
     }
   },
   "zones": [

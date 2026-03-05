@@ -54,6 +54,7 @@
           "type": "object",
           "additionalProperties": {
             "oneOf": [
+              { "type": "number" },
               {
                 "type": "object",
                 "required": ["kind", "value"],

@@ -6,9 +6,15 @@ import { z } from "zod";
 
 // ─── Primitives ────────────────────────────────────────────────────
 
-const CardValueSchema = z.discriminatedUnion("kind", [
+const CardValueObjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("fixed"), value: z.number() }),
   z.object({ kind: z.literal("dual"), low: z.number(), high: z.number() }),
+]);
+
+/** Accepts a bare number (shorthand for fixed) or the full object form. */
+const CardValueSchema = z.union([
+  z.number().transform((n): { kind: "fixed"; value: number } => ({ kind: "fixed", value: n })),
+  CardValueObjectSchema,
 ]);
 
 const ZoneVisibilitySchema = z.discriminatedUnion("kind", [
