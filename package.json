@@ -11,7 +11,7 @@
     "build:client": "cd packages/client && bun run build",
     "bundle:client": "cd packages/host && bunx couch-kit bundle --source ../client --output ./android/app/src/main/assets/www --manifest ./src/www-manifest.json",
     "build:android": "bun run bundle:client && cd packages/host && npx expo run:android",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b packages/client",
     "build": "bun run typecheck && bun run build:client && bun run bundle:client",
     "apk": "bun run scripts/build-apk.ts",
     "deploy": "bun run scripts/install-apk.ts",
