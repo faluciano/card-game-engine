@@ -8,7 +8,7 @@ import QRCode from "react-native-qrcode-svg";
 
 // ─── Component ─────────────────────────────────────────────────────
 
-export function QRDisplay({
+export const QRDisplay = React.memo(function QRDisplay({
   url,
   size = 200,
 }: {
@@ -35,7 +35,7 @@ export function QRDisplay({
       />
     </View>
   );
-}
+});
 
 // ─── Styles ────────────────────────────────────────────────────────
 

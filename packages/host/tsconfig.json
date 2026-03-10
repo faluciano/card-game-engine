@@ -6,6 +6,7 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "composite": false,
     "noEmit": true,
     "verbatimModuleSyntax": false
   },

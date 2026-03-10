@@ -106,7 +106,7 @@ export function Lobby(): React.JSX.Element {
 
 // ─── Player Row ────────────────────────────────────────────────────
 
-function PlayerRow({
+const PlayerRow = React.memo(function PlayerRow({
   player,
 }: {
   readonly player: IPlayer;
@@ -136,7 +136,7 @@ function PlayerRow({
       )}
     </View>
   );
-}
+});
 
 // ─── Lobby Button ──────────────────────────────────────────────────
 

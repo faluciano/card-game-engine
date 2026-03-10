@@ -6,46 +6,46 @@ on:
   pull_request:
 
 jobs:
-  typecheck:
+  typecheck-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.19"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-
 
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
-
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.2.19"
-
-      - run: bun install --frozen-lockfile
       - run: bun run build:client
 
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [shared, schema, host]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.19"
 
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-
+
       - run: bun install --frozen-lockfile
-      - name: Test shared
+      - name: Test ${{ matrix.package }}
         run: bunx vitest run
-        working-directory: packages/shared
-      - name: Test schema
-        run: bunx vitest run
-        working-directory: packages/schema
-      - name: Test host
-        run: bunx vitest run
-        working-directory: packages/host
+        working-directory: packages/${{ matrix.package }}
 
   validate:
     runs-on: ubuntu-latest
@@ -54,6 +54,12 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.19"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-
 
       - run: bun install --frozen-lockfile
       - run: bun run validate

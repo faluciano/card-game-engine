@@ -92,7 +92,7 @@ export function GameTable(): React.JSX.Element {
 
 // ─── Status Bar ────────────────────────────────────────────────────
 
-function StatusBar({
+const StatusBar = React.memo(function StatusBar({
   engineState,
 }: {
   readonly engineState: CardGameState;
@@ -115,11 +115,11 @@ function StatusBar({
       <Text style={styles.turnNumber}>Round {engineState.turnNumber}</Text>
     </View>
   );
-}
+});
 
 // ─── Shared Zones ──────────────────────────────────────────────────
 
-function SharedZones({
+const SharedZones = React.memo(function SharedZones({
   engineState,
 }: {
   readonly engineState: CardGameState;
@@ -141,11 +141,11 @@ function SharedZones({
       </View>
     </View>
   );
-}
+});
 
 // ─── Player Zones ──────────────────────────────────────────────────
 
-function PlayerZones({
+const PlayerZones = React.memo(function PlayerZones({
   engineState,
 }: {
   readonly engineState: CardGameState;
@@ -188,11 +188,11 @@ function PlayerZones({
       ))}
     </View>
   );
-}
+});
 
 // ─── Zone Display ──────────────────────────────────────────────────
 
-function ZoneDisplay({
+const ZoneDisplay = React.memo(function ZoneDisplay({
   name,
   zone,
 }: {
@@ -267,11 +267,11 @@ function ZoneDisplay({
       </View>
     </Pressable>
   );
-}
+});
 
 // ─── Stacked Deck (collapsed face-down pile) ──────────────────────
 
-function StackedDeck({
+const StackedDeck = React.memo(function StackedDeck({
   count,
 }: {
   readonly count: number;
@@ -292,7 +292,7 @@ function StackedDeck({
       </View>
     </View>
   );
-}
+});
 
 // ─── Capped Card List (with "+N more" overflow) ───────────────────
 
@@ -340,7 +340,7 @@ function CappedCardList({
 
 // ─── Card View ─────────────────────────────────────────────────────
 
-function CardView({
+const CardView = React.memo(function CardView({
   card,
 }: {
   readonly card: Card;
@@ -366,7 +366,7 @@ function CardView({
       </Text>
     </View>
   );
-}
+});
 
 // ─── Animated Card View ────────────────────────────────────────────
 
@@ -374,7 +374,7 @@ function CardView({
  * Wraps a CardView with a slide-in + fade-in animation on mount.
  * Used for freshly dealt cards to create a dealing effect.
  */
-function AnimatedCardView({
+const AnimatedCardView = React.memo(function AnimatedCardView({
   card,
   delay,
 }: {
@@ -407,7 +407,7 @@ function AnimatedCardView({
       <CardView card={card} />
     </Animated.View>
   );
-}
+});
 
 // ─── Flippable Card View ───────────────────────────────────────────
 
@@ -415,7 +415,7 @@ function AnimatedCardView({
  * Wraps CardView with a 3D flip animation when faceUp changes
  * from false to true. Uses rotateY to simulate turning a card over.
  */
-function FlippableCardView({
+const FlippableCardView = React.memo(function FlippableCardView({
   card,
 }: {
   readonly card: Card;
@@ -465,11 +465,11 @@ function FlippableCardView({
       <CardView card={card} />
     </Animated.View>
   );
-}
+});
 
 // ─── Score Board ───────────────────────────────────────────────────
 
-function ScoreBoard({
+const ScoreBoard = React.memo(function ScoreBoard({
   engineState,
 }: {
   readonly engineState: CardGameState;
@@ -493,11 +493,11 @@ function ScoreBoard({
       </View>
     </View>
   );
-}
+});
 
 // ─── Results Overlay ───────────────────────────────────────────────
 
-function ResultsOverlay({
+const ResultsOverlay = React.memo(function ResultsOverlay({
   engineState,
   dispatch,
 }: {
@@ -534,29 +534,22 @@ function ResultsOverlay({
             return (
               <View
                 key={player.id}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 16,
-                  marginBottom: 12,
-                }}
+                style={resultsStyles.playerRow}
               >
-                <Text style={{ color: "#e0e0e0", fontSize: 28, flex: 1 }}>
+                <Text style={resultsStyles.playerName}>
                   {player.name}
                 </Text>
-                <Text style={{ color: "#b0b0b0", fontSize: 24 }}>
+                <Text style={resultsStyles.handValue}>
                   {handValue}
                 </Text>
                 <View
-                  style={{
-                    backgroundColor: resultColor,
-                    borderRadius: 8,
-                    paddingHorizontal: 16,
-                    paddingVertical: 6,
-                  }}
+                  style={[
+                    resultsStyles.resultBadge,
+                    { backgroundColor: resultColor },
+                  ]}
                 >
                   <Text
-                    style={{ color: "#fff", fontSize: 20, fontWeight: "700" }}
+                    style={resultsStyles.resultBadgeText}
                   >
                     {resultLabel}
                   </Text>
@@ -579,27 +572,17 @@ function ResultsOverlay({
             return (
               <>
                 <View
-                  style={{
-                    borderTopWidth: 1,
-                    borderTopColor: "#333",
-                    marginTop: 8,
-                    paddingTop: 12,
-                  }}
+                  style={resultsStyles.divider}
                 />
                 {npcScores.map(({ label, score }) => (
                   <View
                     key={label}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 16,
-                      marginBottom: 4,
-                    }}
+                    style={resultsStyles.npcRow}
                   >
-                    <Text style={{ color: "#a0a0a0", fontSize: 24, flex: 1 }}>
+                    <Text style={resultsStyles.npcLabel}>
                       {label}
                     </Text>
-                    <Text style={{ color: "#b0b0b0", fontSize: 24 }}>
+                    <Text style={resultsStyles.npcScore}>
                       {score}
                     </Text>
                   </View>
@@ -610,12 +593,7 @@ function ResultsOverlay({
 
           {/* Info text — phones trigger new round, not TV */}
           <Text
-            style={{
-              color: "#888",
-              fontSize: 18,
-              marginTop: 24,
-              textAlign: "center",
-            }}
+            style={resultsStyles.waitingText}
           >
             Waiting for players to start new round...
           </Text>
@@ -682,7 +660,7 @@ function ResultsOverlay({
       </View>
     </View>
   );
-}
+});
 
 // ─── Pure Helpers ──────────────────────────────────────────────────
 
@@ -1096,5 +1074,60 @@ const styles = StyleSheet.create({
     color: "#b0b0b0",
     fontSize: 24,
     fontWeight: "700",
+  },
+});
+
+const resultsStyles = StyleSheet.create({
+  playerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    marginBottom: 12,
+  },
+  playerName: {
+    color: "#e0e0e0",
+    fontSize: 28,
+    flex: 1,
+  },
+  handValue: {
+    color: "#b0b0b0",
+    fontSize: 24,
+  },
+  resultBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  resultBadgeText: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  divider: {
+    borderTopWidth: 1,
+    borderTopColor: "#333",
+    marginTop: 8,
+    paddingTop: 12,
+  },
+  npcRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    marginBottom: 4,
+  },
+  npcLabel: {
+    color: "#a0a0a0",
+    fontSize: 24,
+    flex: 1,
+  },
+  npcScore: {
+    color: "#b0b0b0",
+    fontSize: 24,
+  },
+  waitingText: {
+    color: "#888",
+    fontSize: 18,
+    marginTop: 24,
+    textAlign: "center",
   },
 });

@@ -112,7 +112,7 @@ export function RulesetPicker(): React.JSX.Element {
 
 // ─── Ruleset Card ──────────────────────────────────────────────────
 
-function RulesetCard({
+const RulesetCard = React.memo(function RulesetCard({
   item,
   onSelect,
   isFirst,
@@ -162,7 +162,7 @@ function RulesetCard({
       )}
     </Pressable>
   );
-}
+});
 
 // ─── Import Placeholder ────────────────────────────────────────────
 

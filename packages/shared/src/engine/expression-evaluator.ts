@@ -592,6 +592,9 @@ export type BuiltinFunction = (
 /** Registry of builtin functions available to the expression evaluator. */
 const functionRegistry = new Map<string, BuiltinFunction>();
 
+/** Cache of parsed AST nodes keyed by expression string. */
+const astCache = new Map<string, ASTNode>();
+
 /**
  * Registers a builtin function that expressions can call.
  * Overwrites any existing function with the same name.
@@ -1150,8 +1153,12 @@ export function evaluateExpression(
     throw new ExpressionError("Empty expression");
   }
 
-  const tokens = tokenize(expression);
-  const ast = parse(tokens);
+  let ast = astCache.get(expression);
+  if (!ast) {
+    const tokens = tokenize(expression);
+    ast = parse(tokens);
+    astCache.set(expression, ast);
+  }
   return evaluateNode(ast, context, 0);
 }
 
@@ -1170,4 +1177,12 @@ export function evaluateCondition(
     );
   }
   return result.value;
+}
+
+/**
+ * Clears the expression AST cache.
+ * Intended for testing — not for production use.
+ */
+export function clearExpressionCache(): void {
+  astCache.clear();
 }
