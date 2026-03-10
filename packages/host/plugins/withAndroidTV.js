@@ -83,9 +83,7 @@ function withAndroidTV(config) {
     // --- 2c. Add android:banner to <application> ---
     application.$["android:banner"] = "@drawable/tv_banner";
 
-    // --- 2d. Extract native libs (avoids INSTALL_FAILED_NO_MATCHING_ABIS on some TV devices) ---
-    application.$["android:extractNativeLibs"] = "true";
-
+    // --- 2d. Leanback launcher category on main activity ---
     const activities = application.activity ?? [];
     const MAIN_ACTION = "android.intent.action.MAIN";
     const LEANBACK_CATEGORY = "android.intent.category.LEANBACK_LAUNCHER";

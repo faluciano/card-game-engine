@@ -74,4 +74,20 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
+// ─── Production Optimizations ──────────────────────────────────────
+// Enable inline requires for faster cold start on low-powered TV devices.
+// Strip console.* calls from production bundles.
+config.transformer.getTransformOptions = async () => ({
+  transform: {
+    experimentalImportSupport: false,
+    inlineRequires: true,
+  },
+});
+
+config.transformer.minifierConfig = {
+  compress: {
+    drop_console: true,
+  },
+};
+
 module.exports = config;

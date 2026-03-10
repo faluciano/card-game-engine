@@ -16,13 +16,12 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 34,
-            "targetSdkVersion": 34,
-            "buildToolsVersion": "34.0.0",
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
             "buildArchs": ["armeabi-v7a", "arm64-v8a"],
-            "extraProguardRules": "# --- App-specific rules ---\n-keep public class com.cardgameengine.host.** extends android.app.Application { *; }\n-keep public class com.cardgameengine.host.** extends android.app.Activity { *; }\n\n# --- NitroModules safety net (defense-in-depth) ---\n-keep class com.margelo.nitro.** { *; }\n\n# --- Hermes engine ---\n-keep class com.facebook.hermes.unicode.** { *; }\n-keep class com.facebook.jni.** { *; }\n\n# --- Suppress warnings ---\n-dontwarn com.facebook.react.flipper.**\n-dontwarn com.facebook.jni.**"
+            "extraProguardRules": "# --- App-specific rules ---\n-keep public class com.cardgameengine.host.** extends android.app.Application { *; }\n-keep public class com.cardgameengine.host.** extends android.app.Activity { *; }\n\n# --- NitroModules safety net (defense-in-depth) ---\n-keep class com.margelo.nitro.** { *; }\n\n# --- Hermes engine ---\n-keep class com.facebook.hermes.unicode.** { *; }\n-keep class com.facebook.jni.** { *; }\n\n# --- Suppress warnings ---\n-dontwarn com.facebook.react.flipper.**\n-dontwarn com.facebook.jni.**\n\n# --- react-native-svg (JNI reflection) ---\n-keep class com.horcrux.svg.** { *; }"
           }
         }
       ],
