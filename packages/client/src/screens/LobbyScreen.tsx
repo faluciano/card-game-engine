@@ -23,6 +23,7 @@ interface LobbyScreenProps {
   readonly state: HostGameState;
   readonly sendAction: (action: HostAction) => void;
   readonly playerId: string;
+  readonly onChangeName?: () => void;
 }
 
 // ─── Styles ────────────────────────────────────────────────────────
@@ -148,12 +149,25 @@ const retryButtonStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+const changeNameButtonStyle: CSSProperties = {
+  padding: "4px 12px",
+  border: "1px solid var(--color-surface-raised)",
+  borderRadius: 999,
+  backgroundColor: "transparent",
+  color: "var(--color-text-muted)",
+  fontSize: 12,
+  fontWeight: 500,
+  cursor: "pointer",
+  transition: "border-color 0.2s ease",
+};
+
 // ─── Component ─────────────────────────────────────────────────────
 
 export function LobbyScreen({
   state,
   sendAction,
   playerId,
+  onChangeName,
 }: LobbyScreenProps): React.JSX.Element {
   const { catalog, refetch } = useCatalog();
   const [installError, setInstallError] = useState<string | null>(null);
@@ -230,6 +244,15 @@ export function LobbyScreen({
       <div style={headerStyle}>
         <p style={labelStyle}>You joined as</p>
         <p style={nameStyle}>{playerName}</p>
+        {onChangeName != null && (
+          <button
+            type="button"
+            style={changeNameButtonStyle}
+            onClick={onChangeName}
+          >
+            Change name
+          </button>
+        )}
         <p style={waitingStyle}>Waiting for host to start the game...</p>
       </div>
 

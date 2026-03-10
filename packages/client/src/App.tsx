@@ -1,9 +1,10 @@
 // ─── App ───────────────────────────────────────────────────────────
 // Root component for the phone controller client.
-// Connects to the TV host via CouchKit's useGameClient hook.
-// Routes screens based on connection status and game state.
+// Gates on player name entry, then connects to the TV host via
+// CouchKit's useGameClient hook. Routes screens based on connection
+// status and game state.
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useGameClient } from "@couch-kit/client";
 import {
   hostReducer,
@@ -17,6 +18,7 @@ import {
   type PlayerView,
   type ValidAction,
 } from "@card-engine/shared";
+import { NameEntryScreen } from "./screens/NameEntryScreen.js";
 import { ConnectingScreen } from "./screens/ConnectingScreen.js";
 import { WaitingScreen } from "./screens/WaitingScreen.js";
 import { CatalogScreen } from "./screens/CatalogScreen.js";
@@ -27,15 +29,72 @@ import { Toast } from "./components/Toast.js";
 import { ConnectionIndicator } from "./components/ConnectionIndicator.js";
 import { ScreenTransition } from "./components/ScreenTransition.js";
 
+const STORAGE_KEY = "ck_player_name";
+
 const initialState = createHostInitialState();
 
+function readStoredName(): string | null {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored && stored.trim() ? stored.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── App (Name Gate) ───────────────────────────────────────────────
+
 export function App(): React.JSX.Element {
+  const [playerName, setPlayerName] = useState<string | null>(readStoredName);
+
+  if (!playerName) {
+    return (
+      <NameEntryScreen
+        onConfirm={(name) => {
+          try {
+            localStorage.setItem(STORAGE_KEY, name);
+          } catch {
+            // localStorage may be unavailable
+          }
+          setPlayerName(name);
+        }}
+      />
+    );
+  }
+
+  return (
+    <GameClient
+      playerName={playerName}
+      onChangeName={() => {
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          // localStorage may be unavailable
+        }
+        setPlayerName(null);
+      }}
+    />
+  );
+}
+
+// ─── Game Client ───────────────────────────────────────────────────
+
+interface GameClientProps {
+  readonly playerName: string;
+  readonly onChangeName: () => void;
+}
+
+function GameClient({
+  playerName,
+  onChangeName,
+}: GameClientProps): React.JSX.Element {
   const { status, state, playerId, sendAction } = useGameClient<
     HostGameState,
     HostAction
   >({
     reducer: hostReducer,
     initialState,
+    name: playerName,
   });
 
   // ── Hooks must be called unconditionally (Rules of Hooks) ──
@@ -106,6 +165,7 @@ export function App(): React.JSX.Element {
             state={state}
             sendAction={sendAction}
             playerId={playerId}
+            onChangeName={onChangeName}
           />
         ),
         screenKey: "lobby",
