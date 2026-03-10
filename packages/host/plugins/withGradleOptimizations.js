@@ -14,6 +14,7 @@ const { withDangerousMod } = require(configPluginsPath);
  * generated `gradle.properties`:
  * 1. Increases JVM heap from 2 GB to 3 GB (-Xmx3g)
  * 2. Enables the Gradle build cache (org.gradle.caching=true)
+ * 3. Enables legacy JNI packaging (required by extractNativeLibs=true)
  *
  * CI already applies its own overrides after prebuild, so this plugin
  * only affects local development builds.
@@ -36,6 +37,15 @@ function withGradleOptimizations(config) {
         // Enable build cache
         if (!contents.includes("org.gradle.caching=")) {
           contents += "\norg.gradle.caching=true\n";
+        }
+
+        // Enable legacy JNI packaging (pairs with extractNativeLibs=true in withAndroidTV)
+        contents = contents.replace(
+          /expo\.useLegacyPackaging=false/,
+          "expo.useLegacyPackaging=true"
+        );
+        if (!contents.includes("expo.useLegacyPackaging=")) {
+          contents += "expo.useLegacyPackaging=true\n";
         }
 
         fs.writeFileSync(gradlePropsPath, contents);

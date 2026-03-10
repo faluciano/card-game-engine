@@ -13,6 +13,8 @@
     "build:android": "bun run bundle:client && cd packages/host && npx expo run:android",
     "typecheck": "cd packages/schema && bunx tsc && cd ../shared && bunx tsc && cd ../client && bunx tsc --noEmit",
     "build": "bun run typecheck && bun run build:client && bun run bundle:client",
+    "apk": "bun run scripts/build-apk.ts",
+    "deploy": "bun run scripts/install-apk.ts",
     "validate": "bun run scripts/validate-rulesets.ts",
     "catalog": "bun run scripts/build-catalog.ts"
   }
