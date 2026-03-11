@@ -12,10 +12,10 @@ interface ActiveSuitBadgeProps {
 const SUIT_DISPLAY: Readonly<
   Record<string, { readonly symbol: string; readonly red: boolean }>
 > = {
-  Hearts: { symbol: "\u2665", red: true },
-  Diamonds: { symbol: "\u2666", red: true },
-  Clubs: { symbol: "\u2663", red: false },
-  Spades: { symbol: "\u2660", red: false },
+  hearts: { symbol: "\u2665", red: true },
+  diamonds: { symbol: "\u2666", red: true },
+  clubs: { symbol: "\u2663", red: false },
+  spades: { symbol: "\u2660", red: false },
 };
 
 const badgeStyle: CSSProperties = {
@@ -48,10 +48,12 @@ export function ActiveSuitBadge({
     ? "var(--color-card-red)"
     : "var(--color-card-black)";
 
+  const label = activeSuit.charAt(0).toUpperCase() + activeSuit.slice(1);
+
   return (
-    <div style={badgeStyle} aria-label={`Active suit: ${activeSuit}`}>
+    <div style={badgeStyle} aria-label={`Active suit: ${label}`}>
       <span style={{ ...symbolStyle, color }}>{display.symbol}</span>
-      <span style={{ color }}>{activeSuit}</span>
+      <span style={{ color }}>{label}</span>
     </div>
   );
 }

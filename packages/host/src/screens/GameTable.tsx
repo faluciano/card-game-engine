@@ -129,7 +129,9 @@ const SharedZones = React.memo(function SharedZones({
     [engineState],
   );
 
-  if (sharedZones.length === 0) return <></>;
+  const activeSuit = engineState.stringVariables?.["active_suit"] ?? "";
+
+  if (sharedZones.length === 0 && !activeSuit) return <></>;
 
   return (
     <View style={styles.section}>
@@ -138,6 +140,7 @@ const SharedZones = React.memo(function SharedZones({
         {sharedZones.map(([name, zone]: [string, ZoneState]) => (
           <ZoneDisplay key={name} name={name} zone={zone} />
         ))}
+        {activeSuit !== "" && <ActiveSuitIndicator suit={activeSuit} />}
       </View>
     </View>
   );
@@ -201,6 +204,7 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
 }): React.JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const { cards } = zone;
+  const isDiscard = name === "discard";
 
   // Track previous card count to detect newly dealt cards
   const prevCardCountRef = useRef(cards.length);
@@ -247,11 +251,13 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
           <View style={styles.emptyZone}>
             <Text style={styles.emptyZoneText}>Empty</Text>
           </View>
+        ) : isDiscard ? (
+          <DiscardPile topCard={cards[0]!} count={cards.length} />
         ) : shouldCollapse ? (
           <StackedDeck count={cards.length} />
         ) : shouldShowTopOnly ? (
           <>
-            <FlippableCardView card={cards[cards.length - 1]!} />
+            <FlippableCardView card={cards[0]!} />
             <View style={styles.topCardMoreIndicator}>
               <Text style={styles.topCardMoreText}>
                 +{cards.length - 1} more
@@ -290,6 +296,61 @@ const StackedDeck = React.memo(function StackedDeck({
       <View style={styles.stackBadge}>
         <Text style={styles.stackBadgeText}>{count}</Text>
       </View>
+    </View>
+  );
+});
+
+// ─── Discard Pile (collapsed face-up pile with count badge) ───────
+
+const DiscardPile = React.memo(function DiscardPile({
+  topCard,
+  count,
+}: {
+  readonly topCard: Card;
+  readonly count: number;
+}): React.JSX.Element {
+  return (
+    <View style={styles.stackedDeck}>
+      {/* Bottom shadow card */}
+      {count >= 3 && (
+        <View style={[styles.card, styles.cardFace, styles.stackShadow2, { opacity: 0.4 }]} />
+      )}
+      {/* Middle shadow card */}
+      {count >= 2 && (
+        <View style={[styles.card, styles.cardFace, styles.stackShadow1, { opacity: 0.7 }]} />
+      )}
+      {/* Top card — face-up */}
+      <View style={styles.stackTop}>
+        <FlippableCardView card={topCard} />
+      </View>
+      {/* Count badge */}
+      <View style={styles.stackBadge}>
+        <Text style={styles.stackBadgeText}>{count}</Text>
+      </View>
+    </View>
+  );
+});
+
+// ─── Active Suit Indicator ─────────────────────────────────────────
+
+const ActiveSuitIndicator = React.memo(function ActiveSuitIndicator({
+  suit,
+}: {
+  readonly suit: string;
+}): React.JSX.Element {
+  const symbol = SUIT_SYMBOLS[suit] ?? suit;
+  const isRed = RED_SUITS.has(suit);
+  const suitColor = isRed ? "#ef5350" : "#e0e0e0";
+
+  return (
+    <View style={styles.activeSuitContainer}>
+      <Text style={styles.activeSuitLabel}>ACTIVE SUIT</Text>
+      <Text style={[styles.activeSuitSymbol, { color: suitColor }]}>
+        {symbol}
+      </Text>
+      <Text style={[styles.activeSuitName, { color: suitColor }]}>
+        {suit.charAt(0).toUpperCase() + suit.slice(1)}
+      </Text>
     </View>
   );
 });
@@ -965,6 +1026,34 @@ const styles = StyleSheet.create({
     color: "#81c784",
     fontSize: 14,
     fontWeight: "700",
+  },
+
+  // Active suit indicator
+  activeSuitContainer: {
+    backgroundColor: "#1a4d2e",
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#ffd54f",
+    padding: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 100,
+  },
+  activeSuitLabel: {
+    color: "#a5d6a7",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  activeSuitSymbol: {
+    fontSize: 36,
+    lineHeight: 42,
+  },
+  activeSuitName: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginTop: 2,
   },
 
   // Player sections
