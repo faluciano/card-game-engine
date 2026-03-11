@@ -4,7 +4,7 @@
 // Runs build:client + bundle:client first, then assembleRelease.
 // Usage: bun run scripts/build-apk.ts [--debug]
 
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 const ROOT = join(import.meta.dir, "..");
 const HOST_DIR = join(ROOT, "packages", "host");
@@ -57,6 +57,18 @@ async function main(): Promise<void> {
   if (!existsSync(gradlew)) {
     console.error("  gradlew not found. Run `bun run prebuild` in packages/host first.");
     process.exit(1);
+  }
+
+  // Metro's transformer cache can inline a stale www-manifest.json into the
+  // Hermes bytecode, causing the APK to reference old Vite asset hashes at
+  // runtime (FileNotFoundException). Remove app/build so Gradle re-runs Metro
+  // bundling with the fresh manifest. We avoid `./gradlew clean` because it
+  // also cleans native C++ codegen dirs that may not exist yet.
+  const appBuildDir = join(ANDROID_DIR, "app", "build");
+  if (existsSync(appBuildDir)) {
+    console.log("\n> Removing stale app/build...");
+    rmSync(appBuildDir, { recursive: true, force: true });
+    console.log("  Removed app/build\n");
   }
 
   await run(
