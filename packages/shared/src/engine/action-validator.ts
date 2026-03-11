@@ -134,13 +134,14 @@ export function getValidActions(
 export function getPlayableCardIndices(
   state: CardGameState,
   ruleset: CardGameRuleset,
-  playerIndex: number
+  playerIndex: number,
+  phaseMachine?: PhaseMachine
 ): number[] {
   // Ensure builtins are registered (idempotent)
   registerAllBuiltins();
 
   // Resolve the current phase
-  const machine = new PhaseMachine(ruleset.phases);
+  const machine = phaseMachine ?? new PhaseMachine(ruleset.phases);
   let phase;
   try {
     phase = machine.getPhase(state.currentPhase);

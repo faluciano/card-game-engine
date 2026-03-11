@@ -10,6 +10,7 @@ import type {
   Card,
   GameReducer,
   GameSessionId,
+  GameStatus,
   Player,
   PlayerId,
   ResolvedAction,
@@ -652,86 +653,212 @@ function maybeAutoEndTurn(
   ) {
     const ctx: EvalContext = { state, playerIndex };
     if (evaluateCondition(autoEndTurnCondition, ctx)) {
-      return applyEndTurnEffect(state);
+      // Apply end_turn directly via a mini-draft to avoid exposing StateDraft
+      const count = state.players.length;
+      const nextIndex = ((state.currentPlayerIndex + state.turnDirection) % count + count) % count;
+      return {
+        ...state,
+        currentPlayerIndex: nextIndex,
+        turnsTakenThisPhase: state.turnsTakenThisPhase + 1,
+      };
     }
   }
   return state;
 }
 
+// ─── StateDraft ────────────────────────────────────────────────────
+
+/**
+ * Mutable draft of CardGameState used internally during effect application.
+ * Each sub-object (zones, variables, scores, stringVariables) is lazily cloned
+ * on first mutation, so effects that don't touch a category pay zero cost.
+ * The draft is NOT exposed outside applyEffects — the public API stays immutable.
+ */
+interface StateDraft {
+  // Writable copies of state fields (cloned lazily via ensure* helpers)
+  zones: Record<string, ZoneState>;
+  scores: Record<string, number>;
+  variables: Record<string, number>;
+  stringVariables: Record<string, string>;
+  // Scalar fields — cheap to copy, always writable on the draft
+  currentPlayerIndex: number;
+  turnsTakenThisPhase: number;
+  turnDirection: 1 | -1;
+  turnNumber: number;
+  status: GameStatus;
+  // Readonly references to fields that effects never modify
+  readonly sessionId: CardGameState["sessionId"];
+  readonly ruleset: CardGameState["ruleset"];
+  readonly players: CardGameState["players"];
+  readonly actionLog: CardGameState["actionLog"];
+  readonly currentPhase: CardGameState["currentPhase"];
+  readonly version: CardGameState["version"];
+}
+
 /**
  * Applies a sequence of effect descriptions to produce a new state.
- * Pure — does not mutate the input state.
+ * Uses a mutable draft internally to avoid N intermediate state copies.
+ * Pure from the caller's perspective — does not mutate the input state.
  */
 function applyEffects(
   state: CardGameState,
   effects: readonly EffectDescription[],
   rng: SeededRng
 ): CardGameState {
-  let current = state;
-  for (const effect of effects) {
-    current = applySingleEffect(current, effect, rng);
+  if (effects.length === 0) return state;
+
+  // Create a mutable draft — one shallow copy of the top-level state.
+  // Sub-objects (zones, variables, scores, stringVariables) are cloned lazily
+  // on first mutation via the ensure* helpers.
+  const draft: StateDraft = {
+    sessionId: state.sessionId,
+    ruleset: state.ruleset,
+    status: state.status,
+    players: state.players,
+    zones: state.zones,
+    currentPhase: state.currentPhase,
+    currentPlayerIndex: state.currentPlayerIndex,
+    turnNumber: state.turnNumber,
+    turnDirection: state.turnDirection,
+    scores: state.scores,
+    variables: state.variables,
+    stringVariables: state.stringVariables,
+    actionLog: state.actionLog,
+    turnsTakenThisPhase: state.turnsTakenThisPhase,
+    version: state.version,
+  };
+
+  // Track which sub-objects have been cloned to avoid double-cloning
+  let zonesCloned = false;
+  let scoresCloned = false;
+  let variablesCloned = false;
+  let stringVariablesCloned = false;
+
+  function ensureZones(): Record<string, ZoneState> {
+    if (!zonesCloned) {
+      draft.zones = { ...state.zones };
+      zonesCloned = true;
+    }
+    return draft.zones;
   }
-  return current;
+
+  function ensureScores(): Record<string, number> {
+    if (!scoresCloned) {
+      draft.scores = { ...state.scores };
+      scoresCloned = true;
+    }
+    return draft.scores;
+  }
+
+  function ensureVariables(): Record<string, number> {
+    if (!variablesCloned) {
+      draft.variables = { ...state.variables };
+      variablesCloned = true;
+    }
+    return draft.variables;
+  }
+
+  function ensureStringVariables(): Record<string, string> {
+    if (!stringVariablesCloned) {
+      draft.stringVariables = { ...state.stringVariables };
+      stringVariablesCloned = true;
+    }
+    return draft.stringVariables;
+  }
+
+  for (const effect of effects) {
+    applySingleEffect(draft, effect, rng, ensureZones, ensureScores, ensureVariables, ensureStringVariables);
+  }
+
+  return draft as unknown as CardGameState;
 }
 
 /**
  * Dispatches a single effect description to the appropriate handler.
+ * Mutates the draft in place — returns void.
  */
 function applySingleEffect(
-  state: CardGameState,
+  draft: StateDraft,
   effect: EffectDescription,
-  rng: SeededRng
-): CardGameState {
+  rng: SeededRng,
+  ensureZones: () => Record<string, ZoneState>,
+  ensureScores: () => Record<string, number>,
+  ensureVariables: () => Record<string, number>,
+  ensureStringVariables: () => Record<string, string>,
+): void {
   switch (effect.kind) {
     case "shuffle":
-      return applyShuffleEffect(state, effect.params, rng);
+      applyShuffleEffect(draft, effect.params, rng, ensureZones);
+      return;
     case "deal":
-      return applyDealEffect(state, effect.params);
+      applyDealEffect(draft, effect.params, ensureZones);
+      return;
     case "draw":
-      return applyDrawEffect(state, effect.params);
+      applyDrawEffect(draft, effect.params, ensureZones);
+      return;
     case "set_face_up":
-      return applySetFaceUpEffect(state, effect.params);
+      applySetFaceUpEffect(draft, effect.params, ensureZones);
+      return;
     case "reveal_all":
-      return applyRevealAllEffect(state, effect.params);
+      applyRevealAllEffect(draft, effect.params, ensureZones);
+      return;
     case "end_turn":
-      return applyEndTurnEffect(state);
+      applyEndTurnEffect(draft);
+      return;
     case "calculate_scores":
-      return applyCalculateScoresEffect(state);
+      applyCalculateScoresEffect(draft, ensureScores);
+      return;
     case "determine_winners":
-      return applyDetermineWinnersEffect(state);
+      applyDetermineWinnersEffect(draft, ensureScores);
+      return;
     case "collect_all_to":
-      return applyCollectAllToEffect(state, effect.params);
+      applyCollectAllToEffect(draft, effect.params, ensureZones);
+      return;
     case "reset_round":
-      return applyResetRoundEffect(state);
+      applyResetRoundEffect(draft);
+      return;
     case "move_top":
-      return applyMoveTopEffect(state, effect.params);
+      applyMoveTopEffect(draft, effect.params, ensureZones);
+      return;
     case "flip_top":
-      return applyFlipTopEffect(state, effect.params);
+      applyFlipTopEffect(draft, effect.params, ensureZones);
+      return;
     case "move_all":
-      return applyMoveAllEffect(state, effect.params);
+      applyMoveAllEffect(draft, effect.params, ensureZones);
+      return;
     case "reverse_turn_order":
-      return applyReverseTurnOrderEffect(state);
+      applyReverseTurnOrderEffect(draft);
+      return;
     case "skip_next_player":
-      return applySkipNextPlayerEffect(state);
+      applySkipNextPlayerEffect(draft);
+      return;
     case "set_next_player":
-      return applySetNextPlayerEffect(state, effect.params);
+      applySetNextPlayerEffect(draft, effect.params);
+      return;
     case "set_var":
-      return applySetVarEffect(state, effect.params);
+      applySetVarEffect(draft, effect.params, ensureVariables);
+      return;
     case "set_str_var":
-      return applySetStrVarEffect(state, effect.params);
+      applySetStrVarEffect(draft, effect.params, ensureStringVariables);
+      return;
     case "inc_var":
-      return applyIncVarEffect(state, effect.params);
+      applyIncVarEffect(draft, effect.params, ensureVariables);
+      return;
     case "collect_trick":
-      return applyCollectTrickEffect(state, effect.params);
+      applyCollectTrickEffect(draft, effect.params, ensureZones);
+      return;
     case "set_lead_player":
-      return applySetLeadPlayerEffect(state, effect.params);
+      applySetLeadPlayerEffect(draft, effect.params, ensureVariables);
+      return;
     case "end_game":
-      return applyEndGameEffect(state);
+      applyEndGameEffect(draft);
+      return;
     case "accumulate_scores":
-      return applyAccumulateScoresEffect(state);
+      applyAccumulateScoresEffect(draft, ensureVariables);
+      return;
     default:
       // Unknown effects are ignored — forward compatible
-      return state;
+      return;
   }
 }
 
@@ -741,22 +868,18 @@ function applySingleEffect(
  * Shuffles all cards in a zone using the seeded RNG.
  */
 function applyShuffleEffect(
-  state: CardGameState,
+  draft: StateDraft,
   params: Record<string, unknown>,
-  rng: SeededRng
-): CardGameState {
+  rng: SeededRng,
+  ensureZones: () => Record<string, ZoneState>,
+): void {
   const zoneName = params.zone as string;
-  const zone = state.zones[zoneName];
-  if (!zone) return state;
+  const zone = draft.zones[zoneName];
+  if (!zone) return;
 
+  const zones = ensureZones();
   const shuffled = rng.shuffle(zone.cards);
-  return {
-    ...state,
-    zones: {
-      ...state.zones,
-      [zoneName]: { ...zone, cards: shuffled },
-    },
-  };
+  zones[zoneName] = { ...zone, cards: shuffled };
 }
 
 /**
@@ -766,17 +889,18 @@ function applyShuffleEffect(
  * Also handles non-per-player zones (e.g., "dealer_hand").
  */
 function applyDealEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureZones: () => Record<string, ZoneState>,
+): void {
   const from = params.from as string;
   const to = params.to as string;
   const count = params.count as number;
 
-  const zones = { ...state.zones };
-  const fromZone = zones[from];
-  if (!fromZone) return state;
+  const fromZone = draft.zones[from];
+  if (!fromZone) return;
 
+  const zones = ensureZones();
   let fromCards = [...fromZone.cards];
 
   // Find all per-player variants of the "to" zone, or the exact zone
@@ -785,7 +909,7 @@ function applyDealEffect(
   );
 
   // If no matching zones, return unchanged
-  if (targetZones.length === 0) return state;
+  if (targetZones.length === 0) return;
 
   for (const targetZone of targetZones) {
     const cardsToMove = fromCards.splice(0, count);
@@ -797,7 +921,6 @@ function applyDealEffect(
   }
 
   zones[from] = { ...fromZone, cards: fromCards };
-  return { ...state, zones };
 }
 
 /**
@@ -805,99 +928,87 @@ function applyDealEffect(
  * Resolves per-player zone names if needed.
  */
 function applyDrawEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureZones: () => Record<string, ZoneState>,
+): void {
   const from = params.from as string;
   const to = params.to as string;
   const count = params.count as number;
 
-  const zones = { ...state.zones };
-  const fromZone = zones[from];
-  if (!fromZone) return state;
+  const fromZone = draft.zones[from];
+  if (!fromZone) return;
 
   // Resolve target zone — might be per-player
   let targetZone = to;
-  if (!(targetZone in zones)) {
-    const perPlayerName = `${to}:${state.currentPlayerIndex}`;
-    if (perPlayerName in zones) {
+  if (!(targetZone in draft.zones)) {
+    const perPlayerName = `${to}:${draft.currentPlayerIndex}`;
+    if (perPlayerName in draft.zones) {
       targetZone = perPlayerName;
     }
   }
 
-  const target = zones[targetZone];
-  if (!target) return state;
+  const target = draft.zones[targetZone];
+  if (!target) return;
 
+  const zones = ensureZones();
   const fromCards = [...fromZone.cards];
   const drawnCards = fromCards.splice(0, count);
 
   zones[from] = { ...fromZone, cards: fromCards };
   zones[targetZone] = { ...target, cards: [...target.cards, ...drawnCards] };
-
-  return { ...state, zones };
 }
 
 /**
  * Sets a specific card's faceUp property in a zone.
  */
 function applySetFaceUpEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureZones: () => Record<string, ZoneState>,
+): void {
   const zoneName = params.zone as string;
   const cardIndex = params.cardIndex as number;
   const faceUp = params.faceUp as boolean;
 
-  const zone = state.zones[zoneName];
-  if (!zone || cardIndex < 0 || cardIndex >= zone.cards.length) return state;
+  const zone = draft.zones[zoneName];
+  if (!zone || cardIndex < 0 || cardIndex >= zone.cards.length) return;
 
+  const zones = ensureZones();
   const updatedCards = zone.cards.map((card, i) =>
     i === cardIndex ? { ...card, faceUp } : card
   );
 
-  return {
-    ...state,
-    zones: {
-      ...state.zones,
-      [zoneName]: { ...zone, cards: updatedCards },
-    },
-  };
+  zones[zoneName] = { ...zone, cards: updatedCards };
 }
 
 /**
  * Sets all cards in a zone to faceUp: true.
  */
 function applyRevealAllEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureZones: () => Record<string, ZoneState>,
+): void {
   const zoneName = params.zone as string;
-  const zone = state.zones[zoneName];
-  if (!zone) return state;
+  const zone = draft.zones[zoneName];
+  if (!zone) return;
 
+  const zones = ensureZones();
   const revealedCards = zone.cards.map((card) => ({ ...card, faceUp: true }));
 
-  return {
-    ...state,
-    zones: {
-      ...state.zones,
-      [zoneName]: { ...zone, cards: revealedCards },
-    },
-  };
+  zones[zoneName] = { ...zone, cards: revealedCards };
 }
 
 /**
  * Advances currentPlayerIndex to the next human player. Wraps around.
  */
-function applyEndTurnEffect(state: CardGameState): CardGameState {
-  const count = state.players.length;
-  const nextIndex = ((state.currentPlayerIndex + state.turnDirection) % count + count) % count;
+function applyEndTurnEffect(draft: StateDraft): void {
+  const count = draft.players.length;
+  const nextIndex = ((draft.currentPlayerIndex + draft.turnDirection) % count + count) % count;
 
-  return {
-    ...state,
-    currentPlayerIndex: nextIndex,
-    turnsTakenThisPhase: state.turnsTakenThisPhase + 1,
-  };
+  draft.currentPlayerIndex = nextIndex;
+  draft.turnsTakenThisPhase = draft.turnsTakenThisPhase + 1;
 }
 
 /**
@@ -929,18 +1040,21 @@ function buildNpcZoneMap(
  * Evaluates `scoring.method` per human player and per NPC role.
  * Stores results as "player_score:N" for humans, "{role}_score" for NPCs.
  */
-function applyCalculateScoresEffect(state: CardGameState): CardGameState {
-  const { roles, scoring } = state.ruleset;
-  const scores: Record<string, number> = {};
+function applyCalculateScoresEffect(
+  draft: StateDraft,
+  ensureScores: () => Record<string, number>,
+): void {
+  const { roles, scoring } = draft.ruleset;
+  const scores = ensureScores();
 
   for (const role of roles) {
     if (role.isHuman) {
       // Score each human player
-      for (let i = 0; i < state.players.length; i++) {
-        const player = state.players[i]!;
+      for (let i = 0; i < draft.players.length; i++) {
+        const player = draft.players[i]!;
         if (!isHumanPlayer(player, roles)) continue;
 
-        const ctx: EvalContext = { state, playerIndex: i };
+        const ctx: EvalContext = { state: draft as unknown as CardGameState, playerIndex: i };
         const result = evaluateExpression(scoring.method, ctx);
         if (result.kind !== "number") {
           throw new Error(
@@ -951,9 +1065,9 @@ function applyCalculateScoresEffect(state: CardGameState): CardGameState {
       }
     } else {
       // Score each NPC role
-      const zoneMap = buildNpcZoneMap(role.name, state.zones);
+      const zoneMap = buildNpcZoneMap(role.name, draft.zones);
       const ctx: EvalContext = {
-        state,
+        state: draft as unknown as CardGameState,
         roleOverride: { roleName: role.name, zoneMap },
       };
       const result = evaluateExpression(scoring.method, ctx);
@@ -965,8 +1079,6 @@ function applyCalculateScoresEffect(state: CardGameState): CardGameState {
       scores[`${role.name}_score`] = result.value;
     }
   }
-
-  return { ...state, scores };
 }
 
 /**
@@ -974,19 +1086,22 @@ function applyCalculateScoresEffect(state: CardGameState): CardGameState {
  * Evaluation order: bust → win → tie → loss (default).
  * Results stored as "result:N" where 1=win, 0=tie, -1=loss.
  */
-function applyDetermineWinnersEffect(state: CardGameState): CardGameState {
-  const { scoring, roles } = state.ruleset;
-  const scores = { ...state.scores };
+function applyDetermineWinnersEffect(
+  draft: StateDraft,
+  ensureScores: () => Record<string, number>,
+): void {
+  const { scoring, roles } = draft.ruleset;
+  const scores = ensureScores();
 
-  for (let i = 0; i < state.players.length; i++) {
-    const player = state.players[i]!;
+  for (let i = 0; i < draft.players.length; i++) {
+    const player = draft.players[i]!;
     if (!isHumanPlayer(player, roles)) continue;
 
     const myScore = scores[`player_score:${i}`] ?? 0;
     const bindings: Record<string, EvalResult> = {
       my_score: { kind: "number", value: myScore },
     };
-    const ctx: EvalContext = { state: { ...state, scores }, playerIndex: i, bindings };
+    const ctx: EvalContext = { state: draft as unknown as CardGameState, playerIndex: i, bindings };
 
     // Evaluation order: bust → win → tie → loss
     if (scoring.bustCondition && evaluateCondition(scoring.bustCondition, ctx)) {
@@ -999,19 +1114,18 @@ function applyDetermineWinnersEffect(state: CardGameState): CardGameState {
       scores[`result:${i}`] = -1;
     }
   }
-
-  return { ...state, scores };
 }
 
 /**
  * Collects all cards from all zones into the specified target zone.
  */
 function applyCollectAllToEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureZones: () => Record<string, ZoneState>,
+): void {
   const targetName = params.zone as string;
-  const zones = { ...state.zones };
+  const zones = ensureZones();
   const collected: Card[] = [];
 
   // Gather all cards from all zones
@@ -1028,62 +1142,55 @@ function applyCollectAllToEffect(
       cards: [...target.cards, ...collected],
     };
   }
-
-  return { ...state, zones };
 }
 
 /**
  * Resets the round: clears scores, resets player index, increments turn.
  */
-function applyResetRoundEffect(state: CardGameState): CardGameState {
+function applyResetRoundEffect(draft: StateDraft): void {
   // Preserve cumulative_score_* variables across round resets
   const preserved: Record<string, number> = {};
-  for (const [key, value] of Object.entries(state.variables)) {
+  for (const [key, value] of Object.entries(draft.variables)) {
     if (key.startsWith("cumulative_score_")) {
       preserved[key] = value;
     }
   }
 
-  return {
-    ...state,
-    currentPlayerIndex: 0,
-    turnNumber: state.turnNumber + 1,
-    turnsTakenThisPhase: 0,
-    turnDirection: 1,
-    scores: {},
-    variables: { ...getInitialVariables(state.ruleset.variables), ...preserved },
-    stringVariables: getInitialStringVariables(state.ruleset.variables),
-  };
+  draft.currentPlayerIndex = 0;
+  draft.turnNumber = draft.turnNumber + 1;
+  draft.turnsTakenThisPhase = 0;
+  draft.turnDirection = 1;
+  draft.scores = {};
+  draft.variables = { ...getInitialVariables(draft.ruleset.variables), ...preserved };
+  draft.stringVariables = getInitialStringVariables(draft.ruleset.variables);
 }
 
 /**
  * Sets a custom variable to a specific value.
  */
 function applySetVarEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureVariables: () => Record<string, number>,
+): void {
   const name = params.name as string;
   const value = params.value as number;
-  return {
-    ...state,
-    variables: { ...state.variables, [name]: value },
-  };
+  const variables = ensureVariables();
+  variables[name] = value;
 }
 
 /**
  * Sets a custom string variable to a specific value.
  */
 function applySetStrVarEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureStringVariables: () => Record<string, string>,
+): void {
   const name = params.name as string;
   const value = params.value as string;
-  return {
-    ...state,
-    stringVariables: { ...state.stringVariables, [name]: value },
-  };
+  const stringVars = ensureStringVariables();
+  stringVars[name] = value;
 }
 
 /**
@@ -1091,16 +1198,14 @@ function applySetStrVarEffect(
  * If the variable doesn't exist yet, treats it as starting from 0.
  */
 function applyIncVarEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureVariables: () => Record<string, number>,
+): void {
   const name = params.name as string;
   const amount = params.amount as number;
-  const current = state.variables[name] ?? 0;
-  return {
-    ...state,
-    variables: { ...state.variables, [name]: current + amount },
-  };
+  const variables = ensureVariables();
+  variables[name] = (variables[name] ?? 0) + amount;
 }
 
 /**
@@ -1109,25 +1214,24 @@ function applyIncVarEffect(
  * Preserves card state (faceUp, etc.).
  */
 function applyMoveTopEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureZones: () => Record<string, ZoneState>,
+): void {
   const fromName = params.from as string;
   const toName = params.to as string;
   const count = params.count as number;
 
-  const zones = { ...state.zones };
-  const fromZone = zones[fromName];
-  const toZone = zones[toName];
-  if (!fromZone || !toZone) return state;
+  const fromZone = draft.zones[fromName];
+  const toZone = draft.zones[toName];
+  if (!fromZone || !toZone) return;
 
+  const zones = ensureZones();
   const fromCards = [...fromZone.cards];
   const movedCards = fromCards.splice(0, count);
 
   zones[fromName] = { ...fromZone, cards: fromCards };
   zones[toName] = { ...toZone, cards: [...toZone.cards, ...movedCards] };
-
-  return { ...state, zones };
 }
 
 /**
@@ -1135,26 +1239,22 @@ function applyMoveTopEffect(
  * If the zone has fewer cards than `count`, flips all.
  */
 function applyFlipTopEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureZones: () => Record<string, ZoneState>,
+): void {
   const zoneName = params.zone as string;
   const count = params.count as number;
 
-  const zone = state.zones[zoneName];
-  if (!zone) return state;
+  const zone = draft.zones[zoneName];
+  if (!zone) return;
 
+  const zones = ensureZones();
   const updatedCards = zone.cards.map((card, i) =>
     i < count ? { ...card, faceUp: true } : card
   );
 
-  return {
-    ...state,
-    zones: {
-      ...state.zones,
-      [zoneName]: { ...zone, cards: updatedCards },
-    },
-  };
+  zones[zoneName] = { ...zone, cards: updatedCards };
 }
 
 /**
@@ -1162,59 +1262,49 @@ function applyFlipTopEffect(
  * Cards retain their faceUp state.
  */
 function applyMoveAllEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureZones: () => Record<string, ZoneState>,
+): void {
   const fromName = params.from as string;
   const toName = params.to as string;
 
-  const zones = { ...state.zones };
-  const fromZone = zones[fromName];
-  const toZone = zones[toName];
-  if (!fromZone || !toZone) return state;
+  const fromZone = draft.zones[fromName];
+  const toZone = draft.zones[toName];
+  if (!fromZone || !toZone) return;
 
+  const zones = ensureZones();
   zones[fromName] = { ...fromZone, cards: [] };
   zones[toName] = { ...toZone, cards: [...toZone.cards, ...fromZone.cards] };
-
-  return { ...state, zones };
 }
 
 /**
  * Reverses the turn direction. Clockwise becomes counterclockwise and vice versa.
  */
-function applyReverseTurnOrderEffect(state: CardGameState): CardGameState {
-  return {
-    ...state,
-    turnDirection: state.turnDirection === 1 ? -1 : 1,
-  };
+function applyReverseTurnOrderEffect(draft: StateDraft): void {
+  draft.turnDirection = draft.turnDirection === 1 ? -1 : 1;
 }
 
 /**
  * Skips the next player by advancing the current player index by one extra step
  * in the current turn direction.
  */
-function applySkipNextPlayerEffect(state: CardGameState): CardGameState {
-  const count = state.players.length;
-  const nextIndex = ((state.currentPlayerIndex + state.turnDirection) % count + count) % count;
-  return {
-    ...state,
-    currentPlayerIndex: nextIndex,
-  };
+function applySkipNextPlayerEffect(draft: StateDraft): void {
+  const count = draft.players.length;
+  const nextIndex = ((draft.currentPlayerIndex + draft.turnDirection) % count + count) % count;
+  draft.currentPlayerIndex = nextIndex;
 }
 
 /**
  * Sets the current player to a specific index.
  */
 function applySetNextPlayerEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+): void {
   const playerIndex = params.playerIndex as number;
-  if (playerIndex < 0 || playerIndex >= state.players.length) return state;
-  return {
-    ...state,
-    currentPlayerIndex: playerIndex,
-  };
+  if (playerIndex < 0 || playerIndex >= draft.players.length) return;
+  draft.currentPlayerIndex = playerIndex;
 }
 
 /**
@@ -1223,14 +1313,15 @@ function applySetNextPlayerEffect(
  * Source zones are emptied.
  */
 function applyCollectTrickEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureZones: () => Record<string, ZoneState>,
+): void {
   const zonePrefix = params.zonePrefix as string;
   const targetZoneName = params.targetZone as string;
-  const playerCount = state.players.length;
+  const playerCount = draft.players.length;
 
-  const zones = { ...state.zones };
+  const zones = ensureZones();
   const collected: Card[] = [];
 
   for (let i = 0; i < playerCount; i++) {
@@ -1248,8 +1339,6 @@ function applyCollectTrickEffect(
       cards: [...target.cards, ...collected],
     };
   }
-
-  return { ...state, zones };
 }
 
 /**
@@ -1257,15 +1346,14 @@ function applyCollectTrickEffect(
  * `currentPlayerIndex` to that player, so the trick winner leads next.
  */
 function applySetLeadPlayerEffect(
-  state: CardGameState,
-  params: Record<string, unknown>
-): CardGameState {
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureVariables: () => Record<string, number>,
+): void {
   const playerIndex = params.playerIndex as number;
-  return {
-    ...state,
-    variables: { ...state.variables, lead_player: playerIndex },
-    currentPlayerIndex: playerIndex,
-  };
+  const variables = ensureVariables();
+  variables.lead_player = playerIndex;
+  draft.currentPlayerIndex = playerIndex;
 }
 
 /**
@@ -1273,23 +1361,20 @@ function applySetLeadPlayerEffect(
  * The winnerId is derived from scores: the player with `result:N === 1`.
  * If no clear winner, winnerId is null.
  */
-function applyEndGameEffect(state: CardGameState): CardGameState {
+function applyEndGameEffect(draft: StateDraft): void {
   let winnerId: PlayerId | null = null;
 
-  for (let i = 0; i < state.players.length; i++) {
-    if (state.scores[`result:${i}`] === 1) {
-      winnerId = state.players[i]!.id;
+  for (let i = 0; i < draft.players.length; i++) {
+    if (draft.scores[`result:${i}`] === 1) {
+      winnerId = draft.players[i]!.id;
       break;
     }
   }
 
-  return {
-    ...state,
-    status: {
-      kind: "finished",
-      finishedAt: Date.now(),
-      winnerId,
-    },
+  draft.status = {
+    kind: "finished",
+    finishedAt: Date.now(),
+    winnerId,
   };
 }
 
@@ -1297,18 +1382,19 @@ function applyEndGameEffect(state: CardGameState): CardGameState {
  * Accumulates each human player's round score into their cumulative score variable.
  * Reads scores["player_score:{i}"] and adds to variables["cumulative_score_{i}"].
  */
-function applyAccumulateScoresEffect(state: CardGameState): CardGameState {
-  const variables = { ...state.variables };
-  const { roles } = state.ruleset;
+function applyAccumulateScoresEffect(
+  draft: StateDraft,
+  ensureVariables: () => Record<string, number>,
+): void {
+  const variables = ensureVariables();
+  const { roles } = draft.ruleset;
 
-  for (let i = 0; i < state.players.length; i++) {
-    if (!isHumanPlayer(state.players[i]!, roles)) continue;
-    const roundScore = state.scores[`player_score:${i}`] ?? 0;
+  for (let i = 0; i < draft.players.length; i++) {
+    if (!isHumanPlayer(draft.players[i]!, roles)) continue;
+    const roundScore = draft.scores[`player_score:${i}`] ?? 0;
     const key = `cumulative_score_${i}`;
     variables[key] = (variables[key] ?? 0) + roundScore;
   }
-
-  return { ...state, variables };
 }
 
 // ─── Deterministic Card Creation ───────────────────────────────────

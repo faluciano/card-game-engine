@@ -91,6 +91,10 @@ export type EvalResult =
   | { readonly kind: "number"; readonly value: number }
   | { readonly kind: "string"; readonly value: string };
 
+/** Shared interned boolean EvalResult constants to avoid per-evaluation allocations. */
+export const EVAL_TRUE: EvalResult = Object.freeze({ kind: "boolean", value: true } as const);
+export const EVAL_FALSE: EvalResult = Object.freeze({ kind: "boolean", value: false } as const);
+
 /**
  * Context provided to expression evaluation.
  * Contains bindings the expression can reference.
@@ -631,6 +635,14 @@ export function clearBuiltins(): void {
 
 const MAX_EVAL_DEPTH = 64;
 
+/** Cache for resolved `current_player` objects, keyed by (state, playerIndex).
+ *  State objects are immutable — a new reference means new state — so WeakMap
+ *  entries are automatically GC'd when old state is no longer referenced. */
+const currentPlayerCache = new WeakMap<
+  CardGameState,
+  Map<number, Record<string, unknown>>
+>();
+
 /**
  * Resolves a binding name against the evaluation context.
  * Looks up in:
@@ -660,8 +672,14 @@ function resolveBinding(
         return playerObj as Record<string, unknown>;
       }
 
-      // Human player — existing logic below
+      // Human player — check cache first
       const idx = context.playerIndex ?? state.currentPlayerIndex;
+      let perState = currentPlayerCache.get(state);
+      if (perState) {
+        const cached = perState.get(idx);
+        if (cached) return cached;
+      }
+
       const playerObj: Record<string, unknown> = {
         index: idx,
         player: state.players[idx],
@@ -680,6 +698,14 @@ function resolveBinding(
           }
         }
       }
+
+      // Cache the built object
+      if (!perState) {
+        perState = new Map();
+        currentPlayerCache.set(state, perState);
+      }
+      perState.set(idx, playerObj);
+
       return playerObj as Record<string, unknown>;
     }
     case "current_player_index":
@@ -706,10 +732,8 @@ function resolveBinding(
 
   // Per-player zone template lookup — e.g., "hand" matches "hand:0", "hand:1", etc.
   // Returns the base name as a string for effect builtins (deal, draw) to expand.
-  const isPerPlayerTemplate = Object.keys(state.zones).some((zoneName) =>
-    zoneName.startsWith(`${name}:`),
-  );
-  if (isPerPlayerTemplate) {
+  // Per-player zones always have a :0 variant — O(1) lookup instead of O(zones) scan
+  if (`${name}:0` in state.zones) {
     return { kind: "string", value: name };
   }
 
@@ -778,7 +802,7 @@ function toEvalResult(value: unknown, description: string): EvalResult {
     return value as EvalResult;
   }
   if (typeof value === "boolean") {
-    return { kind: "boolean", value };
+    return value ? EVAL_TRUE : EVAL_FALSE;
   }
   if (typeof value === "number") {
     return { kind: "number", value };
@@ -812,7 +836,7 @@ function evaluateNode(
       return { kind: "number", value: node.value };
 
     case "BooleanLiteral":
-      return { kind: "boolean", value: node.value };
+      return node.value ? EVAL_TRUE : EVAL_FALSE;
 
     case "StringLiteral":
       return { kind: "string", value: node.value };
@@ -950,7 +974,7 @@ function evaluateFunctionCall(
         (mctx.effects as unknown[]).length = 0;
       }
     }
-    return { kind: "boolean", value: true };
+    return EVAL_TRUE;
   }
 
   // ── Special form: if(condition, then_expr[, else_expr]) ──
@@ -974,7 +998,7 @@ function evaluateFunctionCall(
     if (node.args.length === 3) {
       return evaluateNode(node.args[2]!, context, depth + 1);
     }
-    return { kind: "boolean", value: true };
+    return EVAL_TRUE;
   }
 
   const fn = functionRegistry.get(node.callee);
@@ -990,7 +1014,7 @@ function evaluateFunctionCall(
 
   // Side-effecting functions may return void — treat as boolean true (success)
   if (result === undefined || result === null) {
-    return { kind: "boolean", value: true };
+    return EVAL_TRUE;
   }
 
   return result;
@@ -1009,14 +1033,14 @@ function evaluateBinaryOp(
         `Left operand of '&&' must be boolean, got ${left.kind}`,
       );
     }
-    if (!left.value) return { kind: "boolean", value: false };
+    if (!left.value) return EVAL_FALSE;
     const right = evaluateNode(node.right, context, depth + 1);
     if (right.kind !== "boolean") {
       throw new ExpressionError(
         `Right operand of '&&' must be boolean, got ${right.kind}`,
       );
     }
-    return { kind: "boolean", value: right.value };
+    return right.value ? EVAL_TRUE : EVAL_FALSE;
   }
 
   if (node.operator === "||") {
@@ -1026,14 +1050,14 @@ function evaluateBinaryOp(
         `Left operand of '||' must be boolean, got ${left.kind}`,
       );
     }
-    if (left.value) return { kind: "boolean", value: true };
+    if (left.value) return EVAL_TRUE;
     const right = evaluateNode(node.right, context, depth + 1);
     if (right.kind !== "boolean") {
       throw new ExpressionError(
         `Right operand of '||' must be boolean, got ${right.kind}`,
       );
     }
-    return { kind: "boolean", value: right.value };
+    return right.value ? EVAL_TRUE : EVAL_FALSE;
   }
 
   const left = evaluateNode(node.left, context, depth + 1);
@@ -1041,9 +1065,9 @@ function evaluateBinaryOp(
 
   switch (node.operator) {
     case "==":
-      return { kind: "boolean", value: left.value === right.value };
+      return left.value === right.value ? EVAL_TRUE : EVAL_FALSE;
     case "!=":
-      return { kind: "boolean", value: left.value !== right.value };
+      return left.value !== right.value ? EVAL_TRUE : EVAL_FALSE;
 
     case "<":
     case ">":
@@ -1072,13 +1096,13 @@ function evaluateComparison(
   }
   switch (op) {
     case "<":
-      return { kind: "boolean", value: left.value < right.value };
+      return left.value < right.value ? EVAL_TRUE : EVAL_FALSE;
     case ">":
-      return { kind: "boolean", value: left.value > right.value };
+      return left.value > right.value ? EVAL_TRUE : EVAL_FALSE;
     case "<=":
-      return { kind: "boolean", value: left.value <= right.value };
+      return left.value <= right.value ? EVAL_TRUE : EVAL_FALSE;
     case ">=":
-      return { kind: "boolean", value: left.value >= right.value };
+      return left.value >= right.value ? EVAL_TRUE : EVAL_FALSE;
   }
 }
 
@@ -1125,7 +1149,7 @@ function evaluateUnaryOp(
           `Unary '!' requires boolean operand, got ${operand.kind}`,
         );
       }
-      return { kind: "boolean", value: !operand.value };
+      return operand.value ? EVAL_FALSE : EVAL_TRUE;
 
     case "-":
       if (operand.kind !== "number") {

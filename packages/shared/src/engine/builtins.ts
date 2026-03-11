@@ -5,10 +5,13 @@
 
 import {
   registerBuiltin,
+  getRegisteredBuiltins,
   type BuiltinFunction,
   type EvalResult,
   type EvalContext,
   ExpressionError,
+  EVAL_TRUE,
+  EVAL_FALSE,
 } from "./expression-evaluator";
 import type { CardGameState, Card, CardValue, ZoneState } from "../types/index";
 import { isHumanPlayer } from "./role-utils";
@@ -310,10 +313,7 @@ const allPlayersDoneBuiltin: BuiltinFunction = (args, context) => {
   const humanPlayerCount = state.players.filter((p) =>
     isHumanPlayer(p, state.ruleset.roles),
   ).length;
-  return {
-    kind: "boolean",
-    value: state.turnsTakenThisPhase >= humanPlayerCount,
-  };
+  return state.turnsTakenThisPhase >= humanPlayerCount ? EVAL_TRUE : EVAL_FALSE;
 };
 
 /**
@@ -326,7 +326,7 @@ const allHandsDealtBuiltin: BuiltinFunction = (args, _context) => {
       `all_hands_dealt() takes no arguments, got ${args.length}`,
     );
   }
-  return { kind: "boolean", value: true };
+  return EVAL_TRUE;
 };
 
 /**
@@ -338,7 +338,7 @@ const scoresCalculatedBuiltin: BuiltinFunction = (args, _context) => {
       `scores_calculated() takes no arguments, got ${args.length}`,
     );
   }
-  return { kind: "boolean", value: true };
+  return EVAL_TRUE;
 };
 
 /**
@@ -350,7 +350,7 @@ const continueGameBuiltin: BuiltinFunction = (args, _context) => {
       `continue_game() takes no arguments, got ${args.length}`,
     );
   }
-  return { kind: "boolean", value: true };
+  return EVAL_TRUE;
 };
 
 /**
@@ -520,7 +520,7 @@ const hasCardMatchingSuitBuiltin: BuiltinFunction = (args, context) => {
   const suitName = requireString(args[1]!, "suit");
   const zone = getZone(context.state, zoneName);
   const found = zone.cards.some((card) => card.suit === suitName);
-  return { kind: "boolean", value: found };
+  return found ? EVAL_TRUE : EVAL_FALSE;
 };
 
 /**
@@ -533,7 +533,7 @@ const hasCardMatchingRankBuiltin: BuiltinFunction = (args, context) => {
   const rankName = requireString(args[1]!, "rank");
   const zone = getZone(context.state, zoneName);
   const found = zone.cards.some((card) => card.rank === rankName);
-  return { kind: "boolean", value: found };
+  return found ? EVAL_TRUE : EVAL_FALSE;
 };
 
 /**
@@ -562,10 +562,9 @@ const cardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
   const topCard = targetZone.cards[0]!;
   const activeSuit = context.state.stringVariables["active_suit"] ?? "";
   const matchSuit = activeSuit || topCard.suit;
-  return {
-    kind: "boolean",
-    value: card.suit === matchSuit || card.rank === topCard.rank,
-  };
+  return card.suit === matchSuit || card.rank === topCard.rank
+    ? EVAL_TRUE
+    : EVAL_FALSE;
 };
 
 /**
@@ -579,7 +578,7 @@ const hasPlayableCardBuiltin: BuiltinFunction = (args, context) => {
   const handZone = getZone(context.state, handZoneName);
   const targetZone = getZone(context.state, targetZoneName);
   if (targetZone.cards.length === 0) {
-    return { kind: "boolean", value: false };
+    return EVAL_FALSE;
   }
   const topCard = targetZone.cards[0]!;
   const activeSuit = context.state.stringVariables["active_suit"] ?? "";
@@ -587,7 +586,7 @@ const hasPlayableCardBuiltin: BuiltinFunction = (args, context) => {
   const found = handZone.cards.some(
     (card) => card.suit === matchSuit || card.rank === topCard.rank,
   );
-  return { kind: "boolean", value: found };
+  return found ? EVAL_TRUE : EVAL_FALSE;
 };
 
 // ─── Effect Builtins ───────────────────────────────────────────────
@@ -888,9 +887,9 @@ const hasFlushBuiltin: BuiltinFunction = (args, context) => {
   const zone = getZone(context.state, zoneName);
   const groups = groupBySuit(zone.cards);
   for (const size of groups.values()) {
-    if (size >= minSize) return { kind: "boolean", value: true };
+    if (size >= minSize) return EVAL_TRUE;
   }
-  return { kind: "boolean", value: false };
+  return EVAL_FALSE;
 };
 
 /**
@@ -915,7 +914,7 @@ const hasStraightBuiltin: BuiltinFunction = (args, context) => {
 
   const sorted = [...valueSet].sort((a, b) => a - b);
   const runs = findConsecutiveRuns(sorted);
-  return { kind: "boolean", value: runs.some((r) => r >= length) };
+  return runs.some((r) => r >= length) ? EVAL_TRUE : EVAL_FALSE;
 };
 
 /**
@@ -1139,7 +1138,7 @@ const hasCardWithBuiltin: BuiltinFunction = (args, context) => {
   const found = zone.cards.some(
     (card) => card.rank === rank && card.suit === suit,
   );
-  return { kind: "boolean", value: found };
+  return found ? EVAL_TRUE : EVAL_FALSE;
 };
 
 /**
@@ -1308,7 +1307,7 @@ const playedCardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
 
   // Sentinel: -1 means "no specific card" — generically available
   if (cardIndex === -1) {
-    return { kind: "boolean", value: true };
+    return EVAL_TRUE;
   }
 
   // Resolve the current player's hand zone
@@ -1333,10 +1332,9 @@ const playedCardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
   const topCard = targetZone.cards[0]!;
   const activeSuit = context.state.stringVariables["active_suit"] ?? "";
   const matchSuit = activeSuit || topCard.suit;
-  return {
-    kind: "boolean",
-    value: card.suit === matchSuit || card.rank === topCard.rank,
-  };
+  return card.suit === matchSuit || card.rank === topCard.rank
+    ? EVAL_TRUE
+    : EVAL_FALSE;
 };
 
 // ─── Cumulative Score Builtins ─────────────────────────────────────
@@ -1412,12 +1410,14 @@ const accumulateScoresBuiltin: BuiltinFunction = (args, context) => {
 
 /**
  * Registers all builtin functions with the expression evaluator.
- * Must be called before evaluating any expressions that reference builtins.
+ * Skips registration when the registry already contains entries,
+ * so repeated calls (e.g. from getValidActions) are essentially free.
  *
  * Note: `while` is handled as a special form in the expression evaluator
  * itself (not registered here) because it requires lazy argument evaluation.
  */
 export function registerAllBuiltins(): void {
+  if (getRegisteredBuiltins().length > 0) return;
   // Query builtins
   registerBuiltin("hand_value", handValueBuiltin);
   registerBuiltin("card_count", cardCountBuiltin);
