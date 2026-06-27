@@ -51,20 +51,25 @@ jobs:
 
           LATEST=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
           if [ -z "$LATEST" ]; then
+            RANGE="HEAD"
             BASE="v0.0.0"
-            LOG=$(git log --format='%s%n%b' HEAD)
             CHANGES=$(git log --format='- %s (%h)' HEAD | head -50)
           else
+            RANGE="${LATEST}..HEAD"
             BASE="$LATEST"
-            LOG=$(git log --format='%s%n%b' "${LATEST}..HEAD")
             CHANGES=$(git log --format='- %s (%h)' "${LATEST}..HEAD")
           fi
 
-          # Determine bump type from Conventional Commit messages.
+          # Determine bump type from Conventional Commit messages. Match commit
+          # *subjects* for the type/"!" prefix and commit *footers* for a
+          # "BREAKING CHANGE:" line, so descriptive prose can't trip a bump.
+          SUBJECTS=$(git log --format='%s' "$RANGE")
+          FOOTERS=$(git log --format='%b' "$RANGE")
           BUMP=patch
-          if printf '%s' "$LOG" | grep -qE '^[a-z]+(\([^)]*\))?!:' || printf '%s' "$LOG" | grep -q 'BREAKING CHANGE'; then
+          if printf '%s' "$SUBJECTS" | grep -qE '^[a-z]+(\([^)]*\))?!:' \
+            || printf '%s' "$FOOTERS" | grep -qE '^BREAKING[ -]CHANGE:'; then
             BUMP=major
-          elif printf '%s' "$LOG" | grep -qE '^feat(\([^)]*\))?:'; then
+          elif printf '%s' "$SUBJECTS" | grep -qE '^feat(\([^)]*\))?:'; then
             BUMP=minor
           fi
 
