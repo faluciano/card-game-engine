@@ -1,15 +1,17 @@
-name: Auto Release on couch-kit update
+name: Auto Release
 
-# This repo dogfoods couch-kit. When Renovate auto-merges a @couch-kit/* bump to
-# main, this workflow cuts the next patch release and builds/publishes the APK,
-# so every couch-kit release is validated end-to-end in a real consumer.
+# Every merge to main is released automatically. The version bump is derived
+# from Conventional Commit messages since the last tag:
+#   - feat!: / BREAKING CHANGE  -> major
+#   - feat:                     -> minor
+#   - anything else (fix, chore, docs, refactor, ...) -> patch
+# Then the APK is built and attached to the GitHub release.
+#
+# Add "[skip release]" to a commit subject to opt a merge out of releasing.
 
 on:
   push:
     branches: [main]
-    paths:
-      - "packages/*/package.json"
-      - "bun.lock"
 
 permissions:
   contents: write
@@ -25,48 +27,62 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect couch-kit dependency change
-        id: detect
-        run: |
-          BEFORE="${{ github.event.before }}"
-          # First push to the branch (or unknown parent) — fall back to HEAD^.
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-            BEFORE=$(git rev-parse HEAD^ 2>/dev/null || echo "")
-          fi
-          if [ -z "$BEFORE" ]; then
-            echo "No parent commit to diff against; skipping." >> "$GITHUB_STEP_SUMMARY"
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if git diff "$BEFORE" "${{ github.sha }}" -- 'packages/*/package.json' | grep -qE '^[+-][[:space:]]*"@couch-kit/'; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Detected a @couch-kit/* dependency change." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No @couch-kit/* dependency change in this push." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Create release
+      - name: Compute next version and release
         id: release
-        if: steps.detect.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LATEST=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-          if [ -z "$LATEST" ]; then
-            LATEST="v0.0.0"
+          set -euo pipefail
+
+          # Skip if explicitly opted out.
+          SUBJECT=$(git log -1 --format='%s')
+          if printf '%s' "$SUBJECT" | grep -qiE '\[skip release\]|\[no release\]'; then
+            echo "Commit opted out of release ('$SUBJECT'); skipping." >> "$GITHUB_STEP_SUMMARY"
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          VERSION="${LATEST#v}"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          NEXT="v${MAJOR}.${MINOR}.$((PATCH + 1))"
-          echo "Cutting release $NEXT (previous: $LATEST)." >> "$GITHUB_STEP_SUMMARY"
 
-          VERSIONS=$(grep -hoE '"@couch-kit/[^"]+": "[^"]+"' packages/*/package.json | sed -E 's/"([^"]+)": "([^"]+)"/- `\1` → `\2`/' | sort -u)
-          NOTES=$(printf 'Automated release triggered by a @couch-kit/* dependency update.\n\n## Updated couch-kit dependencies\n%s' "$VERSIONS")
+          # Skip if HEAD is already tagged (e.g. a re-run).
+          if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
+            echo "HEAD is already tagged; skipping." >> "$GITHUB_STEP_SUMMARY"
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
+          LATEST=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+          if [ -z "$LATEST" ]; then
+            BASE="v0.0.0"
+            LOG=$(git log --format='%s%n%b' HEAD)
+            CHANGES=$(git log --format='- %s (%h)' HEAD | head -50)
+          else
+            BASE="$LATEST"
+            LOG=$(git log --format='%s%n%b' "${LATEST}..HEAD")
+            CHANGES=$(git log --format='- %s (%h)' "${LATEST}..HEAD")
+          fi
+
+          # Determine bump type from Conventional Commit messages.
+          BUMP=patch
+          if printf '%s' "$LOG" | grep -qE '^[a-z]+(\([^)]*\))?!:' || printf '%s' "$LOG" | grep -q 'BREAKING CHANGE'; then
+            BUMP=major
+          elif printf '%s' "$LOG" | grep -qE '^feat(\([^)]*\))?:'; then
+            BUMP=minor
+          fi
+
+          VER="${BASE#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VER"
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+          NEXT="v${MAJOR}.${MINOR}.${PATCH}"
+
+          echo "Releasing $NEXT ($BUMP bump from $BASE)." >> "$GITHUB_STEP_SUMMARY"
+
+          NOTES=$(printf 'Automated release on merge to main (%s bump).\n\n## Changes\n%s' "$BUMP" "$CHANGES")
           gh release create "$NEXT" \
             --target "${{ github.sha }}" \
-            --title "$NEXT — couch-kit dependency update" \
+            --title "$NEXT" \
             --notes "$NOTES"
 
           echo "released=true" >> "$GITHUB_OUTPUT"
