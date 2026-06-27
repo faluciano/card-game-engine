@@ -12,6 +12,15 @@ name: Auto Release
 on:
   push:
     branches: [main]
+    # Only ship when packages or app code change. Pipeline/CI config, docs,
+    # and other non-shipping files don't warrant a new APK release. A commit
+    # that touches both an ignored file and code still releases.
+    paths-ignore:
+      - ".github/**"
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
 
 permissions:
   contents: write
