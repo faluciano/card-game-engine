@@ -1,0 +1,82 @@
+name: Auto Release on couch-kit update
+
+# This repo dogfoods couch-kit. When Renovate auto-merges a @couch-kit/* bump to
+# main, this workflow cuts the next patch release and builds/publishes the APK,
+# so every couch-kit release is validated end-to-end in a real consumer.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/*/package.json"
+      - "bun.lock"
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect couch-kit dependency change
+        id: detect
+        run: |
+          BEFORE="${{ github.event.before }}"
+          # First push to the branch (or unknown parent) — fall back to HEAD^.
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE=$(git rev-parse HEAD^ 2>/dev/null || echo "")
+          fi
+          if [ -z "$BEFORE" ]; then
+            echo "No parent commit to diff against; skipping." >> "$GITHUB_STEP_SUMMARY"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff "$BEFORE" "${{ github.sha }}" -- 'packages/*/package.json' | grep -qE '^[+-][[:space:]]*"@couch-kit/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Detected a @couch-kit/* dependency change." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No @couch-kit/* dependency change in this push." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Create release
+        id: release
+        if: steps.detect.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          if [ -z "$LATEST" ]; then
+            LATEST="v0.0.0"
+          fi
+          VERSION="${LATEST#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          NEXT="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "Cutting release $NEXT (previous: $LATEST)." >> "$GITHUB_STEP_SUMMARY"
+
+          VERSIONS=$(grep -hoE '"@couch-kit/[^"]+": "[^"]+"' packages/*/package.json | sed -E 's/"([^"]+)": "([^"]+)"/- `\1` → `\2`/' | sort -u)
+          NOTES=$(printf 'Automated release triggered by a @couch-kit/* dependency update.\n\n## Updated couch-kit dependencies\n%s' "$VERSIONS")
+
+          gh release create "$NEXT" \
+            --target "${{ github.sha }}" \
+            --title "$NEXT — couch-kit dependency update" \
+            --notes "$NOTES"
+
+          echo "released=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$NEXT" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.released == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-apk.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
