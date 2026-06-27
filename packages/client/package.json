@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@card-engine/shared": "workspace:*",
-    "@couch-kit/client": "^0.8.5",
+    "@couch-kit/client": "^0.8.7",
     "@couch-kit/core": "^0.9.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
