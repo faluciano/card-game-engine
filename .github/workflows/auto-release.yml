@@ -1,0 +1,98 @@
+name: Auto Release
+
+# Every merge to main is released automatically. The version bump is derived
+# from Conventional Commit messages since the last tag:
+#   - feat!: / BREAKING CHANGE  -> major
+#   - feat:                     -> minor
+#   - anything else (fix, chore, docs, refactor, ...) -> patch
+# Then the APK is built and attached to the GitHub release.
+#
+# Add "[skip release]" to a commit subject to opt a merge out of releasing.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version and release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Skip if explicitly opted out.
+          SUBJECT=$(git log -1 --format='%s')
+          if printf '%s' "$SUBJECT" | grep -qiE '\[skip release\]|\[no release\]'; then
+            echo "Commit opted out of release ('$SUBJECT'); skipping." >> "$GITHUB_STEP_SUMMARY"
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Skip if HEAD is already tagged (e.g. a re-run).
+          if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
+            echo "HEAD is already tagged; skipping." >> "$GITHUB_STEP_SUMMARY"
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LATEST=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+          if [ -z "$LATEST" ]; then
+            BASE="v0.0.0"
+            LOG=$(git log --format='%s%n%b' HEAD)
+            CHANGES=$(git log --format='- %s (%h)' HEAD | head -50)
+          else
+            BASE="$LATEST"
+            LOG=$(git log --format='%s%n%b' "${LATEST}..HEAD")
+            CHANGES=$(git log --format='- %s (%h)' "${LATEST}..HEAD")
+          fi
+
+          # Determine bump type from Conventional Commit messages.
+          BUMP=patch
+          if printf '%s' "$LOG" | grep -qE '^[a-z]+(\([^)]*\))?!:' || printf '%s' "$LOG" | grep -q 'BREAKING CHANGE'; then
+            BUMP=major
+          elif printf '%s' "$LOG" | grep -qE '^feat(\([^)]*\))?:'; then
+            BUMP=minor
+          fi
+
+          VER="${BASE#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VER"
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+          NEXT="v${MAJOR}.${MINOR}.${PATCH}"
+
+          echo "Releasing $NEXT ($BUMP bump from $BASE)." >> "$GITHUB_STEP_SUMMARY"
+
+          NOTES=$(printf 'Automated release on merge to main (%s bump).\n\n## Changes\n%s' "$BUMP" "$CHANGES")
+          gh release create "$NEXT" \
+            --target "${{ github.sha }}" \
+            --title "$NEXT" \
+            --notes "$NOTES"
+
+          echo "released=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$NEXT" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.released == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-apk.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}

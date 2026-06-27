@@ -4,6 +4,12 @@ on:
   workflow_dispatch: {}
   release:
     types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to build and upload the APK to (e.g. v1.8.5)."
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -13,6 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -32,9 +47,9 @@ jobs:
       - run: bun install --frozen-lockfile
 
       - name: Derive version from release tag
-        if: github.event_name == 'release'
+        if: steps.tag.outputs.tag != ''
         run: |
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="${{ steps.tag.outputs.tag }}"
           VERSION="${TAG#v}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
           VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
@@ -106,14 +121,15 @@ jobs:
           path: packages/host/android/app/build/outputs/apk/release/*.apk
 
       - name: Upload APK to release
-        if: github.event_name == 'release'
+        if: steps.tag.outputs.tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          TAG="${{ steps.tag.outputs.tag }}"
           APK=$(find packages/host/android/app/build/outputs/apk/release -name "*.apk" | head -1)
-          gh release upload "${{ github.event.release.tag_name }}" "$APK" --clobber
+          gh release upload "$TAG" "$APK" --clobber
           FILE_SIZE=$(stat -c%s "$APK" 2>/dev/null || stat -f%z "$APK")
           FILE_SIZE_MB=$(echo "scale=2; $FILE_SIZE / 1048576" | bc)
-          CURRENT_BODY=$(gh release view "${{ github.event.release.tag_name }}" --json body -q .body)
+          CURRENT_BODY=$(gh release view "$TAG" --json body -q .body)
           printf -v NOTES '%s\n\n---\n**APK size:** %s MB' "$CURRENT_BODY" "$FILE_SIZE_MB"
-          gh release edit "${{ github.event.release.tag_name }}" --notes "$NOTES"
+          gh release edit "$TAG" --notes "$NOTES"
