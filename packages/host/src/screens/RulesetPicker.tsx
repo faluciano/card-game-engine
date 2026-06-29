@@ -141,8 +141,8 @@ const RulesetCard = React.memo(function RulesetCard({
       onPress={() => onSelect(item.ruleset)}
       hasTVPreferredFocus={isFirst}
     >
-      <Text style={styles.cardName}>{meta.name}</Text>
-      <Text style={styles.cardMeta}>by {meta.author}</Text>
+      <Text style={styles.cardName} numberOfLines={1} ellipsizeMode="tail">{meta.name}</Text>
+      <Text style={styles.cardMeta} numberOfLines={1} ellipsizeMode="tail">by {meta.author}</Text>
       <Text style={styles.cardMeta}>{playerRange}</Text>
       <Text style={styles.cardVersion}>v{meta.version}</Text>
       {item.source === "built_in" && (

@@ -34,6 +34,7 @@ const toastStyle: CSSProperties = {
   fontWeight: 600,
   textAlign: "center",
   maxWidth: 320,
+  overflowWrap: "anywhere",
   animation: "slideUp 0.2s ease-out",
   boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
 };

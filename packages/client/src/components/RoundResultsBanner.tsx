@@ -50,6 +50,8 @@ const cardStyle: CSSProperties = {
   backgroundColor: "var(--color-surface, #1e1e1e)",
   minWidth: 260,
   maxWidth: 340,
+  width: "calc(100vw - 32px)",
+  boxSizing: "border-box",
 };
 
 const emojiStyle: CSSProperties = {

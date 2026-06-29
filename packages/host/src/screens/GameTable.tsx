@@ -593,7 +593,7 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
                 key={player.id}
                 style={resultsStyles.playerRow}
               >
-                <Text style={resultsStyles.playerName}>
+                <Text style={resultsStyles.playerName} numberOfLines={1} ellipsizeMode="tail">
                   {player.name}
                 </Text>
                 <Text style={resultsStyles.handValue}>
