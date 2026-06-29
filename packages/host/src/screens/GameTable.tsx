@@ -508,11 +508,6 @@ const FlippableCardView = React.memo(function FlippableCardView({
   });
 
   // Show back for first half, face for second half
-  const showFace = flipAnim.interpolate({
-    inputRange: [0, 0.49, 0.5, 1],
-    outputRange: [0, 0, 1, 1],
-  });
-
   // We can't conditionally render based on animated value,
   // so we use a simpler approach: just animate the rotation
   // and let CardView render the current state

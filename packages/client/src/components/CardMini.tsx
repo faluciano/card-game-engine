@@ -32,7 +32,7 @@ const RED_SUITS: ReadonlySet<string> = new Set(["hearts", "diamonds"]);
 const baseCardStyle: CSSProperties = {
   width: 56,
   height: 80,
-  borderRadius: 6,
+  borderRadius: "var(--radius-xs)",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",

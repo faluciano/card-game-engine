@@ -117,7 +117,7 @@ const chipBaseStyle: CSSProperties = {
   flexShrink: 0,
   padding: "6px 14px",
   border: "none",
-  borderRadius: 999,
+  borderRadius: "var(--radius-pill)",
   fontSize: 13,
   fontWeight: 500,
   cursor: "pointer",
@@ -200,7 +200,7 @@ const errorTextStyle: CSSProperties = {
 const retryButtonStyle: CSSProperties = {
   padding: "10px 24px",
   border: "none",
-  borderRadius: 999,
+  borderRadius: "var(--radius-pill)",
   backgroundColor: "var(--color-accent)",
   color: "#fff",
   fontSize: 15,
@@ -216,7 +216,7 @@ const spinnerStyle: CSSProperties = {
 const errorBannerStyle: CSSProperties = {
   margin: "0 16px 12px",
   padding: "10px 14px",
-  borderRadius: 8,
+  borderRadius: "var(--radius-sm)",
   backgroundColor: "rgba(220, 53, 69, 0.15)",
   color: "var(--color-danger)",
   fontSize: 13,
@@ -236,7 +236,7 @@ const emptyStateStyle: CSSProperties = {
 const clearFiltersButtonStyle: CSSProperties = {
   padding: "8px 20px",
   border: "none",
-  borderRadius: 999,
+  borderRadius: "var(--radius-pill)",
   backgroundColor: "var(--color-surface-raised)",
   color: "var(--color-text)",
   fontSize: 14,
@@ -256,7 +256,7 @@ const filteredLabelStyle: CSSProperties = {
 const staleBannerStyle: CSSProperties = {
   margin: "0 16px 8px",
   padding: "6px 14px",
-  borderRadius: 8,
+  borderRadius: "var(--radius-sm)",
   backgroundColor: "var(--color-surface-raised)",
   color: "var(--color-text-muted)",
   fontSize: 12,

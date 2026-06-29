@@ -80,7 +80,7 @@ const countBadgeStyle: CSSProperties = {
   right: -6,
   minWidth: 20,
   height: 20,
-  borderRadius: 10,
+  borderRadius: "var(--radius-md)",
   backgroundColor: "var(--color-accent)",
   color: "#fff",
   fontSize: 11,
@@ -117,7 +117,7 @@ const modalOverlayStyle: CSSProperties = {
 
 const modalContentStyle: CSSProperties = {
   backgroundColor: "var(--color-surface)",
-  borderRadius: 12,
+  borderRadius: "var(--radius-lg)",
   padding: 16,
   maxWidth: "90vw",
   maxHeight: "70vh",
@@ -144,7 +144,7 @@ const modalTitleStyle: CSSProperties = {
 const modalCloseStyle: CSSProperties = {
   background: "none",
   border: "1px solid var(--color-text-muted)",
-  borderRadius: 6,
+  borderRadius: "var(--radius-xs)",
   color: "var(--color-text)",
   fontSize: 12,
   fontWeight: 700,

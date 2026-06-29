@@ -23,7 +23,7 @@ const badgeStyle: CSSProperties = {
   alignItems: "center",
   gap: 4,
   padding: "4px 10px",
-  borderRadius: 20,
+  borderRadius: "var(--radius-pill)",
   backgroundColor: "var(--color-surface-raised)",
   fontSize: 12,
   fontWeight: 700,

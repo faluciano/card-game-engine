@@ -31,7 +31,6 @@ export function useRulesetUninstaller(
         const existing = await store.getBySlug(pendingUninstall!);
         if (existing) {
           await store.delete(existing.id);
-          console.log("[RulesetUninstaller] Removed:", pendingUninstall);
         } else {
           console.warn("[RulesetUninstaller] Not found:", pendingUninstall);
         }

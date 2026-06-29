@@ -41,7 +41,7 @@ const buttonBaseStyle: CSSProperties = {
   minHeight: 56,
   minWidth: 100,
   padding: "12px 20px",
-  borderRadius: 12,
+  borderRadius: "var(--radius-lg)",
   border: "none",
   fontSize: 16,
   fontWeight: 700,
