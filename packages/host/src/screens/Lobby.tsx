@@ -129,6 +129,8 @@ const PlayerRow = React.memo(function PlayerRow({
           styles.playerName,
           !player.connected && styles.playerNameDisconnected,
         ]}
+        numberOfLines={1}
+        ellipsizeMode="tail"
       >
         {player.name}
       </Text>
