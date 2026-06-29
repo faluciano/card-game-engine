@@ -13,6 +13,7 @@ import type {
 import { safeParseRuleset } from "@card-engine/shared";
 import { useCatalog } from "../hooks/useCatalog.js";
 import { GameCard } from "../components/GameCard.js";
+import { CenteredState } from "../components/CenteredState.js";
 
 const CATALOG_BASE_URL =
   "https://faluciano.github.io/card-game-engine/";
@@ -176,41 +177,9 @@ const listStyle: CSSProperties = {
   gap: 12,
 };
 
-const centeredStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  height: "100%",
-  padding: 24,
-  textAlign: "center",
-  gap: 16,
-};
-
 const mutedTextStyle: CSSProperties = {
   fontSize: 15,
   color: "var(--color-text-muted)",
-};
-
-const errorTextStyle: CSSProperties = {
-  fontSize: 15,
-  color: "var(--color-danger)",
-};
-
-const retryButtonStyle: CSSProperties = {
-  padding: "10px 24px",
-  border: "none",
-  borderRadius: "var(--radius-pill)",
-  backgroundColor: "var(--color-accent)",
-  color: "#fff",
-  fontSize: 15,
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const spinnerStyle: CSSProperties = {
-  fontSize: 32,
-  animation: "spin 1s linear infinite",
 };
 
 const errorBannerStyle: CSSProperties = {
@@ -374,27 +343,17 @@ export function CatalogScreen({
 
   // ── Loading state ──
   if (catalog.tag === "loading") {
-    return (
-      <div style={centeredStyle}>
-        <span style={spinnerStyle}>{"\u2660"}</span>
-        <p style={mutedTextStyle}>Loading games...</p>
-      </div>
-    );
+    return <CenteredState message="Loading games..." spinner />;
   }
 
   // ── Error state ──
   if (catalog.tag === "error") {
     return (
-      <div style={centeredStyle}>
-        <p style={errorTextStyle}>{catalog.message}</p>
-        <button
-          type="button"
-          style={retryButtonStyle}
-          onClick={refetch}
-        >
-          Retry
-        </button>
-      </div>
+      <CenteredState
+        message={catalog.message}
+        tone="danger"
+        action={{ label: "Retry", onClick: refetch }}
+      />
     );
   }
 
