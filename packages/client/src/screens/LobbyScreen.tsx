@@ -131,7 +131,7 @@ const spinnerStyle: CSSProperties = {
 const errorBannerStyle: CSSProperties = {
   margin: "0 16px 12px",
   padding: "10px 14px",
-  borderRadius: 8,
+  borderRadius: "var(--radius-sm)",
   backgroundColor: "rgba(220, 53, 69, 0.15)",
   color: "var(--color-danger)",
   fontSize: 13,
@@ -141,7 +141,7 @@ const errorBannerStyle: CSSProperties = {
 const retryButtonStyle: CSSProperties = {
   padding: "8px 20px",
   border: "none",
-  borderRadius: 999,
+  borderRadius: "var(--radius-pill)",
   backgroundColor: "var(--color-accent)",
   color: "#fff",
   fontSize: 14,
@@ -152,7 +152,7 @@ const retryButtonStyle: CSSProperties = {
 const changeNameButtonStyle: CSSProperties = {
   padding: "4px 12px",
   border: "1px solid var(--color-surface-raised)",
-  borderRadius: 999,
+  borderRadius: "var(--radius-pill)",
   backgroundColor: "transparent",
   color: "var(--color-text-muted)",
   fontSize: 12,

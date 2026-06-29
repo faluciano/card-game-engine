@@ -17,7 +17,7 @@ const containerStyle: CSSProperties = {
   alignItems: "center",
   gap: 6,
   padding: "4px 10px",
-  borderRadius: 20,
+  borderRadius: "var(--radius-pill)",
   backgroundColor: "rgba(0,0,0,0.6)",
   backdropFilter: "blur(4px)",
   fontSize: 11,

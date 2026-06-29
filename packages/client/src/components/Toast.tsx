@@ -29,7 +29,7 @@ const toastStyle: CSSProperties = {
   backgroundColor: "var(--color-danger)",
   color: "#fff",
   padding: "10px 20px",
-  borderRadius: 8,
+  borderRadius: "var(--radius-sm)",
   fontSize: 14,
   fontWeight: 600,
   textAlign: "center",

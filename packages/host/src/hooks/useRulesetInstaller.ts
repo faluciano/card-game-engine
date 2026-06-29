@@ -47,13 +47,11 @@ export function useRulesetInstaller(
 
         if (existing) {
           await store.delete(existing.id);
-          console.log("[RulesetInstaller] Replacing existing:", slug);
         }
         if (aborted) return;
 
         await store.saveWithSlug(ruleset, slug);
         if (aborted) return;
-        console.log("[RulesetInstaller] Installed:", slug);
 
         // Refresh the full slug + version list
         const rulesets = await store.list();

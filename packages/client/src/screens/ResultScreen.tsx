@@ -51,7 +51,7 @@ const scoreRowStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   padding: "8px 12px",
-  borderRadius: 8,
+  borderRadius: "var(--radius-sm)",
   backgroundColor: "var(--color-surface)",
 };
 

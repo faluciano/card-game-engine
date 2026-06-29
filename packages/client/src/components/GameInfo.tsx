@@ -18,7 +18,7 @@ const containerStyle: CSSProperties = {
   alignItems: "center",
   gap: 12,
   padding: "10px 12px",
-  borderRadius: 10,
+  borderRadius: "var(--radius-md)",
   backgroundColor: "var(--color-surface)",
   fontSize: 13,
 };
@@ -45,7 +45,7 @@ const valueStyle: CSSProperties = {
 
 const turnIndicatorStyle: CSSProperties = {
   padding: "4px 10px",
-  borderRadius: 6,
+  borderRadius: "var(--radius-xs)",
   backgroundColor: "var(--color-accent)",
   color: "#fff",
   fontSize: 12,
