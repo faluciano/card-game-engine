@@ -21,6 +21,7 @@ import type {
 } from "@card-engine/shared";
 import type { HostAction, HostGameState } from "../types/host-state";
 import { useGameOrchestrator } from "../hooks/useGameOrchestrator";
+import { colors } from "../theme";
 
 // ─── Constants ─────────────────────────────────────────────────────
 
@@ -40,9 +41,9 @@ const MAX_VISIBLE_CARDS = 12;
 const STACK_COLLAPSE_THRESHOLD = 6;
 
 const TABLE_COLORS: Readonly<Record<string, string>> = {
-  felt_green: "#0d3320",
-  wood: "#5c3d2e",
-  dark: "#1a1a2e",
+  felt_green: colors.feltDark,
+  wood: colors.wood,
+  dark: colors.dark,
 };
 
 // ─── Component ─────────────────────────────────────────────────────
@@ -340,7 +341,7 @@ const ActiveSuitIndicator = React.memo(function ActiveSuitIndicator({
 }): React.JSX.Element {
   const symbol = SUIT_SYMBOLS[suit] ?? suit;
   const isRed = RED_SUITS.has(suit);
-  const suitColor = isRed ? "#ef5350" : "#e0e0e0";
+  const suitColor = isRed ? colors.suitRedBright : colors.text;
 
   return (
     <View style={styles.activeSuitContainer}>
@@ -585,7 +586,7 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
             const resultLabel =
               result > 0 ? "WIN" : result < 0 ? "LOSS" : "DRAW";
             const resultColor =
-              result > 0 ? "#4caf50" : result < 0 ? "#f44336" : "#ffc107";
+              result > 0 ? colors.success : result < 0 ? colors.redAlt : colors.amber;
 
             return (
               <View
@@ -825,10 +826,10 @@ function resolveTableColor(ui: UIConfig | undefined): string {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0d3320",
+    backgroundColor: colors.feltDark,
   },
   errorText: {
-    color: "#ff5252",
+    color: colors.danger,
     fontSize: 28,
     textAlign: "center",
     marginTop: 48,
@@ -838,27 +839,27 @@ const styles = StyleSheet.create({
   statusBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0a2818",
+    backgroundColor: colors.feltDark,
     paddingHorizontal: 32,
     paddingVertical: 16,
     gap: 32,
   },
   phaseLabel: {
-    color: "#66bb6a",
+    color: colors.greenBright,
     fontSize: 22,
     fontWeight: "700",
   },
   statusLabel: {
-    color: "#a5d6a7",
+    color: colors.greenSoft,
     fontSize: 22,
   },
   turnIndicator: {
-    color: "#ffd54f",
+    color: colors.warning,
     fontSize: 22,
     fontWeight: "600",
   },
   turnNumber: {
-    color: "#81c784",
+    color: colors.greenLight,
     fontSize: 20,
     marginLeft: "auto",
   },
@@ -877,7 +878,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   sectionTitle: {
-    color: "#a5d6a7",
+    color: colors.greenSoft,
     fontSize: 20,
     fontWeight: "700",
     letterSpacing: 2,
@@ -891,13 +892,13 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   zone: {
-    backgroundColor: "#1a4d2e",
+    backgroundColor: colors.felt,
     borderRadius: 12,
     padding: 16,
     minWidth: 160,
   },
   zoneName: {
-    color: "#c8e6c9",
+    color: colors.greenPale,
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 10,
@@ -912,13 +913,13 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: "#2e7d46",
+    borderColor: colors.feltLight,
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
   },
   emptyZoneText: {
-    color: "#4caf50",
+    color: colors.success,
     fontSize: 12,
   },
 
@@ -931,31 +932,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cardFace: {
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: "#cccccc",
+    borderColor: colors.cardFaceBorder,
   },
   cardBack: {
-    backgroundColor: "#1565c0",
+    backgroundColor: colors.cardBack,
     borderWidth: 1,
-    borderColor: "#0d47a1",
+    borderColor: colors.cardBackBorder,
   },
   cardBackText: {
     fontSize: 28,
   },
   cardRank: {
-    color: "#1a1a1a",
+    color: colors.cardInk,
     fontSize: 18,
     fontWeight: "700",
     lineHeight: 22,
   },
   cardSuit: {
-    color: "#1a1a1a",
+    color: colors.cardInk,
     fontSize: 20,
     lineHeight: 24,
   },
   cardRed: {
-    color: "#d32f2f",
+    color: colors.suitRed,
   },
 
   // Stacked deck (collapsed face-down pile)
@@ -985,7 +986,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -6,
     right: -6,
-    backgroundColor: "#ffd54f",
+    backgroundColor: colors.warning,
     borderRadius: 12,
     minWidth: 24,
     height: 24,
@@ -994,7 +995,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   stackBadgeText: {
-    color: "#1a1a1a",
+    color: colors.cardInk,
     fontSize: 13,
     fontWeight: "800",
   },
@@ -1006,7 +1007,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   moreIndicatorText: {
-    color: "#81c784",
+    color: colors.greenLight,
     fontSize: 14,
     fontWeight: "700",
   },
@@ -1018,24 +1019,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   topCardMoreText: {
-    color: "#81c784",
+    color: colors.greenLight,
     fontSize: 14,
     fontWeight: "700",
   },
 
   // Active suit indicator
   activeSuitContainer: {
-    backgroundColor: "#1a4d2e",
+    backgroundColor: colors.felt,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: "#ffd54f",
+    borderColor: colors.warning,
     padding: 16,
     alignItems: "center",
     justifyContent: "center",
     minWidth: 100,
   },
   activeSuitLabel: {
-    color: "#a5d6a7",
+    color: colors.greenSoft,
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 1,
@@ -1064,24 +1065,24 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#555555",
+    backgroundColor: colors.disabled,
     marginRight: 10,
   },
   playerDotActive: {
-    backgroundColor: "#ffd54f",
+    backgroundColor: colors.warning,
   },
   playerLabel: {
-    color: "#e0e0e0",
+    color: colors.text,
     fontSize: 22,
     fontWeight: "600",
   },
   playerLabelActive: {
-    color: "#ffd54f",
+    color: colors.warning,
   },
 
   // Score board
   scoreBoard: {
-    backgroundColor: "#1a4d2e",
+    backgroundColor: colors.felt,
     borderRadius: 12,
     padding: 16,
   },
@@ -1090,14 +1091,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#2e7d46",
+    borderBottomColor: colors.feltLight,
   },
   scoreName: {
-    color: "#e0e0e0",
+    color: colors.text,
     fontSize: 22,
   },
   scoreValue: {
-    color: "#ffd54f",
+    color: colors.warning,
     fontSize: 22,
     fontWeight: "700",
   },
@@ -1110,21 +1111,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   overlayCard: {
-    backgroundColor: "#1e1e1e",
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 48,
     alignItems: "center",
     minWidth: 400,
   },
   overlayTitle: {
-    color: "#ffffff",
+    color: colors.white,
     fontSize: 48,
     fontWeight: "800",
     letterSpacing: 3,
     marginBottom: 16,
   },
   overlayWinner: {
-    color: "#ffd54f",
+    color: colors.warning,
     fontSize: 32,
     fontWeight: "600",
     marginBottom: 36,
@@ -1141,21 +1142,21 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   overlayButtonPrimary: {
-    backgroundColor: "#7c4dff",
+    backgroundColor: colors.accent,
   },
   overlayButtonSecondary: {
-    backgroundColor: "#333333",
+    backgroundColor: colors.border,
   },
   overlayButtonFocused: {
-    borderColor: "#ffffff",
+    borderColor: colors.white,
   },
   overlayButtonText: {
-    color: "#ffffff",
+    color: colors.white,
     fontSize: 24,
     fontWeight: "700",
   },
   overlayButtonTextSecondary: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
     fontSize: 24,
     fontWeight: "700",
   },
@@ -1169,12 +1170,12 @@ const resultsStyles = StyleSheet.create({
     marginBottom: 12,
   },
   playerName: {
-    color: "#e0e0e0",
+    color: colors.text,
     fontSize: 28,
     flex: 1,
   },
   handValue: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
     fontSize: 24,
   },
   resultBadge: {
@@ -1183,13 +1184,13 @@ const resultsStyles = StyleSheet.create({
     paddingVertical: 6,
   },
   resultBadgeText: {
-    color: "#fff",
+    color: colors.white,
     fontSize: 20,
     fontWeight: "700",
   },
   divider: {
     borderTopWidth: 1,
-    borderTopColor: "#333",
+    borderTopColor: colors.border,
     marginTop: 8,
     paddingTop: 12,
   },
@@ -1200,16 +1201,16 @@ const resultsStyles = StyleSheet.create({
     marginBottom: 4,
   },
   npcLabel: {
-    color: "#a0a0a0",
+    color: colors.neutral,
     fontSize: 24,
     flex: 1,
   },
   npcScore: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
     fontSize: 24,
   },
   waitingText: {
-    color: "#888",
+    color: colors.textDim,
     fontSize: 18,
     marginTop: 24,
     textAlign: "center",
