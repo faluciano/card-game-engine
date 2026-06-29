@@ -13,6 +13,7 @@ import type {
 import { safeParseRuleset } from "@card-engine/shared";
 import { useCatalog } from "../hooks/useCatalog.js";
 import { GameCard } from "../components/GameCard.js";
+import { CenteredState } from "../components/CenteredState.js";
 
 const CATALOG_BASE_URL =
   "https://faluciano.github.io/card-game-engine/";
@@ -136,17 +137,6 @@ const errorBannerStyle: CSSProperties = {
   color: "var(--color-danger)",
   fontSize: 13,
   textAlign: "center",
-};
-
-const retryButtonStyle: CSSProperties = {
-  padding: "8px 20px",
-  border: "none",
-  borderRadius: "var(--radius-pill)",
-  backgroundColor: "var(--color-accent)",
-  color: "#fff",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
 };
 
 const changeNameButtonStyle: CSSProperties = {
@@ -295,33 +285,21 @@ export function LobbyScreen({
         <h2 style={catalogHeaderStyle}>Browse Games</h2>
 
         {catalog.tag === "loading" && (
-          <div style={centeredStyle}>
-            <span style={spinnerStyle}>{"\u2660"}</span>
-            <p style={mutedTextStyle}>Loading games...</p>
-          </div>
+          <CenteredState message="Loading games..." spinner />
         )}
 
         {catalog.tag === "error" && (
-          <div style={centeredStyle}>
-            <p style={{ ...mutedTextStyle, color: "var(--color-danger)" }}>
-              {catalog.message}
-            </p>
-            <button
-              type="button"
-              style={retryButtonStyle}
-              onClick={refetch}
-            >
-              Retry
-            </button>
-          </div>
+          <CenteredState
+            message={catalog.message}
+            tone="danger"
+            action={{ label: "Retry", onClick: refetch }}
+          />
         )}
 
         {catalog.tag === "loaded" && (
           <div style={listStyle}>
             {catalog.games.length === 0 ? (
-              <div style={centeredStyle}>
-                <p style={mutedTextStyle}>No games available</p>
-              </div>
+              <CenteredState message="No games available" />
             ) : (
               catalog.games.map((game) => {
                 const installed = state.installedSlugs.find(
