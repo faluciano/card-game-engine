@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import type { ImportResult } from "../hooks/useRulesetStore";
+import { colors } from "../theme";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -164,7 +165,7 @@ export function ImportModal({
             value={url}
             onChangeText={setUrl}
             placeholder="https://example.com/game.cardgame.json"
-            placeholderTextColor="#666666"
+            placeholderTextColor={colors.textFaint}
             editable={!isLoading && !isDuplicate}
             autoCapitalize="none"
             autoCorrect={false}
@@ -197,7 +198,7 @@ export function ImportModal({
                 value={customSlug}
                 onChangeText={setCustomSlug}
                 placeholder={state.suggestedSlug}
-                placeholderTextColor="#666666"
+                placeholderTextColor={colors.textFaint}
                 autoCapitalize="none"
                 autoCorrect={false}
                 onFocus={() => setSlugInputFocused(true)}
@@ -303,22 +304,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   panel: {
-    backgroundColor: "#1e1e1e",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 32,
     width: "60%",
     maxWidth: 640,
   },
   title: {
-    color: "#ffffff",
+    color: colors.textBright,
     fontSize: 36,
     fontWeight: "700",
     marginBottom: 24,
     textAlign: "center",
   },
   input: {
-    backgroundColor: "#2a2a2a",
-    color: "#ffffff",
+    backgroundColor: colors.surfaceRaised,
+    color: colors.textBright,
     fontSize: 22,
     borderRadius: 12,
     padding: 16,
@@ -327,28 +328,28 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inputFocused: {
-    borderColor: "#7c4dff",
+    borderColor: colors.accent,
   },
   loadingText: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
     fontSize: 20,
     marginBottom: 16,
     textAlign: "center",
   },
   successText: {
-    color: "#4caf50",
+    color: colors.success,
     fontSize: 20,
     marginBottom: 16,
     textAlign: "center",
   },
   errorText: {
-    color: "#ff5252",
+    color: colors.danger,
     fontSize: 20,
     marginBottom: 16,
     textAlign: "center",
   },
   hintText: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
     fontSize: 18,
     marginBottom: 12,
     textAlign: "center",
@@ -367,29 +368,29 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   buttonPrimary: {
-    backgroundColor: "#7c4dff",
+    backgroundColor: colors.accent,
   },
   buttonSecondary: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: colors.surfaceRaised,
   },
   buttonDisabled: {
-    backgroundColor: "#333333",
+    backgroundColor: colors.border,
     opacity: 0.5,
   },
   buttonFocused: {
-    borderColor: "#ffffff",
+    borderColor: colors.textBright,
   },
   buttonLabel: {
     fontSize: 24,
     fontWeight: "700",
   },
   buttonLabelPrimary: {
-    color: "#ffffff",
+    color: colors.textBright,
   },
   buttonLabelSecondary: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
   },
   buttonLabelDisabled: {
-    color: "#666666",
+    color: colors.textFaint,
   },
 });

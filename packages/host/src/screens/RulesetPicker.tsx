@@ -18,6 +18,7 @@ import { useRulesetStore } from "../hooks/useRulesetStore";
 import { ImportModal } from "../components/ImportModal";
 import { QRDisplay } from "../components/QRDisplay";
 import { BUILT_IN_RULESETS, BUILT_IN_SLUGS } from "../built-in-rulesets";
+import { colors } from "../theme";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -191,7 +192,7 @@ function ImportPlaceholder({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: colors.bg,
     paddingHorizontal: 48,
     paddingTop: 48,
   },
@@ -202,7 +203,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   title: {
-    color: "#ffffff",
+    color: colors.textBright,
     fontSize: 48,
     fontWeight: "800",
     letterSpacing: 2,
@@ -213,7 +214,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   qrHint: {
-    color: "#888888",
+    color: colors.textDim,
     fontSize: 18,
     lineHeight: 26,
   },
@@ -229,34 +230,34 @@ const styles = StyleSheet.create({
   card: {
     flexBasis: "48%",
     flexGrow: 1,
-    backgroundColor: "#1e1e1e",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 28,
     borderWidth: 3,
     borderColor: "transparent",
   },
   cardFocused: {
-    borderColor: "#7c4dff",
-    backgroundColor: "#2a2a2a",
+    borderColor: colors.accent,
+    backgroundColor: colors.surfaceRaised,
   },
   cardName: {
-    color: "#ffffff",
+    color: colors.textBright,
     fontSize: 32,
     fontWeight: "700",
     marginBottom: 8,
   },
   cardMeta: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
     fontSize: 22,
     lineHeight: 30,
   },
   cardVersion: {
-    color: "#666666",
+    color: colors.textFaint,
     fontSize: 18,
     marginTop: 12,
   },
   badge: {
-    color: "#7c4dff",
+    color: colors.accent,
     fontSize: 14,
     fontWeight: "700",
     marginTop: 12,
@@ -272,16 +273,16 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   deleteButtonFocused: {
-    borderColor: "#ff5252",
+    borderColor: colors.danger,
   },
   deleteLabel: {
-    color: "#ff5252",
+    color: colors.danger,
     fontSize: 14,
     fontWeight: "700",
     letterSpacing: 1,
   },
   loadingText: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
     fontSize: 28,
     textAlign: "center",
     marginTop: 64,
@@ -290,7 +291,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1e1e1e",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 24,
     marginTop: 8,
@@ -299,17 +300,17 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
   },
   importButtonFocused: {
-    borderColor: "#7c4dff",
-    backgroundColor: "#2a2a2a",
+    borderColor: colors.accent,
+    backgroundColor: colors.surfaceRaised,
   },
   importIcon: {
-    color: "#7c4dff",
+    color: colors.accent,
     fontSize: 36,
     fontWeight: "300",
     marginRight: 16,
   },
   importLabel: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
     fontSize: 24,
     fontWeight: "500",
   },

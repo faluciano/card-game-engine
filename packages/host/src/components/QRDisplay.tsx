@@ -5,6 +5,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
+import { colors } from "../theme";
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -41,14 +42,14 @@ export const QRDisplay = React.memo(function QRDisplay({
 
 const styles = StyleSheet.create({
   qrBox: {
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.white,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     padding: 16,
   },
   qrText: {
-    color: "#333333",
+    color: colors.border,
     fontSize: 16,
     textAlign: "center",
   },

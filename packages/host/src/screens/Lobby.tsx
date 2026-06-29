@@ -14,6 +14,7 @@ import {
 import { useGameHost } from "@couch-kit/host";
 import type { IPlayer } from "@couch-kit/core";
 import type { HostAction, HostGameState } from "../types/host-state";
+import { colors } from "../theme";
 
 import { QRDisplay } from "../components/QRDisplay";
 
@@ -187,12 +188,12 @@ function LobbyButton({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: colors.bg,
     flexDirection: "row",
     padding: 48,
   },
   errorText: {
-    color: "#ff5252",
+    color: colors.danger,
     fontSize: 28,
     textAlign: "center",
   },
@@ -205,14 +206,14 @@ const styles = StyleSheet.create({
     paddingRight: 32,
   },
   gameName: {
-    color: "#ffffff",
+    color: colors.textBright,
     fontSize: 36,
     fontWeight: "700",
     marginTop: 28,
     textAlign: "center",
   },
   connectionHint: {
-    color: "#888888",
+    color: colors.textDim,
     fontSize: 22,
     marginTop: 12,
     textAlign: "center",
@@ -224,7 +225,7 @@ const styles = StyleSheet.create({
     paddingLeft: 32,
   },
   playerCountLabel: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
     fontSize: 26,
     fontWeight: "600",
     marginBottom: 20,
@@ -236,7 +237,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyHint: {
-    color: "#666666",
+    color: colors.textFaint,
     fontSize: 24,
     fontStyle: "italic",
     marginTop: 24,
@@ -246,7 +247,7 @@ const styles = StyleSheet.create({
   playerRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e1e1e",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
   },
@@ -254,30 +255,30 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#7c4dff",
+    backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 16,
   },
   avatarDisconnected: {
-    backgroundColor: "#555555",
+    backgroundColor: colors.disabled,
   },
   avatarText: {
-    color: "#ffffff",
+    color: colors.textBright,
     fontSize: 22,
     fontWeight: "700",
   },
   playerName: {
-    color: "#e0e0e0",
+    color: colors.text,
     fontSize: 24,
     fontWeight: "500",
     flex: 1,
   },
   playerNameDisconnected: {
-    color: "#777777",
+    color: colors.textDim,
   },
   disconnectedBadge: {
-    color: "#ff5252",
+    color: colors.danger,
     fontSize: 14,
     fontWeight: "700",
     letterSpacing: 1,
@@ -298,29 +299,29 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   buttonPrimary: {
-    backgroundColor: "#7c4dff",
+    backgroundColor: colors.accent,
   },
   buttonSecondary: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: colors.surfaceRaised,
   },
   buttonDisabled: {
-    backgroundColor: "#333333",
+    backgroundColor: colors.border,
     opacity: 0.5,
   },
   buttonFocused: {
-    borderColor: "#ffffff",
+    borderColor: colors.textBright,
   },
   buttonLabel: {
     fontSize: 24,
     fontWeight: "700",
   },
   buttonLabelPrimary: {
-    color: "#ffffff",
+    color: colors.textBright,
   },
   buttonLabelSecondary: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
   },
   buttonLabelDisabled: {
-    color: "#666666",
+    color: colors.textFaint,
   },
 });
