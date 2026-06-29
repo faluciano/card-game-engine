@@ -12,6 +12,7 @@ import type { AssetManifest } from "@couch-kit/host";
 import { hostReducer, createHostInitialState } from "./reducers/host-reducer";
 import type { HostAction, HostGameState } from "./types/host-state";
 import { useInstalledSlugs } from "./hooks/useInstalledSlugs";
+import { colors } from "./theme";
 import { useRulesetInstaller } from "./hooks/useRulesetInstaller";
 import { useRulesetUninstaller } from "./hooks/useRulesetUninstaller";
 import { BUILT_IN_INSTALLED } from "./built-in-rulesets";
@@ -52,7 +53,7 @@ function AssetGate({ children }: { readonly children: React.ReactNode }): React.
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#7c4dff" />
+        <ActivityIndicator size="large" color={colors.accent} />
         <Text style={styles.loadingText}>Preparing assets...</Text>
       </View>
     );
@@ -153,29 +154,29 @@ export default function App(): React.JSX.Element {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: colors.bg,
   },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#121212",
+    backgroundColor: colors.bg,
     padding: 32,
   },
   loadingText: {
-    color: "#e0e0e0",
+    color: colors.text,
     fontSize: 28,
     marginTop: 24,
     fontWeight: "300",
   },
   errorTitle: {
-    color: "#ff5252",
+    color: colors.danger,
     fontSize: 36,
     fontWeight: "700",
     marginBottom: 16,
   },
   errorBody: {
-    color: "#b0b0b0",
+    color: colors.textMuted,
     fontSize: 22,
     textAlign: "center",
     lineHeight: 32,
