@@ -41,9 +41,9 @@ const MAX_VISIBLE_CARDS = 12;
 const STACK_COLLAPSE_THRESHOLD = 6;
 
 const TABLE_COLORS: Readonly<Record<string, string>> = {
-  felt_green: colors.feltDark,
-  wood: colors.wood,
-  dark: colors.dark,
+  felt_green: colors.tableBg,
+  wood: colors.tableBg,
+  dark: colors.tableBg,
 };
 
 // ─── Component ─────────────────────────────────────────────────────
@@ -169,37 +169,65 @@ const PlayerZones = React.memo(function PlayerZones({
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>PLAYERS</Text>
-      {playerZoneGroups.map(({ player, zones, isCurrentTurn }: PlayerZoneGroup) => (
-        <View key={player.id} style={styles.playerSection}>
-          <View style={styles.playerHeader}>
-            <View
-              style={[
-                styles.playerDot,
-                isCurrentTurn && styles.playerDotActive,
-              ]}
-            />
-            <Text
-              style={[
-                styles.playerLabel,
-                isCurrentTurn && styles.playerLabelActive,
-              ]}
-            >
-              {player.name}
-              {isCurrentTurn ? "  ◀ TURN" : ""}
-            </Text>
+      {playerZoneGroups.map(({ player, index, zones, isCurrentTurn }: PlayerZoneGroup) => {
+        const score = engineState.scores[`player_score:${index}`];
+        const initial = player.name.trim().charAt(0).toUpperCase() || "?";
+        return (
+          <View
+            key={player.id}
+            style={[
+              styles.playerSection,
+              isCurrentTurn && styles.playerSectionActive,
+            ]}
+          >
+            <View style={styles.playerHeader}>
+              <View
+                style={[
+                  styles.avatar,
+                  isCurrentTurn && styles.avatarActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.avatarText,
+                    isCurrentTurn && styles.avatarTextActive,
+                  ]}
+                >
+                  {initial}
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.playerLabel,
+                  isCurrentTurn && styles.playerLabelActive,
+                ]}
+              >
+                {player.name}
+              </Text>
+              {typeof score === "number" && (
+                <View style={styles.scoreChip}>
+                  <Text style={styles.scoreChipText}>{score}</Text>
+                </View>
+              )}
+              {isCurrentTurn && (
+                <View style={styles.turnBadge}>
+                  <Text style={styles.turnBadgeText}>TURN</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.zonesRow}>
+              {zones.map(([name, zone]: [string, ZoneState]) => (
+                <ZoneDisplay
+                  key={name}
+                  name={name}
+                  zone={zone}
+                  revealed={isPublicOnTable(engineState, name)}
+                />
+              ))}
+            </View>
           </View>
-          <View style={styles.zonesRow}>
-            {zones.map(([name, zone]: [string, ZoneState]) => (
-              <ZoneDisplay
-                key={name}
-                name={name}
-                zone={zone}
-                revealed={isPublicOnTable(engineState, name)}
-              />
-            ))}
-          </View>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 });
@@ -267,9 +295,7 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
       style={styles.zone}
       onPress={() => setExpanded((prev) => !prev)}
     >
-      <Text style={styles.zoneName}>
-        {formatZoneName(name)} ({cards.length} cards)
-      </Text>
+      <Text style={styles.zoneName}>{formatZoneName(name)}</Text>
       <View style={styles.cardRow}>
         {cards.length === 0 ? (
           <View style={styles.emptyZone}>
@@ -278,7 +304,7 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
         ) : isDiscard ? (
           <DiscardPile topCard={cards[0]!} count={cards.length} />
         ) : shouldCollapse ? (
-          <StackedDeck count={cards.length} />
+          <StackedDeck />
         ) : shouldShowTopOnly ? (
           <>
             <FlippableCardView card={cards[0]!} />
@@ -301,11 +327,7 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
 
 // ─── Stacked Deck (collapsed face-down pile) ──────────────────────
 
-const StackedDeck = React.memo(function StackedDeck({
-  count,
-}: {
-  readonly count: number;
-}): React.JSX.Element {
+const StackedDeck = React.memo(function StackedDeck(): React.JSX.Element {
   return (
     <View style={styles.stackedDeck}>
       {/* Bottom shadow card */}
@@ -314,11 +336,7 @@ const StackedDeck = React.memo(function StackedDeck({
       <View style={[styles.card, styles.cardBack, styles.stackShadow1]} />
       {/* Top card */}
       <View style={[styles.card, styles.cardBack, styles.stackTop]}>
-        <Text style={styles.cardBackText}>🂠</Text>
-      </View>
-      {/* Count badge */}
-      <View style={styles.stackBadge}>
-        <Text style={styles.stackBadgeText}>{count}</Text>
+        <View style={styles.cardBackFrame} />
       </View>
     </View>
   );
@@ -433,7 +451,7 @@ const CardView = React.memo(function CardView({
   if (!card.faceUp) {
     return (
       <View style={[styles.card, styles.cardBack]}>
-        <Text style={styles.cardBackText}>🂠</Text>
+        <View style={styles.cardBackFrame} />
       </View>
     );
   }
@@ -443,10 +461,15 @@ const CardView = React.memo(function CardView({
 
   return (
     <View style={[styles.card, styles.cardFace]}>
-      <Text style={[styles.cardRank, isRed && styles.cardRed]}>
-        {card.rank}
-      </Text>
-      <Text style={[styles.cardSuit, isRed && styles.cardRed]}>
+      <View style={styles.cardCorner}>
+        <Text style={[styles.cardRank, isRed && styles.cardRed]}>
+          {card.rank}
+        </Text>
+        <Text style={[styles.cardSuit, isRed && styles.cardRed]}>
+          {suitSymbol}
+        </Text>
+      </View>
+      <Text style={[styles.cardPip, isRed && styles.cardRed]}>
         {suitSymbol}
       </Text>
     </View>
@@ -780,6 +803,7 @@ function isPublicOnTable(
 
 interface PlayerZoneGroup {
   readonly player: Player;
+  readonly index: number;
   readonly zones: readonly [string, ZoneState][];
   readonly isCurrentTurn: boolean;
 }
@@ -800,6 +824,7 @@ function getPlayerZoneGroups(
     if (zones.length > 0) {
       groups.push({
         player,
+        index: i,
         zones,
         isCurrentTurn: i === engineState.currentPlayerIndex,
       });
@@ -882,27 +907,29 @@ const styles = StyleSheet.create({
   statusBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.feltDark,
+    backgroundColor: colors.tableBgEdge,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.tableBorder,
     paddingHorizontal: 32,
     paddingVertical: 16,
     gap: 32,
   },
   phaseLabel: {
-    color: colors.greenBright,
+    color: colors.gold,
     fontSize: 22,
     fontWeight: "700",
   },
   statusLabel: {
-    color: colors.greenSoft,
+    color: colors.textMuted,
     fontSize: 22,
   },
   turnIndicator: {
-    color: colors.warning,
+    color: colors.textBright,
     fontSize: 22,
     fontWeight: "600",
   },
   turnNumber: {
-    color: colors.greenLight,
+    color: colors.textMuted,
     fontSize: 20,
     marginLeft: "auto",
   },
@@ -921,10 +948,10 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   sectionTitle: {
-    color: colors.greenSoft,
-    fontSize: 20,
+    color: colors.textDim,
+    fontSize: 18,
     fontWeight: "700",
-    letterSpacing: 2,
+    letterSpacing: 3,
     marginBottom: 12,
   },
 
@@ -935,15 +962,19 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   zone: {
-    backgroundColor: colors.felt,
-    borderRadius: 12,
+    backgroundColor: colors.tableSurface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.tableBorder,
     padding: 16,
     minWidth: 160,
   },
   zoneName: {
-    color: colors.greenPale,
-    fontSize: 18,
+    color: colors.textMuted,
+    fontSize: 15,
     fontWeight: "600",
+    letterSpacing: 1,
+    textTransform: "uppercase",
     marginBottom: 10,
   },
   cardRow: {
@@ -952,27 +983,32 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   emptyZone: {
-    width: 52,
-    height: 72,
-    borderRadius: 6,
+    width: 56,
+    height: 78,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.feltLight,
+    borderColor: colors.tableBorder,
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
   },
   emptyZoneText: {
-    color: colors.success,
+    color: colors.textFaint,
     fontSize: 12,
   },
 
   // Cards
   card: {
-    width: 52,
-    height: 72,
-    borderRadius: 6,
+    width: 58,
+    height: 82,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
+    elevation: 3,
   },
   cardFace: {
     backgroundColor: colors.white,
@@ -980,23 +1016,40 @@ const styles = StyleSheet.create({
     borderColor: colors.cardFaceBorder,
   },
   cardBack: {
-    backgroundColor: colors.cardBack,
+    backgroundColor: colors.dark,
     borderWidth: 1,
-    borderColor: colors.cardBackBorder,
+    borderColor: colors.goldDim,
+    alignItems: "stretch",
+    justifyContent: "center",
+    padding: 5,
   },
-  cardBackText: {
-    fontSize: 28,
+  cardBackFrame: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.goldDim,
+    borderRadius: 4,
+  },
+  cardCorner: {
+    position: "absolute",
+    top: 5,
+    left: 6,
+    alignItems: "center",
   },
   cardRank: {
     color: colors.cardInk,
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "800",
     lineHeight: 22,
   },
   cardSuit: {
     color: colors.cardInk,
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 18,
+  },
+  cardPip: {
+    color: colors.cardInk,
+    fontSize: 30,
+    opacity: 0.85,
   },
   cardRed: {
     color: colors.suitRed,
@@ -1004,8 +1057,8 @@ const styles = StyleSheet.create({
 
   // Stacked deck (collapsed face-down pile)
   stackedDeck: {
-    width: 62,
-    height: 82,
+    width: 78,
+    height: 92,
     position: "relative",
   },
   stackShadow2: {
@@ -1029,7 +1082,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -6,
     right: -6,
-    backgroundColor: colors.warning,
+    backgroundColor: colors.gold,
     borderRadius: 12,
     minWidth: 24,
     height: 24,
@@ -1038,7 +1091,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   stackBadgeText: {
-    color: colors.cardInk,
+    color: colors.black,
     fontSize: 13,
     fontWeight: "800",
   },
@@ -1050,7 +1103,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   moreIndicatorText: {
-    color: colors.greenLight,
+    color: colors.textMuted,
     fontSize: 14,
     fontWeight: "700",
   },
@@ -1062,24 +1115,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   topCardMoreText: {
-    color: colors.greenLight,
+    color: colors.textMuted,
     fontSize: 14,
     fontWeight: "700",
   },
 
   // Active suit indicator
   activeSuitContainer: {
-    backgroundColor: colors.felt,
-    borderRadius: 12,
+    backgroundColor: colors.tableSurface,
+    borderRadius: 14,
     borderWidth: 2,
-    borderColor: colors.warning,
+    borderColor: colors.gold,
     padding: 16,
     alignItems: "center",
     justifyContent: "center",
     minWidth: 100,
   },
   activeSuitLabel: {
-    color: colors.greenSoft,
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 1,
@@ -1098,21 +1151,42 @@ const styles = StyleSheet.create({
   // Player sections
   playerSection: {
     marginBottom: 16,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  playerSectionActive: {
+    backgroundColor: colors.tableSurface,
+    borderColor: colors.goldDim,
   },
   playerHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    gap: 12,
+    marginBottom: 10,
   },
-  playerDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.disabled,
-    marginRight: 10,
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.tableSurfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.tableBorder,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  playerDotActive: {
-    backgroundColor: colors.warning,
+  avatarActive: {
+    backgroundColor: colors.gold,
+    borderColor: colors.gold,
+  },
+  avatarText: {
+    color: colors.textMuted,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  avatarTextActive: {
+    color: colors.black,
   },
   playerLabel: {
     color: colors.text,
@@ -1120,13 +1194,42 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   playerLabelActive: {
-    color: colors.warning,
+    color: colors.textBright,
+  },
+  scoreChip: {
+    backgroundColor: colors.tableSurfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.tableBorder,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    minWidth: 34,
+    alignItems: "center",
+  },
+  scoreChipText: {
+    color: colors.gold,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  turnBadge: {
+    backgroundColor: colors.gold,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+  },
+  turnBadgeText: {
+    color: colors.black,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 1,
   },
 
   // Score board
   scoreBoard: {
-    backgroundColor: colors.felt,
-    borderRadius: 12,
+    backgroundColor: colors.tableSurface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.tableBorder,
     padding: 16,
   },
   scoreRow: {
@@ -1134,14 +1237,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: colors.feltLight,
+    borderBottomColor: colors.tableBorder,
   },
   scoreName: {
     color: colors.text,
     fontSize: 22,
   },
   scoreValue: {
-    color: colors.warning,
+    color: colors.gold,
     fontSize: 22,
     fontWeight: "700",
   },
@@ -1154,21 +1257,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   overlayCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.tableSurface,
     borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.tableBorder,
     padding: 48,
     alignItems: "center",
     minWidth: 400,
   },
   overlayTitle: {
-    color: colors.white,
+    color: colors.gold,
     fontSize: 48,
     fontWeight: "800",
     letterSpacing: 3,
     marginBottom: 16,
   },
   overlayWinner: {
-    color: colors.warning,
+    color: colors.textBright,
     fontSize: 32,
     fontWeight: "600",
     marginBottom: 36,
@@ -1178,28 +1283,28 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   overlayButton: {
-    borderRadius: 12,
+    borderRadius: 999,
     paddingVertical: 18,
-    paddingHorizontal: 36,
+    paddingHorizontal: 40,
     borderWidth: 3,
     borderColor: "transparent",
   },
   overlayButtonPrimary: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.gold,
   },
   overlayButtonSecondary: {
-    backgroundColor: colors.border,
+    backgroundColor: colors.tableSurfaceRaised,
   },
   overlayButtonFocused: {
-    borderColor: colors.white,
+    borderColor: colors.gold,
   },
   overlayButtonText: {
-    color: colors.white,
+    color: colors.black,
     fontSize: 24,
     fontWeight: "700",
   },
   overlayButtonTextSecondary: {
-    color: colors.textMuted,
+    color: colors.text,
     fontSize: 24,
     fontWeight: "700",
   },
