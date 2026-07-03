@@ -347,7 +347,7 @@ export function PlayingScreen({
         playerView={filteredPlayerView}
         onCardSelect={showCardSelection ? handleCardSelect : undefined}
         selectedCardId={selectedCard?.cardId}
-        playableCardIds={playableCardIds}
+        playableCardIds={showCardSelection ? playableCardIds : undefined}
       />
       <ActionBar
         playerView={playerView}
