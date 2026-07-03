@@ -93,6 +93,12 @@ export interface PhaseDefinition {
   readonly transitions: readonly PhaseTransition[];
   /** Lifecycle hook: expressions executed when entering an automatic phase. */
   readonly onEnter?: readonly Expression[];
+  /**
+   * Lifecycle hook: expressions executed once per host-driven step while
+   * lingering in an automatic phase (via the `step_phase` action). Enables
+   * paced sequences — e.g., a dealer drawing one card at a time with a delay.
+   */
+  readonly onStep?: readonly Expression[];
   /** Lifecycle hook: expressions executed when leaving any phase (not yet implemented). */
   readonly onExit?: readonly Expression[];
   /** For turn_based phases: how turn order advances. */

@@ -241,6 +241,7 @@ export function validateAction(
       return { valid: false, reason: "Game is already in progress" };
 
     case "advance_phase":
+    case "step_phase":
     case "reset_round":
       // Internal engine actions — valid during in_progress
       return { valid: true };

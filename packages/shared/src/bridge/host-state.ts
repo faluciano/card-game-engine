@@ -98,6 +98,7 @@ export type HostAction =
   | { readonly type: "GAME_ACTION"; readonly action: CardGameAction }
   | { readonly type: "RESET_ROUND" }
   | { readonly type: "ADVANCE_PHASE" }
+  | { readonly type: "STEP_PHASE" }
   | { readonly type: "INSTALL_RULESET"; readonly ruleset: CardGameRuleset; readonly slug: string }
   | { readonly type: "UNINSTALL_RULESET"; readonly slug: string }
   | { readonly type: "SET_INSTALLED_SLUGS"; readonly slugs: readonly InstalledGame[] };

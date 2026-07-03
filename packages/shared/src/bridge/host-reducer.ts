@@ -100,6 +100,9 @@ export function hostReducerImpl(state: HostGameState, action: HostAction): HostG
     case "ADVANCE_PHASE":
       return handleAdvancePhase(state);
 
+    case "STEP_PHASE":
+      return handleStepPhase(state);
+
     case "INSTALL_RULESET":
       return handleInstallRuleset(state, action.ruleset, action.slug);
 
@@ -188,7 +191,11 @@ function handleGameAction(
   action: CardGameAction,
 ): HostGameState {
   // Guard: block engine-internal actions from client submissions
-  if (action.kind === "advance_phase" || action.kind === "reset_round") {
+  if (
+    action.kind === "advance_phase" ||
+    action.kind === "step_phase" ||
+    action.kind === "reset_round"
+  ) {
     return state;
   }
 
@@ -245,6 +252,21 @@ function handleAdvancePhase(state: HostGameState): HostGameState {
 
   const engineReducer = getOrCreateReducer(state.screen.ruleset);
   const engineState = engineReducer(state.engineState, { kind: "advance_phase" });
+
+  return {
+    ...state,
+    status: deriveStatus(state.screen, engineState),
+    engineState,
+  };
+}
+
+function handleStepPhase(state: HostGameState): HostGameState {
+  // Guard: must be on game table with active engine state
+  if (state.screen.tag !== "game_table") return state;
+  if (state.engineState === null) return state;
+
+  const engineReducer = getOrCreateReducer(state.screen.ruleset);
+  const engineState = engineReducer(state.engineState, { kind: "step_phase" });
 
   return {
     ...state,
