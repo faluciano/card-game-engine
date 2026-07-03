@@ -51,7 +51,7 @@ function makeCounterRuleset(): CardGameRuleset {
       author: "test",
       players: { min: 1, max: 1 },
     },
-    deck: { preset: "standard_52", copies: 1 },
+    deck: { preset: "standard_52", copies: 1, cardValues: {} },
     zones: [{ name: "draw_pile", visibility: { kind: "hidden" }, owners: [] }],
     roles: [{ name: "player", isHuman: true, count: "per_player" }],
     variables: { counter: { type: "number", initial: 0 } },
