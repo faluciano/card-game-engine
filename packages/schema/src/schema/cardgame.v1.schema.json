@@ -165,6 +165,7 @@
             }
           },
           "onEnter": { "type": "array", "items": { "type": "string" } },
+          "onStep": { "type": "array", "items": { "type": "string" } },
           "onExit": { "type": "array", "items": { "type": "string" } },
           "turnOrder": { "type": "string", "enum": ["clockwise", "counterclockwise", "fixed"] },
           "autoEndTurnCondition": {

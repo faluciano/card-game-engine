@@ -200,6 +200,8 @@ export function createReducer(
         return handleEndTurn(state, action, phaseMachine, rng);
       case "advance_phase":
         return handleAdvancePhase(state, phaseMachine, rng);
+      case "step_phase":
+        return handleStepPhase(state, phaseMachine, rng);
       case "reset_round":
         return handleResetRound(state, phaseMachine, rng);
     }
@@ -504,6 +506,51 @@ function handleAdvancePhase(
 
   newState = runAutomaticPhases(newState, phaseMachine, rng);
   return newState;
+}
+
+/**
+ * Handles a "step_phase" internal action — advances a *paced* automatic
+ * phase by one step. Runs the current phase's `onStep` hook exactly once
+ * (with effect flushing so successive steps see prior mutations), then
+ * evaluates transitions. If a transition fires, the phase advances and any
+ * following automatic phases run to completion.
+ *
+ * Used by the host to pace sequences (e.g., a dealer drawing one card at a
+ * time) without blocking the pure reducer. No-ops for non-automatic phases
+ * or phases without an `onStep` hook.
+ */
+function handleStepPhase(
+  state: CardGameState,
+  phaseMachine: PhaseMachine,
+  rng: SeededRng
+): CardGameState {
+  if (!phaseMachine.isAutomaticPhase(state.currentPhase)) return state;
+
+  const phase = phaseMachine.getPhase(state.currentPhase);
+  if (!phase.onStep || phase.onStep.length === 0) return state;
+
+  const ctx: MutableEvalContext = {
+    state,
+    effects: [],
+    applyEffectsToState: (s, effs) => applyEffects(s, effs, rng),
+  };
+  for (const expression of phase.onStep) {
+    evaluateExpression(expression, ctx);
+  }
+  const stepped = applyEffects(ctx.state, ctx.effects, rng);
+
+  const transition = phaseMachine.evaluateTransitions(stepped);
+  if (transition.kind === "stay") {
+    return { ...stepped, version: stepped.version + 1 };
+  }
+
+  const advanced: CardGameState = {
+    ...stepped,
+    currentPhase: transition.nextPhase,
+    turnsTakenThisPhase: 0,
+    version: stepped.version + 1,
+  };
+  return runAutomaticPhases(advanced, phaseMachine, rng);
 }
 
 /**

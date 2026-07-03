@@ -446,6 +446,16 @@ describe("catalog actions (host reducer)", () => {
       expect(next).toBe(state);
     });
 
+    it("blocks step_phase sent via GAME_ACTION", () => {
+      const state = makeGameTableState();
+      const action: HostAction = {
+        type: "GAME_ACTION",
+        action: { kind: "step_phase" } as any,
+      };
+      const next = hostReducer(state, action);
+      expect(next).toBe(state);
+    });
+
     it("does not block regular game actions", () => {
       const state = makeGameTableState();
       const action: HostAction = {

@@ -93,6 +93,7 @@ export type CardGameAction =
     }
   | { readonly kind: "end_turn"; readonly playerId: PlayerId }
   | { readonly kind: "advance_phase" }
+  | { readonly kind: "step_phase" }
   | { readonly kind: "reset_round" };
 
 /**

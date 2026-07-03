@@ -97,6 +97,7 @@ const PhaseSchema = z.object({
   actions: z.array(PhaseActionSchema),
   transitions: z.array(PhaseTransitionSchema),
   onEnter: z.array(z.string()).optional(),
+  onStep: z.array(z.string()).optional(),
   onExit: z.array(z.string()).optional(),
   turnOrder: z.enum(["clockwise", "counterclockwise", "fixed"]).optional(),
   autoEndTurnCondition: z.string().optional(),

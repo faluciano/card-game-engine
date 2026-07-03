@@ -120,8 +120,10 @@
         { "to": "scoring", "when": "hand_value(dealer_hand) >= 17" }
       ],
       "onEnter": [
-        "reveal_all(dealer_hand)",
-        "while(hand_value(dealer_hand) < 17, draw(draw_pile, dealer_hand, 1))"
+        "reveal_all(dealer_hand)"
+      ],
+      "onStep": [
+        "if(hand_value(dealer_hand) < 17, draw(draw_pile, dealer_hand, 1))"
       ]
     },
     {
