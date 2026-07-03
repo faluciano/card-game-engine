@@ -61,7 +61,14 @@ export class FileRulesetStore {
 
   /** Creates the rulesets directory if it doesn't exist. */
   private ensureDirectory(): void {
-    this.rulesetsDir.create({ intermediates: true, idempotent: true });
+    // Guard first: passing a `DirectoryCreateOptions` map (e.g.
+    // `{ intermediates, idempotent }`) crashes on the old React Native
+    // architecture — Expo cannot cast the ReadableNativeMap to the native
+    // `CreateOptions` record, throwing ERR_UNEXPECTED. `Paths.document`
+    // always exists, so we only need to create the single `rulesets` dir,
+    // and the `exists` check makes the operation idempotent without options.
+    if (this.rulesetsDir.exists) return;
+    this.rulesetsDir.create();
   }
 
   /** Reads and parses the metadata index. Returns `{}` on missing or corrupt file. */
