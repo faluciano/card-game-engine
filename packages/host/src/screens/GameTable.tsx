@@ -139,7 +139,12 @@ const SharedZones = React.memo(function SharedZones({
       <Text style={styles.sectionTitle}>TABLE</Text>
       <View style={styles.zonesRow}>
         {sharedZones.map(([name, zone]: [string, ZoneState]) => (
-          <ZoneDisplay key={name} name={name} zone={zone} />
+          <ZoneDisplay
+            key={name}
+            name={name}
+            zone={zone}
+            revealed={isPublicOnTable(engineState, name)}
+          />
         ))}
         {activeSuit !== "" && <ActiveSuitIndicator suit={activeSuit} />}
       </View>
@@ -185,7 +190,12 @@ const PlayerZones = React.memo(function PlayerZones({
           </View>
           <View style={styles.zonesRow}>
             {zones.map(([name, zone]: [string, ZoneState]) => (
-              <ZoneDisplay key={name} name={name} zone={zone} />
+              <ZoneDisplay
+                key={name}
+                name={name}
+                zone={zone}
+                revealed={isPublicOnTable(engineState, name)}
+              />
             ))}
           </View>
         </View>
@@ -199,12 +209,25 @@ const PlayerZones = React.memo(function PlayerZones({
 const ZoneDisplay = React.memo(function ZoneDisplay({
   name,
   zone,
+  revealed = false,
 }: {
   readonly name: string;
   readonly zone: ZoneState;
+  /**
+   * When true, every card in the zone is shown face-up and fully fanned
+   * (no stack/top-only collapse). Used for zones the whole table can see
+   * (public visibility) on the shared TV god-view — e.g. player hands.
+   */
+  readonly revealed?: boolean;
 }): React.JSX.Element {
   const [expanded, setExpanded] = useState(false);
-  const { cards } = zone;
+  const cards = useMemo(
+    () =>
+      revealed
+        ? zone.cards.map((card) => (card.faceUp ? card : { ...card, faceUp: true }))
+        : zone.cards,
+    [revealed, zone.cards],
+  );
   const isDiscard = name === "discard";
 
   // Track previous card count to detect newly dealt cards
@@ -232,12 +255,12 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
   }, [cards.length]);
 
   const allFaceDown =
-    cards.length > 0 && cards.every((card) => !card.faceUp);
+    !revealed && cards.length > 0 && cards.every((card) => !card.faceUp);
   const shouldCollapse =
     allFaceDown && cards.length > STACK_COLLAPSE_THRESHOLD;
   const hasFaceUpCards = cards.some((c) => c.faceUp);
   const shouldShowTopOnly =
-    !allFaceDown && hasFaceUpCards && cards.length > 1 && !expanded;
+    !revealed && !allFaceDown && hasFaceUpCards && cards.length > 1 && !expanded;
 
   return (
     <Pressable
@@ -733,6 +756,26 @@ function getSharedZones(
 /** Checks if a zone name follows the per-player pattern (e.g., "hand:0"). */
 function isPlayerZone(name: string): boolean {
   return /:\d+$/.test(name);
+}
+
+/**
+ * Determines whether a zone should render face-up on the shared TV god-view.
+ * A zone is "public on the table" when its effective visibility (honoring
+ * phase overrides) is `public` — the whole table is meant to see it, so we
+ * reveal it here even if individual cards were dealt face-down.
+ */
+function isPublicOnTable(
+  engineState: CardGameState,
+  zoneName: string,
+): boolean {
+  const baseName = zoneName.replace(/:\d+$/, "");
+  const def = engineState.ruleset.zones.find((z) => z.name === baseName);
+  if (!def) return false;
+  const override = def.phaseOverrides?.find(
+    (o) => o.phase === engineState.currentPhase,
+  );
+  const visibility = override?.visibility ?? def.visibility;
+  return visibility.kind === "public";
 }
 
 interface PlayerZoneGroup {
