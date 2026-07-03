@@ -23,14 +23,19 @@ export const colors = {
   warning: "#ffd54f",
   success: "#4caf50",
 
-  // Green felt (game table)
-  feltDark: "#0d3320",
-  felt: "#1a4d2e",
-  feltLight: "#2e7d46",
-  greenBright: "#66bb6a",
-  greenLight: "#81c784",
-  greenSoft: "#a5d6a7",
-  greenPale: "#c8e6c9",
+  // Modern casino table (dark, near-black)
+  feltDark: "#0d1117",
+  felt: "#161b22",
+  feltLight: "#232a33",
+
+  // Table-specific tokens
+  tableBg: "#0d1117",
+  tableBgEdge: "#090c10",
+  tableSurface: "#161b22",
+  tableSurfaceRaised: "#1c232c",
+  tableBorder: "#2a323d",
+  gold: "#e7c26a",
+  goldDim: "#8a7233",
 
   // Card faces / suits
   cardFaceBorder: "#cccccc",

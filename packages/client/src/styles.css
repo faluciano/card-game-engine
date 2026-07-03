@@ -1,19 +1,20 @@
 /* ─── Theme Variables ──────────────────────────────────────────────── */
 
 :root {
-  --color-bg: #1a1a2e;
-  --color-surface: #16213e;
-  --color-surface-raised: #0f3460;
-  --color-text: #eaeaea;
-  --color-text-muted: #8892a4;
+  --color-bg: #0d1117;
+  --color-surface: #161b22;
+  --color-surface-raised: #1c232c;
+  --color-text: #e6e9ee;
+  --color-text-muted: #8b97a7;
   --color-accent: #7c4dff;
   --color-accent-dim: #4a2d99;
   --color-success: #28a745;
   --color-danger: #dc3545;
-  --color-warning: #ffd700;
+  --color-warning: #e7c26a;
+  --color-gold: #e7c26a;
   --color-card-red: #e74c3c;
-  --color-card-black: #eaeaea;
-  --color-card-back: #2956a8;
+  --color-card-black: #1a1a2e;
+  --color-card-back: #1a1a2e;
 
   --radius-xs: 6px;
   --radius-sm: 8px;
