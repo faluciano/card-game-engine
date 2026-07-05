@@ -288,7 +288,11 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
     allFaceDown && cards.length > STACK_COLLAPSE_THRESHOLD;
   const hasFaceUpCards = cards.some((c) => c.faceUp);
   const shouldShowTopOnly =
-    !revealed && !allFaceDown && hasFaceUpCards && cards.length > 1 && !expanded;
+    !revealed &&
+    !allFaceDown &&
+    hasFaceUpCards &&
+    cards.length > STACK_COLLAPSE_THRESHOLD &&
+    !expanded;
 
   return (
     <Pressable
