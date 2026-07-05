@@ -288,7 +288,11 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
     allFaceDown && cards.length > STACK_COLLAPSE_THRESHOLD;
   const hasFaceUpCards = cards.some((c) => c.faceUp);
   const shouldShowTopOnly =
-    !revealed && !allFaceDown && hasFaceUpCards && cards.length > 1 && !expanded;
+    !revealed &&
+    !allFaceDown &&
+    hasFaceUpCards &&
+    cards.length > STACK_COLLAPSE_THRESHOLD &&
+    !expanded;
 
   return (
     <Pressable
@@ -911,7 +915,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.tableBorder,
     paddingHorizontal: 32,
-    paddingVertical: 16,
+    paddingVertical: 10,
     gap: 32,
   },
   phaseLabel: {
@@ -937,28 +941,34 @@ const styles = StyleSheet.create({
   // Table layout
   tableLayout: {
     flex: 1,
+    alignItems: "center",
     justifyContent: "space-between",
-    padding: 32,
-    paddingBottom: 48,
+    padding: 20,
+    paddingBottom: 20,
   },
 
   // Sections
   section: {
     flex: 1,
-    marginBottom: 28,
+    width: "100%",
+    maxWidth: 1280,
+    alignItems: "center",
+    marginBottom: 12,
   },
   sectionTitle: {
     color: colors.textDim,
     fontSize: 18,
     fontWeight: "700",
     letterSpacing: 3,
-    marginBottom: 12,
+    textAlign: "center",
+    marginBottom: 6,
   },
 
   // Zone layout
   zonesRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "center",
     gap: 20,
   },
   zone: {
@@ -966,8 +976,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.tableBorder,
-    padding: 16,
-    minWidth: 160,
+    padding: 10,
+    minWidth: 140,
   },
   zoneName: {
     color: colors.textMuted,
@@ -975,7 +985,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 1,
     textTransform: "uppercase",
-    marginBottom: 10,
+    marginBottom: 6,
   },
   cardRow: {
     flexDirection: "row",
@@ -983,8 +993,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   emptyZone: {
-    width: 56,
-    height: 78,
+    width: 52,
+    height: 74,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.tableBorder,
@@ -999,8 +1009,8 @@ const styles = StyleSheet.create({
 
   // Cards
   card: {
-    width: 58,
-    height: 82,
+    width: 52,
+    height: 74,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -1031,24 +1041,24 @@ const styles = StyleSheet.create({
   },
   cardCorner: {
     position: "absolute",
-    top: 5,
-    left: 6,
+    top: 4,
+    left: 5,
     alignItems: "center",
   },
   cardRank: {
     color: colors.cardInk,
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: "800",
-    lineHeight: 22,
+    lineHeight: 18,
   },
   cardSuit: {
     color: colors.cardInk,
-    fontSize: 16,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 14,
   },
   cardPip: {
     color: colors.cardInk,
-    fontSize: 30,
+    fontSize: 22,
     opacity: 0.85,
   },
   cardRed: {
@@ -1150,8 +1160,9 @@ const styles = StyleSheet.create({
 
   // Player sections
   playerSection: {
-    marginBottom: 16,
-    padding: 12,
+    width: "100%",
+    marginBottom: 8,
+    padding: 8,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "transparent",
@@ -1163,13 +1174,14 @@ const styles = StyleSheet.create({
   playerHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 12,
-    marginBottom: 10,
+    marginBottom: 6,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: colors.tableSurfaceRaised,
     borderWidth: 1,
     borderColor: colors.tableBorder,
@@ -1230,12 +1242,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.tableBorder,
-    padding: 16,
+    padding: 12,
+    minWidth: 420,
   },
   scoreRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 8,
+    paddingVertical: 5,
     borderBottomWidth: 1,
     borderBottomColor: colors.tableBorder,
   },
