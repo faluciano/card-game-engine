@@ -12,9 +12,11 @@ import {
   View,
 } from "react-native";
 import { useGameHost } from "@couch-kit/host";
-import type { CardGameRuleset } from "@card-engine/shared";
+import type { CardGameRuleset, CatalogGame, InstalledGame } from "@card-engine/shared";
+import { safeParseRuleset } from "@card-engine/shared";
 import type { HostAction, HostGameState } from "../types/host-state";
 import { useRulesetStore } from "../hooks/useRulesetStore";
+import { useCatalog, CATALOG_BASE_URL } from "../hooks/useCatalog";
 import { ImportModal } from "../components/ImportModal";
 import { QRDisplay } from "../components/QRDisplay";
 import { BUILT_IN_RULESETS, BUILT_IN_SLUGS } from "../built-in-rulesets";
@@ -37,10 +39,10 @@ export function RulesetPicker(): React.JSX.Element {
     isLoading,
     importFromUrl,
     importWithSlug,
-    deleteRuleset,
     allSlugs,
   } = useRulesetStore(BUILT_IN_SLUGS, state.installedSlugs);
   const [modalVisible, setModalVisible] = useState(false);
+  const [tab, setTab] = useState<"library" | "store">("library");
 
   const rulesetItems: readonly RulesetItem[] = useMemo(() => {
     const builtIn: RulesetItem[] = BUILT_IN_RULESETS.map(
@@ -77,7 +79,15 @@ export function RulesetPicker(): React.JSX.Element {
         </View>
       </View>
 
-      {isLoading ? (
+      <TabBar tab={tab} onChange={setTab} />
+
+      {tab === "store" ? (
+        <StoreView
+          installedSlugs={state.installedSlugs}
+          builtInSlugs={BUILT_IN_SLUGS}
+          dispatch={dispatch}
+        />
+      ) : isLoading ? (
         <Text style={styles.loadingText}>Loading rulesets...</Text>
       ) : (
         <ScrollView contentContainerStyle={styles.listContent}>
@@ -90,7 +100,11 @@ export function RulesetPicker(): React.JSX.Element {
                 isFirst={index === 0}
                 onDelete={
                   item.source === "imported" && item.id != null
-                    ? () => deleteRuleset(item.id!)
+                    ? () =>
+                        dispatch({
+                          type: "UNINSTALL_RULESET",
+                          slug: item.ruleset.meta.slug,
+                        })
                     : undefined
                 }
               />
@@ -187,6 +201,266 @@ function ImportPlaceholder({
   );
 }
 
+// ─── Tab Bar ───────────────────────────────────────────────────────
+
+const TABS: readonly { readonly key: "library" | "store"; readonly label: string }[] = [
+  { key: "library", label: "My Games" },
+  { key: "store", label: "Store" },
+];
+
+function TabBar({
+  tab,
+  onChange,
+}: {
+  readonly tab: "library" | "store";
+  readonly onChange: (tab: "library" | "store") => void;
+}): React.JSX.Element {
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+
+  return (
+    <View style={styles.tabBar}>
+      {TABS.map((t) => {
+        const active = tab === t.key;
+        const focused = focusedKey === t.key;
+        return (
+          <Pressable
+            key={t.key}
+            style={[
+              styles.tab,
+              active && styles.tabActive,
+              focused && styles.tabFocused,
+            ]}
+            onFocus={() => setFocusedKey(t.key)}
+            onBlur={() => setFocusedKey(null)}
+            onPress={() => onChange(t.key)}
+          >
+            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+              {t.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// ─── Store View (catalog browse + install) ─────────────────────────
+
+function StoreView({
+  installedSlugs,
+  builtInSlugs,
+  dispatch,
+}: {
+  readonly installedSlugs: readonly InstalledGame[];
+  readonly builtInSlugs: readonly string[];
+  readonly dispatch: (action: HostAction) => void;
+}): React.JSX.Element {
+  const { catalog, refetch } = useCatalog();
+  const [installing, setInstalling] = useState<ReadonlySet<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+
+  const handleInstall = useCallback(
+    async (game: CatalogGame): Promise<void> => {
+      setError(null);
+      setInstalling((prev) => new Set(prev).add(game.slug));
+      try {
+        const res = await fetch(`${CATALOG_BASE_URL}${game.file}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const raw: unknown = await res.json();
+        const result = safeParseRuleset(raw);
+        if (!result.success) throw new Error("Invalid ruleset format");
+
+        dispatch({
+          type: "INSTALL_RULESET",
+          ruleset: result.data as CardGameRuleset,
+          slug: game.slug,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Install failed";
+        setError(`Could not install ${game.name}: ${message}`);
+      } finally {
+        setInstalling((prev) => {
+          const next = new Set(prev);
+          next.delete(game.slug);
+          return next;
+        });
+      }
+    },
+    [dispatch],
+  );
+
+  const handleUninstall = useCallback(
+    (game: CatalogGame): void => {
+      setError(null);
+      dispatch({ type: "UNINSTALL_RULESET", slug: game.slug });
+    },
+    [dispatch],
+  );
+
+  if (catalog.tag === "loading") {
+    return <Text style={styles.loadingText}>Loading store...</Text>;
+  }
+
+  if (catalog.tag === "error") {
+    return (
+      <View style={styles.storeMessage}>
+        <Text style={styles.loadingText}>Couldn't load the store</Text>
+        <Text style={styles.storeError}>{catalog.message}</Text>
+        <RetryButton onPress={refetch} />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.listContent}>
+      {error != null && <Text style={styles.storeError}>{error}</Text>}
+      {catalog.games.length === 0 ? (
+        <Text style={styles.loadingText}>No games available yet</Text>
+      ) : (
+        <View style={styles.grid}>
+          {catalog.games.map((game) => {
+            const installed = installedSlugs.find((s) => s.slug === game.slug);
+            return (
+              <StoreCard
+                key={game.slug}
+                game={game}
+                installedVersion={installed?.version ?? null}
+                installing={installing.has(game.slug)}
+                isBuiltIn={builtInSlugs.includes(game.slug)}
+                onInstall={() => handleInstall(game)}
+                onUninstall={() => handleUninstall(game)}
+              />
+            );
+          })}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+// ─── Store Card ────────────────────────────────────────────────────
+
+const StoreCard = React.memo(function StoreCard({
+  game,
+  installedVersion,
+  installing,
+  isBuiltIn,
+  onInstall,
+  onUninstall,
+}: {
+  readonly game: CatalogGame;
+  readonly installedVersion: string | null;
+  readonly installing: boolean;
+  readonly isBuiltIn: boolean;
+  readonly onInstall: () => void;
+  readonly onUninstall: () => void;
+}): React.JSX.Element {
+  const isInstalled = installedVersion !== null;
+  const isUpdate = isInstalled && installedVersion !== game.version;
+
+  const playerRange =
+    game.players.min === game.players.max
+      ? `${game.players.min} players`
+      : `${game.players.min}–${game.players.max} players`;
+
+  const actions: readonly StoreAction[] = installing
+    ? [{ label: "...", variant: "disabled" }]
+    : !isInstalled
+      ? [{ label: "GET", variant: "primary", onPress: onInstall }]
+      : [
+          ...(isUpdate
+            ? [{ label: "UPDATE", variant: "primary", onPress: onInstall } as const]
+            : []),
+          ...(isBuiltIn
+            ? isUpdate
+              ? []
+              : [{ label: "BUILT-IN", variant: "disabled" } as const]
+            : [{ label: "REMOVE", variant: "danger", onPress: onUninstall } as const]),
+        ];
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardName} numberOfLines={1} ellipsizeMode="tail">
+        {game.name}
+      </Text>
+      <Text style={styles.cardMeta} numberOfLines={1} ellipsizeMode="tail">
+        by {game.author}
+      </Text>
+      <Text style={styles.cardMeta}>{playerRange}</Text>
+      {game.description != null && game.description !== "" && (
+        <Text style={styles.cardDesc} numberOfLines={2} ellipsizeMode="tail">
+          {game.description}
+        </Text>
+      )}
+      <Text style={styles.cardVersion}>v{game.version}</Text>
+      <View style={styles.actionsRow}>
+        {actions.map((action) => (
+          <ActionButton key={action.label} action={action} />
+        ))}
+      </View>
+    </View>
+  );
+});
+
+// ─── Store Action Button ───────────────────────────────────────────
+
+type StoreAction =
+  | { readonly label: string; readonly variant: "primary" | "danger"; readonly onPress: () => void }
+  | { readonly label: string; readonly variant: "disabled"; readonly onPress?: undefined };
+
+function ActionButton({ action }: { readonly action: StoreAction }): React.JSX.Element {
+  const [focused, setFocused] = useState(false);
+  const isDisabled = action.variant === "disabled";
+  const isDanger = action.variant === "danger";
+
+  return (
+    <Pressable
+      style={[
+        styles.getButton,
+        isDanger && styles.removeButton,
+        isDisabled && styles.getButtonDisabled,
+        focused && !isDisabled && (isDanger ? styles.removeButtonFocused : styles.getButtonFocused),
+      ]}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onPress={action.onPress}
+      disabled={isDisabled}
+    >
+      <Text
+        style={[
+          styles.getLabel,
+          isDanger && styles.removeLabel,
+          isDisabled && styles.getLabelDisabled,
+        ]}
+      >
+        {action.label}
+      </Text>
+    </Pressable>
+  );
+}
+
+// ─── Retry Button ──────────────────────────────────────────────────
+
+function RetryButton({
+  onPress,
+}: {
+  readonly onPress: () => void;
+}): React.JSX.Element {
+  const [focused, setFocused] = useState(false);
+  return (
+    <Pressable
+      style={[styles.getButton, focused && styles.getButtonFocused]}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onPress={onPress}
+      hasTVPreferredFocus
+    >
+      <Text style={styles.getLabel}>RETRY</Text>
+    </Pressable>
+  );
+}
+
 // ─── Styles ────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -194,17 +468,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: 48,
-    paddingTop: 48,
+    paddingTop: 28,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 32,
+    marginBottom: 18,
   },
   title: {
     color: colors.textBright,
-    fontSize: 48,
+    fontSize: 38,
     fontWeight: "800",
     letterSpacing: 2,
   },
@@ -224,15 +498,15 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 24,
-    marginBottom: 24,
+    gap: 16,
+    marginBottom: 16,
   },
   card: {
     flexBasis: "48%",
     flexGrow: 1,
     backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 28,
+    padding: 18,
     borderWidth: 3,
     borderColor: "transparent",
   },
@@ -242,19 +516,19 @@ const styles = StyleSheet.create({
   },
   cardName: {
     color: colors.textBright,
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: "700",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   cardMeta: {
     color: colors.textMuted,
-    fontSize: 22,
-    lineHeight: 30,
+    fontSize: 17,
+    lineHeight: 23,
   },
   cardVersion: {
     color: colors.textFaint,
-    fontSize: 18,
-    marginTop: 12,
+    fontSize: 14,
+    marginTop: 6,
   },
   badge: {
     color: colors.accent,
@@ -286,6 +560,96 @@ const styles = StyleSheet.create({
     fontSize: 28,
     textAlign: "center",
     marginTop: 64,
+  },
+
+  // Tab bar
+  tabBar: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  tab: {
+    paddingVertical: 10,
+    paddingHorizontal: 26,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  tabActive: {
+    backgroundColor: colors.surfaceRaised,
+  },
+  tabFocused: {
+    borderColor: colors.accent,
+  },
+  tabLabel: {
+    color: colors.textMuted,
+    fontSize: 22,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  tabLabelActive: {
+    color: colors.textBright,
+  },
+
+  // Store
+  storeMessage: {
+    alignItems: "center",
+    marginTop: 48,
+    gap: 16,
+  },
+  storeError: {
+    color: colors.danger,
+    fontSize: 20,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  cardDesc: {
+    color: colors.textMuted,
+    fontSize: 15,
+    lineHeight: 20,
+    marginTop: 6,
+  },
+  getButton: {
+    alignSelf: "flex-start",
+    paddingVertical: 8,
+    paddingHorizontal: 26,
+    borderRadius: 999,
+    backgroundColor: colors.accent,
+    borderWidth: 3,
+    borderColor: "transparent",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 10,
+    alignSelf: "flex-start",
+  },
+  removeButton: {
+    backgroundColor: "transparent",
+    borderColor: colors.danger,
+  },
+  removeButtonFocused: {
+    backgroundColor: colors.surfaceRaised,
+    borderColor: colors.danger,
+  },
+  removeLabel: {
+    color: colors.danger,
+  },
+  getButtonDisabled: {
+    backgroundColor: colors.surfaceRaised,
+  },
+  getButtonFocused: {
+    borderColor: colors.textBright,
+  },
+  getLabel: {
+    color: colors.textBright,
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  getLabelDisabled: {
+    color: colors.textMuted,
   },
   importButton: {
     flexDirection: "row",
