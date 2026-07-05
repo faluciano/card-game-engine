@@ -88,9 +88,56 @@ jobs:
       - name: Bundle client for host
         run: bun run bundle:client
 
+      # React Native's CMake (ReactNative-application.cmake) auto-detects ccache
+      # via find_program() and wires it in as the compile/link launcher, so no
+      # build.gradle changes are needed — this job only has to make ccache
+      # available, persist its cache, and keep it correct across CI runs.
+      - name: Set up ccache
+        run: |
+          mkdir -p "$HOME/.cache/ccache"
+          if ! command -v ccache >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y ccache \
+              || echo "ccache install failed; native build will run without caching"
+          fi
+          if command -v ccache >/dev/null 2>&1; then
+            echo "CCACHE_DIR=$HOME/.cache/ccache" >> "$GITHUB_ENV"
+            # CI re-downloads the NDK/toolchain every run, so the default
+            # mtime-based compiler check always misses. Hash the compiler
+            # contents instead to get real cross-run hits without ever serving
+            # a stale object.
+            echo "CCACHE_COMPILERCHECK=content" >> "$GITHUB_ENV"
+            echo "CCACHE_MAXSIZE=2G" >> "$GITHUB_ENV"
+            ccache --version | head -1
+          fi
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-release-apk-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
+          restore-keys: |
+            ccache-release-apk-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
+            ccache-release-apk-${{ runner.os }}-
+
+      - name: Reset ccache stats
+        run: ccache --zero-stats || true
+
       - name: Build APK
         run: ./gradlew assembleRelease
         working-directory: packages/host/android
+
+      - name: Report ccache statistics
+        if: always()
+        run: |
+          if command -v ccache >/dev/null 2>&1; then
+            {
+              echo "## ccache statistics"
+              echo ""
+              echo '```'
+              ccache --show-stats --verbose 2>/dev/null || ccache -s
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Analyze APK
         run: |
