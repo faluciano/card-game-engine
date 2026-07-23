@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@card-engine/schema": "workspace:*",
-    "@couch-kit/core": "^0.9.2",
+    "@couch-kit/core": "^0.9.3",
     "zod": "^3.23.0"
   },
   "devDependencies": {
