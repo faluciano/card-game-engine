@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "card-game-engine",
+      "dependencies": {
+        "@couch-kit/display": "^0.1.2",
+      },
     },
     "packages/client": {
       "name": "@card-engine/client",
@@ -29,7 +32,7 @@
       "dependencies": {
         "@card-engine/shared": "workspace:*",
         "@couch-kit/core": "^0.9.3",
-        "@couch-kit/display": "^0.1.1",
+        "@couch-kit/display": "^0.1.2",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
         "react-qr-code": "^2.2.0",
@@ -302,7 +305,7 @@
 
     "@couch-kit/core": ["@couch-kit/core@0.9.3", "", {}, "sha512-8qo0goKd1FkACnWWZCsGHFZWeQqnz3uQgUgKaCoKOXf0AJ1fjF/EJSGAYrHNwPGtKy6Br6CUeJBCzULyQFxFYg=="],
 
-    "@couch-kit/display": ["@couch-kit/display@0.1.1", "", { "dependencies": { "@couch-kit/client": "0.9.0", "@couch-kit/core": "0.9.3", "@couch-kit/runtime": "0.1.0" } }, "sha512-+lnM0BpM9zingVr7HRZ2iRu5rNxIAlZXHOU2FRtdptMecqOnezNh1lkhSFtU97Qt9N6ZHyMc6zxB20cqGimwpA=="],
+    "@couch-kit/display": ["@couch-kit/display@0.1.2", "", { "dependencies": { "@couch-kit/client": "0.9.0", "@couch-kit/core": "0.9.3", "@couch-kit/runtime": "0.1.0" } }, "sha512-MB1vsUAkK4HlPmx7aYfHpIr1GXSyCH+jRf59nhKNK7xCb4i4Rkho9ssUPn+J4aEEaASqxHtq0mYCdHg46dpH9Q=="],
 
     "@couch-kit/host": ["@couch-kit/host@1.7.14", "", { "dependencies": { "@couch-kit/core": "0.9.3", "@couch-kit/runtime": "0.1.0", "buffer": "^6.0.3", "js-sha1": "^0.7.0", "react-native-nitro-http-server": "^1.6.1" }, "peerDependencies": { "expo": ">=51.0.0", "expo-file-system": ">=19.0.0", "expo-network": ">=7.0.0", "react": ">=18.2.0", "react-native": ">=0.72.0", "react-native-nitro-modules": ">=0.33.0" } }, "sha512-YWzPKNmKLSR5GrbDC+qBhXqmFLpsgTkYMh5zebXkZR1UnBXp2o2RFGJ/AcKqG+Vccbs+VWWHXb5sO//5vUmONg=="],
 
