@@ -17,7 +17,7 @@ import { colors } from "./theme.js";
 
 const RELAY_URL =
   import.meta.env.VITE_RELAY_URL ??
-  "wss://couch-kit-relay.icycliff-4c194e2e.eastus.azurecontainerapps.io";
+  "wss://couch-kit-relay.faluciano.workers.dev";
 
 // Base URL of the deployed controller. The join link appends `?room=CODE`.
 const CONTROLLER_URL = import.meta.env.VITE_CONTROLLER_URL ?? "";
