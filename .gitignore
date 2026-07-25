@@ -45,3 +45,6 @@ packages/host/src/www-manifest.json
 
 # Generated catalog (build artifact)
 catalog.json
+
+# Vercel CLI project links
+.vercel/
