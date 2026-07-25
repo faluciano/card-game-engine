@@ -1,0 +1,58 @@
+/* ─── Global display styles ───────────────────────────────────────
+   Card animations that the Android TV host does with RN `Animated`.
+   Keeping them in CSS lets the browser run them off the main thread. */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #121212;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Freshly dealt card: slide down + fade in (RN: Animated.parallel). */
+@keyframes deal-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.deal-in {
+  animation: deal-in 250ms ease-out both;
+}
+
+/* Card turning face-up: half-turn on Y, mirroring the host's rotateY flip. */
+@keyframes card-flip {
+  from {
+    transform: perspective(800px) rotateY(0deg);
+  }
+  50% {
+    transform: perspective(800px) rotateY(90deg);
+  }
+  to {
+    transform: perspective(800px) rotateY(0deg);
+  }
+}
+
+.card-flip {
+  animation: card-flip 400ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deal-in,
+  .card-flip {
+    animation: none;
+  }
+}
