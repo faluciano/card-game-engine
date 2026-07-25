@@ -38,7 +38,7 @@ const initialState = createHostInitialState();
 // WebSocket, letting phones join a browser display from any network.
 const DEFAULT_RELAY_URL =
   import.meta.env.VITE_RELAY_URL ??
-  "wss://couch-kit-relay.icycliff-4c194e2e.eastus.azurecontainerapps.io";
+  "wss://couch-kit-relay.faluciano.workers.dev";
 
 function readRelayConfig(): { url: string; roomId: string } | null {
   try {
