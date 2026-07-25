@@ -7,6 +7,12 @@ import {
   type HostGameState,
   type HostAction,
 } from "@card-engine/shared";
+import { BUILT_IN_INSTALLED } from "./host-logic/built-in-rulesets.js";
+import {
+  useInstalledSlugs,
+  useRulesetInstaller,
+  useRulesetUninstaller,
+} from "./host-logic/ruleset-hooks.js";
 
 const RELAY_URL =
   import.meta.env.VITE_RELAY_URL ??
@@ -39,6 +45,13 @@ export function App(): React.JSX.Element {
   useEffect(() => () => display.stop(), [display]);
 
   const state = useSyncExternalStore(display.subscribe, display.getState);
+
+  // Host-side ruleset orchestration (seeds built-ins, handles install/uninstall
+  // requested by phones) — the same hooks the Android TV host runs.
+  useInstalledSlugs(display.dispatch, BUILT_IN_INSTALLED);
+  useRulesetInstaller(state.pendingInstall, display.dispatch, BUILT_IN_INSTALLED);
+  useRulesetUninstaller(state.pendingUninstall, display.dispatch, BUILT_IN_INSTALLED);
+
   const players = Object.values(state.players).filter((p) => p.connected);
   const joinUrl = CONTROLLER_URL
     ? `${CONTROLLER_URL}${CONTROLLER_URL.includes("?") ? "&" : "?"}room=${roomId}`
@@ -129,6 +142,9 @@ function ScreenPlaceholder({
         {state.screen.tag}
       </div>
       <div style={{ opacity: 0.8 }}>Players connected: {playerCount}</div>
+      <div style={{ opacity: 0.8, marginTop: "0.25rem" }}>
+        Installed games: {state.installedSlugs.map((s) => s.slug).join(", ") || "—"}
+      </div>
       {state.engineState && (
         <div style={{ opacity: 0.8, marginTop: "0.25rem" }}>
           Engine phase: {state.status}

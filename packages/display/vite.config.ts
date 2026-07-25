@@ -6,6 +6,8 @@ export default defineConfig({
   server: {
     host: true,
     port: 5174,
+    // Allow importing the bundled ruleset JSON from the repo-root rulesets/ dir.
+    fs: { allow: [".."] },
   },
   build: {
     target: "ES2022",
