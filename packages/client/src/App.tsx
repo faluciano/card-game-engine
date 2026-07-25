@@ -5,7 +5,7 @@
 // status and game state.
 
 import React, { useMemo, useState } from "react";
-import { useGameClient } from "@couch-kit/client";
+import { useGameClient, createRelayTransport } from "@couch-kit/client";
 import {
   hostReducer,
   createHostInitialState,
@@ -32,6 +32,22 @@ import { ScreenTransition } from "./components/ScreenTransition.js";
 const STORAGE_KEY = "ck_player_name";
 
 const initialState = createHostInitialState();
+
+// Relay (cross-network) opt-in. When the controller is opened with `?room=CODE`,
+// it connects to the shared relay for that room instead of the default LAN
+// WebSocket, letting phones join a browser display from any network.
+const DEFAULT_RELAY_URL =
+  import.meta.env.VITE_RELAY_URL ??
+  "wss://couch-kit-relay.icycliff-4c194e2e.eastus.azurecontainerapps.io";
+
+function readRelayConfig(): { url: string; roomId: string } | null {
+  try {
+    const roomId = new URLSearchParams(window.location.search).get("room");
+    return roomId ? { url: DEFAULT_RELAY_URL, roomId } : null;
+  } catch {
+    return null;
+  }
+}
 
 function readStoredName(): string | null {
   try {
@@ -88,6 +104,7 @@ function GameClient({
   playerName,
   onChangeName,
 }: GameClientProps): React.JSX.Element {
+  const relay = useMemo(() => readRelayConfig(), []);
   const { status, state, playerId, sendAction } = useGameClient<
     HostGameState,
     HostAction
@@ -95,6 +112,9 @@ function GameClient({
     reducer: hostReducer,
     initialState,
     name: playerName,
+    createTransport: relay
+      ? createRelayTransport({ url: relay.url, roomId: relay.roomId })
+      : undefined,
   });
 
   // ── Hooks must be called unconditionally (Rules of Hooks) ──
