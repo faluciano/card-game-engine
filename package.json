@@ -16,6 +16,9 @@
     "apk": "bun run scripts/build-apk.ts",
     "deploy": "bun run scripts/install-apk.ts",
     "validate": "bun run scripts/validate-rulesets.ts",
-    "catalog": "bun run scripts/build-catalog.ts"
+    "catalog": "bun run scripts/build-catalog.ts",
+    "dev:display": "cd packages/display && bun run dev",
+    "build:display": "cd packages/display && bun run build",
+    "typecheck:display": "cd packages/display && bun run typecheck"
   }
 }
