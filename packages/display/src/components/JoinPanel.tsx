@@ -13,7 +13,7 @@ export const JoinPanel = React.memo(function JoinPanel({
   size = 200,
 }: {
   readonly joinUrl: string | null;
-  readonly roomId: string;
+  readonly roomId: string | null;
   readonly size?: number;
 }): React.JSX.Element {
   return (
@@ -23,13 +23,15 @@ export const JoinPanel = React.memo(function JoinPanel({
           <QRCode value={joinUrl} size={size} />
         ) : (
           <span style={styles.qrFallback}>
-            Set VITE_CONTROLLER_URL to show a join QR
+            {!roomId
+              ? "Getting a room code…"
+              : "Set VITE_CONTROLLER_URL to show a join QR"}
           </span>
         )}
       </div>
       <div style={styles.codeLabel}>ROOM CODE</div>
       <div style={{ ...styles.code, fontSize: Math.round(size * 0.28) }}>
-        {roomId}
+        {roomId ?? "······"}
       </div>
     </div>
   );

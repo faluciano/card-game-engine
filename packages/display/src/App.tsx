@@ -23,21 +23,14 @@ const RELAY_URL =
 // Base URL of the deployed controller. The join link appends `?room=CODE`.
 const CONTROLLER_URL = import.meta.env.VITE_CONTROLLER_URL ?? "";
 
-// Unambiguous room code (no easily-confused characters).
-function makeRoomCode(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from(
-    { length: 4 },
-    () => alphabet[Math.floor(Math.random() * alphabet.length)],
-  ).join("");
-}
-
 export function App(): React.JSX.Element {
-  const [{ display, roomId }] = useState(() => {
-    const roomId = makeRoomCode();
+  // The relay assigns the code — it is the only party that can tell whether a
+  // code is already taken — so it arrives a round trip after connecting.
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [display] = useState(() => {
     const display = new RelayDisplayHost<HostGameState, HostAction>({
       url: RELAY_URL,
-      roomId,
+      onRoomCode: setRoomId,
       reducer: hostReducer,
       initialState: createHostInitialState(),
       // Each phone receives only its own hand and the moves it may make.
@@ -45,7 +38,7 @@ export function App(): React.JSX.Element {
       // player, and hiding cards is left to the client's good manners.
       project: createHostClientView,
     });
-    return { display, roomId };
+    return display;
   });
 
   useEffect(() => () => display.stop(), [display]);
@@ -58,9 +51,10 @@ export function App(): React.JSX.Element {
   useRulesetInstaller(state.pendingInstall, display.dispatch, BUILT_IN_INSTALLED);
   useRulesetUninstaller(state.pendingUninstall, display.dispatch, BUILT_IN_INSTALLED);
 
-  const joinUrl = CONTROLLER_URL
-    ? `${CONTROLLER_URL}${CONTROLLER_URL.includes("?") ? "&" : "?"}room=${roomId}`
-    : null;
+  const joinUrl =
+    CONTROLLER_URL && roomId
+      ? `${CONTROLLER_URL}${CONTROLLER_URL.includes("?") ? "&" : "?"}room=${roomId}`
+      : null;
 
   return (
     <div
