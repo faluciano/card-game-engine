@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createHostInitialState, hostReducer } from "../host-reducer";
 import { createHostClientView } from "../client-view";
 import type { HostGameState } from "../host-state";
-import type { CardGameRuleset } from "../../types/index";
+import type { Card, CardGameRuleset, CardInstanceId } from "../../types/index";
 
 /**
  * These tests are the guarantee behind server-side projection: a player's
@@ -59,29 +59,32 @@ function makeStartedGameState(): HostGameState {
   // hand would make these assertions pass without proving anything.
   const engineState = state.engineState;
   if (!engineState) throw new Error("expected a started game");
+
+  const alicesHand = [
+    card("ALICE-CARD-1", "A", "spades"),
+    card("ALICE-CARD-2", "K", "hearts"),
+  ];
+  const bobsHand = [
+    card("BOB-SECRET-1", "Q", "clubs"),
+    card("BOB-SECRET-2", "J", "diamonds"),
+  ];
+
   return {
     ...state,
     engineState: {
       ...engineState,
       zones: {
         ...engineState.zones,
-        "hand:0": {
-          ...engineState.zones["hand:0"],
-          cards: [
-            { id: "ALICE-CARD-1", rank: "A", suit: "spades", faceUp: false },
-            { id: "ALICE-CARD-2", rank: "K", suit: "hearts", faceUp: false },
-          ],
-        },
-        "hand:1": {
-          ...engineState.zones["hand:1"],
-          cards: [
-            { id: "BOB-SECRET-1", rank: "Q", suit: "clubs", faceUp: false },
-            { id: "BOB-SECRET-2", rank: "J", suit: "diamonds", faceUp: false },
-          ],
-        },
+        "hand:0": { ...engineState.zones["hand:0"]!, cards: alicesHand },
+        "hand:1": { ...engineState.zones["hand:1"]!, cards: bobsHand },
       },
     },
-  } as HostGameState;
+  };
+}
+
+/** A card with the branded instance id the engine expects. */
+function card(id: string, rank: Card["rank"], suit: Card["suit"]): Card {
+  return { id: id as CardInstanceId, rank, suit, faceUp: false };
 }
 
 /** Card ids in a player's hand, read from the authoritative state. */
@@ -119,7 +122,10 @@ describe("createHostClientView", () => {
 
   it("omits the engine state entirely", () => {
     const state = makeStartedGameState();
-    const view = createHostClientView(state, "p1") as Record<string, unknown>;
+    const view = createHostClientView(state, "p1") as unknown as Record<
+      string,
+      unknown
+    >;
 
     // The controller works from `playerView`; raw engine state is the thing
     // that leaked, so it must not survive projection under any key.
