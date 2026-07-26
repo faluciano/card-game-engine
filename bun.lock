@@ -10,7 +10,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@card-engine/shared": "workspace:*",
-        "@couch-kit/client": "^0.11.0",
+        "@couch-kit/client": "^0.12.0",
         "@couch-kit/core": "^0.9.3",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
@@ -48,7 +48,7 @@
       "dependencies": {
         "@card-engine/shared": "workspace:*",
         "@couch-kit/core": "^0.9.3",
-        "@couch-kit/host": "^1.7.14",
+        "@couch-kit/host": "^1.7.15",
         "buffer": "^6.0.3",
         "expo": "~54.0.0",
         "expo-build-properties": "^1.0.10",
@@ -298,13 +298,13 @@
 
     "@couch-kit/cli": ["@couch-kit/cli@0.3.9", "", { "dependencies": { "@couch-kit/core": "0.9.3", "commander": "^15.0.0" }, "bin": { "couch-kit": "dist/index.js" } }, "sha512-LFbLGxE5QIf4TT6xkCJUrIiw7/AVeuFE0QABFBPqdrl1sQZrDaeOme4lCciGytYMqBP3dlE4KEXieqnyZ1LXzA=="],
 
-    "@couch-kit/client": ["@couch-kit/client@0.11.0", "", { "dependencies": { "@couch-kit/core": "0.9.3" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-ft8hKeQKTmt+3r0NCwgcpE1v3Ar4+mpw8Cmq6rdaucOgS4pBNpcSxMZQksEIRAga9q8pgfCunJnytj8VMfuVTg=="],
+    "@couch-kit/client": ["@couch-kit/client@0.12.0", "", { "dependencies": { "@couch-kit/core": "0.9.3" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-n9zTqDYjk4ApbTvy5TS1JzXuT6boQqnDReo79uAFJsPxf8C8p9X1xSCYlEEQiyLDB6RIyPf0rBkG6jbfLpSKHQ=="],
 
     "@couch-kit/core": ["@couch-kit/core@0.9.3", "", {}, "sha512-8qo0goKd1FkACnWWZCsGHFZWeQqnz3uQgUgKaCoKOXf0AJ1fjF/EJSGAYrHNwPGtKy6Br6CUeJBCzULyQFxFYg=="],
 
     "@couch-kit/display": ["@couch-kit/display@0.2.2", "", { "dependencies": { "@couch-kit/client": "0.11.0", "@couch-kit/core": "0.9.3", "@couch-kit/runtime": "0.1.0" } }, "sha512-uYCsaHHJNzyOy0RIl4PfdRkRziQ44KZcXCcGoIt71gwGbsVAWr2+rsE08GiyOTB24T2ldXOCofaD7qU7rvRqkw=="],
 
-    "@couch-kit/host": ["@couch-kit/host@1.7.14", "", { "dependencies": { "@couch-kit/core": "0.9.3", "@couch-kit/runtime": "0.1.0", "buffer": "^6.0.3", "js-sha1": "^0.7.0", "react-native-nitro-http-server": "^1.6.1" }, "peerDependencies": { "expo": ">=51.0.0", "expo-file-system": ">=19.0.0", "expo-network": ">=7.0.0", "react": ">=18.2.0", "react-native": ">=0.72.0", "react-native-nitro-modules": ">=0.33.0" } }, "sha512-YWzPKNmKLSR5GrbDC+qBhXqmFLpsgTkYMh5zebXkZR1UnBXp2o2RFGJ/AcKqG+Vccbs+VWWHXb5sO//5vUmONg=="],
+    "@couch-kit/host": ["@couch-kit/host@1.7.15", "", { "dependencies": { "@couch-kit/core": "0.9.3", "@couch-kit/runtime": "0.2.0", "buffer": "^6.0.3", "js-sha1": "^0.7.0", "react-native-nitro-http-server": "^1.6.1" }, "peerDependencies": { "expo": ">=51.0.0", "expo-file-system": ">=19.0.0", "expo-network": ">=7.0.0", "react": ">=18.2.0", "react-native": ">=0.72.0", "react-native-nitro-modules": ">=0.33.0" } }, "sha512-ft39F3NCcRz7JOHY5HbpL8xIM7DftWTmo3bLMeUyBQcMaNRfia6ZRKoOFOpf26I8wJa8RWxG53In35zHvCixyQ=="],
 
     "@couch-kit/runtime": ["@couch-kit/runtime@0.1.0", "", { "dependencies": { "@couch-kit/core": "0.9.3" } }, "sha512-CG+u0NaeSL23LWzD+E1W2Dw+GT7igHxzrKnUd3NRfcPeq9sYQA/waGYRq31pSzXmOTR3Hmc8zo2qERh0D2TeMw=="],
 
@@ -1455,6 +1455,10 @@
     "@card-engine/host/@types/react": ["@types/react@19.1.17", "", { "dependencies": { "csstype": "^3.0.2" } }, "sha512-Qec1E3mhALmaspIrhWt9jkQMNdw6bReVu64mjvhbhq2NFPftLPVr+l1SZgmw/66WwBNpDh7ao5AT6gF5v41PFA=="],
 
     "@card-engine/host/react": ["react@19.1.0", "", {}, "sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg=="],
+
+    "@couch-kit/display/@couch-kit/client": ["@couch-kit/client@0.11.0", "", { "dependencies": { "@couch-kit/core": "0.9.3" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-ft8hKeQKTmt+3r0NCwgcpE1v3Ar4+mpw8Cmq6rdaucOgS4pBNpcSxMZQksEIRAga9q8pgfCunJnytj8VMfuVTg=="],
+
+    "@couch-kit/host/@couch-kit/runtime": ["@couch-kit/runtime@0.2.0", "", { "dependencies": { "@couch-kit/core": "0.9.3" } }, "sha512-Y4xlygvpFxsJ7t0uWmg0urZz6nqfj4pku+q1/aTJzrgn/sK5i9eKb065EjCYa7DjrtobCPc1gf6pLiWjGHrA2w=="],
 
     "@expo/cli/minimatch": ["minimatch@9.0.9", "", { "dependencies": { "brace-expansion": "^2.0.2" } }, "sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg=="],
 
