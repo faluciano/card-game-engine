@@ -5,7 +5,12 @@
 // status and game state.
 
 import React, { useMemo, useState } from "react";
-import { useGameClient, createRelayTransport } from "@couch-kit/client";
+import {
+  useGameClient,
+  createRelayTransport,
+  useRelayRoom,
+  describeRelayError,
+} from "@couch-kit/client";
 import {
   hostReducer,
   createHostInitialState,
@@ -19,6 +24,7 @@ import {
   type ValidAction,
 } from "@card-engine/shared";
 import { NameEntryScreen } from "./screens/NameEntryScreen.js";
+import { JoinScreen } from "./screens/JoinScreen.js";
 import { ConnectingScreen } from "./screens/ConnectingScreen.js";
 import { WaitingScreen } from "./screens/WaitingScreen.js";
 import { CatalogScreen } from "./screens/CatalogScreen.js";
@@ -40,12 +46,14 @@ const DEFAULT_RELAY_URL =
   import.meta.env.VITE_RELAY_URL ??
   "wss://couch-kit-relay.faluciano.workers.dev";
 
-function readRelayConfig(): { url: string; roomId: string } | null {
+function readRelayUrl(): string {
   try {
-    const roomId = new URLSearchParams(window.location.search).get("room");
-    return roomId ? { url: DEFAULT_RELAY_URL, roomId } : null;
+    return (
+      new URLSearchParams(window.location.search).get("relay") ??
+      DEFAULT_RELAY_URL
+    );
   } catch {
-    return null;
+    return DEFAULT_RELAY_URL;
   }
 }
 
@@ -61,6 +69,27 @@ function readStoredName(): string | null {
 // ─── App (Name Gate) ───────────────────────────────────────────────
 
 export function App(): React.JSX.Element {
+  const { roomId, setRoomId } = useRelayRoom();
+
+  // The room comes first: it is the connection prerequisite, and the client
+  // must not mount without one — with no relay transport `useGameClient` falls
+  // back to a LAN socket that cannot exist on a hosted controller, and those
+  // retries would drown out anything this screen reports. Scanning the QR fills
+  // the code in, so that path is unchanged.
+  if (!roomId) return <JoinScreen onJoin={setRoomId} />;
+
+  return <NameGate key={roomId} roomId={roomId} onRejoin={setRoomId} />;
+}
+
+// ─── Name Gate ─────────────────────────────────────────────────────
+
+function NameGate({
+  roomId,
+  onRejoin,
+}: {
+  readonly roomId: string;
+  readonly onRejoin: (code: string) => void;
+}): React.JSX.Element {
   const [playerName, setPlayerName] = useState<string | null>(readStoredName);
 
   if (!playerName) {
@@ -80,6 +109,8 @@ export function App(): React.JSX.Element {
 
   return (
     <GameClient
+      roomId={roomId}
+      onRejoin={onRejoin}
       playerName={playerName}
       onChangeName={() => {
         try {
@@ -96,26 +127,30 @@ export function App(): React.JSX.Element {
 // ─── Game Client ───────────────────────────────────────────────────
 
 interface GameClientProps {
+  readonly roomId: string;
+  readonly onRejoin: (code: string) => void;
   readonly playerName: string;
   readonly onChangeName: () => void;
 }
 
 function GameClient({
+  roomId,
+  onRejoin,
   playerName,
   onChangeName,
 }: GameClientProps): React.JSX.Element {
-  const relay = useMemo(() => readRelayConfig(), []);
-  const { status, state, playerId, sendAction } = useGameClient<
-    HostGameState,
-    HostAction
-  >({
-    reducer: hostReducer,
-    initialState,
-    name: playerName,
-    createTransport: relay
-      ? createRelayTransport({ url: relay.url, roomId: relay.roomId })
-      : undefined,
-  });
+  const url = useMemo(() => readRelayUrl(), []);
+  const { status, state, playerId, sendAction, disconnectReason } =
+    useGameClient<HostGameState, HostAction>({
+      reducer: hostReducer,
+      initialState,
+      name: playerName,
+      createTransport: createRelayTransport({ url, roomId }),
+    });
+
+  // A terminal relay failure (wrong or expired code, full room) is worth
+  // explaining; an ordinary drop is retried and needs no screen.
+  const joinError = describeRelayError(disconnectReason);
 
   // ── Hooks must be called unconditionally (Rules of Hooks) ──
   const playerView = useMemo((): PlayerView | null => {
@@ -162,6 +197,12 @@ function GameClient({
   }, [state.engineState, playerId]);
 
   // ── Guards (after all hooks) ──
+  // A room-level failure is terminal, so show what went wrong and let the
+  // player retype the code — ConnectingScreen would spin forever.
+  if (joinError) {
+    return <JoinScreen onJoin={onRejoin} error={joinError} />;
+  }
+
   if (status !== "connected" || !playerId) {
     return <ConnectingScreen status={status} />;
   }
