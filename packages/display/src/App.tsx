@@ -3,6 +3,7 @@ import { RelayDisplayHost } from "@couch-kit/display";
 import {
   hostReducer,
   createHostInitialState,
+  createHostClientView,
   type HostGameState,
   type HostAction,
 } from "@card-engine/shared";
@@ -39,6 +40,10 @@ export function App(): React.JSX.Element {
       roomId,
       reducer: hostReducer,
       initialState: createHostInitialState(),
+      // Each phone receives only its own hand and the moves it may make.
+      // Without this the whole engine state — every hand — goes to every
+      // player, and hiding cards is left to the client's good manners.
+      project: createHostClientView,
     });
     return { display, roomId };
   });

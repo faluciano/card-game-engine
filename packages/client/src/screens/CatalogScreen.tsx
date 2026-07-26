@@ -7,7 +7,7 @@ import type { CSSProperties } from "react";
 import type {
   CatalogGame,
   CardGameRuleset,
-  HostGameState,
+  HostClientView,
   HostAction,
 } from "@card-engine/shared";
 import { safeParseRuleset } from "@card-engine/shared";
@@ -31,7 +31,7 @@ const CATEGORIES = [
 // ─── Types ─────────────────────────────────────────────────────────
 
 interface CatalogScreenProps {
-  readonly state: HostGameState;
+  readonly state: HostClientView;
   readonly sendAction: (action: HostAction) => void;
 }
 
@@ -390,7 +390,7 @@ export function CatalogScreen({
 interface CatalogLoadedProps {
   readonly games: readonly CatalogGame[];
   readonly stale: boolean;
-  readonly state: HostGameState;
+  readonly state: HostClientView;
   readonly installError: string | null;
   readonly searchQuery: string;
   readonly activeTags: ReadonlySet<string>;

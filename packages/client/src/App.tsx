@@ -12,16 +12,9 @@ import {
   describeRelayError,
 } from "@couch-kit/client";
 import {
-  hostReducer,
-  createHostInitialState,
-  createPlayerView,
-  getValidActions,
-  getPlayableCardIndices,
-  type HostGameState,
+  EMPTY_CLIENT_VIEW,
   type HostAction,
-  type PlayerId,
-  type PlayerView,
-  type ValidAction,
+  type HostClientView,
 } from "@card-engine/shared";
 import { NameEntryScreen } from "./screens/NameEntryScreen.js";
 import { JoinScreen } from "./screens/JoinScreen.js";
@@ -37,7 +30,6 @@ import { ScreenTransition } from "./components/ScreenTransition.js";
 
 const STORAGE_KEY = "ck_player_name";
 
-const initialState = createHostInitialState();
 
 // Relay (cross-network) opt-in. When the controller is opened with `?room=CODE`,
 // it connects to the shared relay for that room instead of the default LAN
@@ -140,10 +132,13 @@ function GameClient({
   onChangeName,
 }: GameClientProps): React.JSX.Element {
   const url = useMemo(() => readRelayUrl(), []);
+  // No reducer: the host projects state per player, so this client holds a
+  // view rather than the whole game and cannot reduce over it. It renders what
+  // the host sends — which is the point, since the cards it must not see are
+  // never delivered.
   const { status, state, playerId, sendAction, disconnectReason } =
-    useGameClient<HostGameState, HostAction>({
-      reducer: hostReducer,
-      initialState,
+    useGameClient<HostClientView, HostAction>({
+      initialState: EMPTY_CLIENT_VIEW,
       name: playerName,
       createTransport: createRelayTransport({ url, roomId }),
     });
@@ -152,49 +147,12 @@ function GameClient({
   // explaining; an ordinary drop is retried and needs no screen.
   const joinError = describeRelayError(disconnectReason);
 
-  // ── Hooks must be called unconditionally (Rules of Hooks) ──
-  const playerView = useMemo((): PlayerView | null => {
-    if (!state.engineState || !playerId) return null;
-    try {
-      return createPlayerView(state.engineState, playerId as PlayerId);
-    } catch {
-      return null;
-    }
-  }, [state.engineState, playerId]);
-
-  const validActions = useMemo((): readonly ValidAction[] => {
-    if (!state.engineState || !playerId) return [];
-    try {
-      return getValidActions(state.engineState, playerId as PlayerId);
-    } catch {
-      return [];
-    }
-  }, [state.engineState, playerId]);
-
-  const playableCardIds = useMemo((): ReadonlySet<string> => {
-    if (!state.engineState || !playerId) return new Set();
-    try {
-      const playerIndex = state.engineState.players.findIndex(
-        (p) => p.id === playerId
-      );
-      if (playerIndex === -1) return new Set();
-      const indices = getPlayableCardIndices(
-        state.engineState,
-        state.engineState.ruleset,
-        playerIndex
-      );
-      const handZone = state.engineState.zones[`hand:${playerIndex}`];
-      if (!handZone) return new Set();
-      const ids = new Set<string>();
-      for (const idx of indices) {
-        const card = handZone.cards[idx];
-        if (card) ids.add(card.id);
-      }
-      return ids;
-    } catch {
-      return new Set();
-    }
-  }, [state.engineState, playerId]);
+  // The host computed these from state this client no longer receives.
+  const { playerView, validActions } = state;
+  const playableCardIds = useMemo(
+    (): ReadonlySet<string> => new Set(state.playableCardIds),
+    [state.playableCardIds],
+  );
 
   // ── Guards (after all hooks) ──
   // A room-level failure is terminal, so show what went wrong and let the
