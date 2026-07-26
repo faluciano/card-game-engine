@@ -10,7 +10,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@card-engine/shared": "workspace:*",
-        "@couch-kit/client": "^0.10.0",
+        "@couch-kit/client": "^0.10.1",
         "@couch-kit/core": "^0.9.3",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
@@ -298,7 +298,7 @@
 
     "@couch-kit/cli": ["@couch-kit/cli@0.3.9", "", { "dependencies": { "@couch-kit/core": "0.9.3", "commander": "^15.0.0" }, "bin": { "couch-kit": "dist/index.js" } }, "sha512-LFbLGxE5QIf4TT6xkCJUrIiw7/AVeuFE0QABFBPqdrl1sQZrDaeOme4lCciGytYMqBP3dlE4KEXieqnyZ1LXzA=="],
 
-    "@couch-kit/client": ["@couch-kit/client@0.10.0", "", { "dependencies": { "@couch-kit/core": "0.9.3" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-hlvL06gGlZXrv3Dc+IeobgERJY9kNzeq/+eH0QfF+JeeNu7iLiN8lYsuZuv2Q8wuSNDFkDgkVKesyjd1ENb1QA=="],
+    "@couch-kit/client": ["@couch-kit/client@0.10.1", "", { "dependencies": { "@couch-kit/core": "0.9.3" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-5xMPCEvUedaSprlkINsX82oBriWVS4Zvqzr1ge3WBMzzB+7fiWasGNUk95kD3nIeRK8VhOWCVx669DmkyjB4YA=="],
 
     "@couch-kit/core": ["@couch-kit/core@0.9.3", "", {}, "sha512-8qo0goKd1FkACnWWZCsGHFZWeQqnz3uQgUgKaCoKOXf0AJ1fjF/EJSGAYrHNwPGtKy6Br6CUeJBCzULyQFxFYg=="],
 
@@ -1455,6 +1455,8 @@
     "@card-engine/host/@types/react": ["@types/react@19.1.17", "", { "dependencies": { "csstype": "^3.0.2" } }, "sha512-Qec1E3mhALmaspIrhWt9jkQMNdw6bReVu64mjvhbhq2NFPftLPVr+l1SZgmw/66WwBNpDh7ao5AT6gF5v41PFA=="],
 
     "@card-engine/host/react": ["react@19.1.0", "", {}, "sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg=="],
+
+    "@couch-kit/display/@couch-kit/client": ["@couch-kit/client@0.10.0", "", { "dependencies": { "@couch-kit/core": "0.9.3" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-hlvL06gGlZXrv3Dc+IeobgERJY9kNzeq/+eH0QfF+JeeNu7iLiN8lYsuZuv2Q8wuSNDFkDgkVKesyjd1ENb1QA=="],
 
     "@expo/cli/minimatch": ["minimatch@9.0.9", "", { "dependencies": { "brace-expansion": "^2.0.2" } }, "sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg=="],
 
