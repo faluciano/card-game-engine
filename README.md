@@ -164,10 +164,20 @@ Besides the Android TV host, the whole game runs in a browser, so players on
 (`packages/display`) owns the authoritative game — the same `hostReducer` the TV
 runs — and reaches phones through a small, game-agnostic **relay**.
 
-```
- phone ─┐                       ┌─ display (owns the game, packages/display)
- phone ─┼─ WebSocket ─▶ relay ◀─┘
- phone ─┘        (Cloudflare Worker, one Durable Object per room)
+```mermaid
+graph LR
+  subgraph PHONES["📱 Phones"]
+    P1["Player 1"]
+    P2["Player 2"]
+  end
+
+  RELAY["🔀 Relay<br/>(one room each)"]
+  DISPLAY["🖥️ Display<br/>(owns the game)"]
+
+  P1 & P2 -- "actions ➡" --> RELAY
+  RELAY -- "➡ by room" --> DISPLAY
+  DISPLAY -- "⬅ state updates" --> RELAY
+  RELAY -- "⬅ to the room" --> P1 & P2
 ```
 
 **Live:**
