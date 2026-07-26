@@ -12,7 +12,7 @@
   "dependencies": {
     "@card-engine/shared": "workspace:*",
     "@couch-kit/core": "^0.9.3",
-    "@couch-kit/display": "^0.2.0",
+    "@couch-kit/display": "^0.2.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-qr-code": "^2.2.0"

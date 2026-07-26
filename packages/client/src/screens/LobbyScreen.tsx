@@ -7,7 +7,7 @@ import type { CSSProperties } from "react";
 import type {
   CatalogGame,
   CardGameRuleset,
-  HostGameState,
+  HostClientView,
   HostAction,
 } from "@card-engine/shared";
 import { safeParseRuleset } from "@card-engine/shared";
@@ -21,7 +21,7 @@ const CATALOG_BASE_URL =
 // ─── Types ─────────────────────────────────────────────────────────
 
 interface LobbyScreenProps {
-  readonly state: HostGameState;
+  readonly state: HostClientView;
   readonly sendAction: (action: HostAction) => void;
   readonly playerId: string;
   readonly onChangeName?: () => void;
@@ -168,7 +168,7 @@ export function LobbyScreen({
   // Currently selected game slug (from lobby screen state)
   const selectedSlug =
     state.screen.tag === "lobby"
-      ? state.screen.ruleset.meta.slug
+      ? state.screen.ruleset.slug
       : null;
 
   const handleInstall = useCallback(
