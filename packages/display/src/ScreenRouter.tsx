@@ -17,7 +17,7 @@ export function ScreenRouter({
   readonly state: HostGameState;
   readonly dispatch: (action: HostAction) => void;
   readonly joinUrl: string | null;
-  readonly roomId: string;
+  readonly roomId: string | null;
 }): React.JSX.Element {
   switch (state.screen.tag) {
     case "ruleset_picker":

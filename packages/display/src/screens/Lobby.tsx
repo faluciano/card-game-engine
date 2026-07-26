@@ -20,7 +20,7 @@ export function Lobby({
   readonly state: HostGameState;
   readonly dispatch: (action: HostAction) => void;
   readonly joinUrl: string | null;
-  readonly roomId: string;
+  readonly roomId: string | null;
 }): React.JSX.Element {
   const screen = state.screen;
 
