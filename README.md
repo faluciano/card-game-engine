@@ -157,6 +157,60 @@ All four implementation phases are **complete** with **883 passing tests** acros
 
 The app builds and deploys to Android TV via `bun run build:android`. The host runs an HTTP+WebSocket server via CouchKit; phones connect by scanning a QR code displayed on the TV.
 
+## Cross-Network Play (Browser Display)
+
+Besides the Android TV host, the whole game runs in a browser, so players on
+**different networks** can join without the native app. A **display page**
+(`packages/display`) owns the authoritative game — the same `hostReducer` the TV
+runs — and reaches phones through a small, game-agnostic **relay**.
+
+```mermaid
+graph LR
+  subgraph PHONES["📱 Phones"]
+    P1["Player 1"]
+    P2["Player 2"]
+  end
+
+  RELAY["🔀 Relay<br/>(one room each)"]
+  DISPLAY["🖥️ Display<br/>(owns the game)"]
+
+  P1 & P2 -- "actions ➡" --> RELAY
+  RELAY -- "➡ by room" --> DISPLAY
+  DISPLAY -- "⬅ state updates" --> RELAY
+  RELAY -- "⬅ to the room" --> P1 & P2
+```
+
+**Live:**
+
+| | |
+| --- | --- |
+| Display (put this on the TV) | https://card-game-display.pages.dev |
+| Controller (phones) | https://card-game-controller.pages.dev |
+
+Both deploy from `main` via Cloudflare Pages.
+
+### Joining
+
+The display shows a **room code** and a QR linking to
+`<controller-url>?room=CODE`. Opening the controller without a code shows a join
+screen where it can be typed; codes are case-insensitive, and a wrong or expired
+one says so instead of hanging. The display keeps every feature of the TV
+version — ruleset picker, store, lobby, and table.
+
+### Run it locally
+
+```bash
+export VITE_RELAY_URL="wss://couch-kit-relay.faluciano.workers.dev"
+export VITE_CONTROLLER_URL="http://localhost:5173"   # display's join link
+
+bun run dev:display   # room code + QR
+bun run dev:client    # the controller
+```
+
+The relay URL is required config with no default in the SDK; to run your own,
+see `services/relay-worker` (Cloudflare) or `services/relay` (Bun) in the
+`@couch-kit` repo.
+
 ## Known Issues
 
 - **`all_players_done` sentinel always returns true** — after any declare action the engine immediately advances through all automatic phases. Affects games where multiple players must each complete an action before the round advances.
