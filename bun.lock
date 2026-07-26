@@ -10,7 +10,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@card-engine/shared": "workspace:*",
-        "@couch-kit/client": "^0.12.0",
+        "@couch-kit/client": "^0.13.0",
         "@couch-kit/core": "^0.9.3",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
@@ -298,7 +298,7 @@
 
     "@couch-kit/cli": ["@couch-kit/cli@0.3.9", "", { "dependencies": { "@couch-kit/core": "0.9.3", "commander": "^15.0.0" }, "bin": { "couch-kit": "dist/index.js" } }, "sha512-LFbLGxE5QIf4TT6xkCJUrIiw7/AVeuFE0QABFBPqdrl1sQZrDaeOme4lCciGytYMqBP3dlE4KEXieqnyZ1LXzA=="],
 
-    "@couch-kit/client": ["@couch-kit/client@0.12.0", "", { "dependencies": { "@couch-kit/core": "0.9.3" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-n9zTqDYjk4ApbTvy5TS1JzXuT6boQqnDReo79uAFJsPxf8C8p9X1xSCYlEEQiyLDB6RIyPf0rBkG6jbfLpSKHQ=="],
+    "@couch-kit/client": ["@couch-kit/client@0.13.0", "", { "dependencies": { "@couch-kit/core": "0.9.3" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-UtNJjIDQlA2sK9ZTwpOtkOp/FkGPXgNgXjUbzUqgZu5PCB4A9IeEUdiDO6RhZnqkh5GgFpw5GBBZC0FYAbxAUg=="],
 
     "@couch-kit/core": ["@couch-kit/core@0.9.3", "", {}, "sha512-8qo0goKd1FkACnWWZCsGHFZWeQqnz3uQgUgKaCoKOXf0AJ1fjF/EJSGAYrHNwPGtKy6Br6CUeJBCzULyQFxFYg=="],
 
@@ -1456,10 +1456,9 @@
 
     "@card-engine/host/react": ["react@19.1.0", "", {}, "sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg=="],
 
-    "@expo/cli/@expo/json-file": ["@expo/json-file@10.2.0", "", { "dependencies": { "@babel/code-frame": "^7.20.0", "json5": "^2.2.3" } }, "sha512-S6XzKe3R9GQeHiUPXc3xJjOv2VJhOEwFYf7xdC2z2cUqt3kZJ9mSO877sNQloVdnW/SUCtPY3bexlM7nwq+CAQ=="],
     "@couch-kit/display/@couch-kit/client": ["@couch-kit/client@0.11.0", "", { "dependencies": { "@couch-kit/core": "0.9.3" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-ft8hKeQKTmt+3r0NCwgcpE1v3Ar4+mpw8Cmq6rdaucOgS4pBNpcSxMZQksEIRAga9q8pgfCunJnytj8VMfuVTg=="],
 
-    "@couch-kit/host/@couch-kit/runtime": ["@couch-kit/runtime@0.2.0", "", { "dependencies": { "@couch-kit/core": "0.9.3" } }, "sha512-Y4xlygvpFxsJ7t0uWmg0urZz6nqfj4pku+q1/aTJzrgn/sK5i9eKb065EjCYa7DjrtobCPc1gf6pLiWjGHrA2w=="],
+    "@expo/cli/@expo/json-file": ["@expo/json-file@10.2.0", "", { "dependencies": { "@babel/code-frame": "^7.20.0", "json5": "^2.2.3" } }, "sha512-S6XzKe3R9GQeHiUPXc3xJjOv2VJhOEwFYf7xdC2z2cUqt3kZJ9mSO877sNQloVdnW/SUCtPY3bexlM7nwq+CAQ=="],
 
     "@expo/cli/minimatch": ["minimatch@9.0.9", "", { "dependencies": { "brace-expansion": "^2.0.2" } }, "sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg=="],
 
