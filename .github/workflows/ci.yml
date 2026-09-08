@@ -23,13 +23,15 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run build:client
+      - run: bun run build:display
+      - run: bun run lint
 
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        package: [shared, host]
+        package: [shared, host-core, host]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
