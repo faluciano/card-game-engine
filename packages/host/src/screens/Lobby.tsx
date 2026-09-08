@@ -4,17 +4,11 @@
 // once the minimum player count is met.
 
 import React, { useMemo, useState, useCallback } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useGameHost } from "@couch-kit/host";
 import type { IPlayer } from "@couch-kit/core";
-import type { HostAction, HostGameState } from "../types/host-state";
-import { colors } from "../theme";
+import type { HostAction, HostGameState } from "@card-engine/shared";
+import { colors } from "@card-engine/host-core";
 
 import { QRDisplay } from "../components/QRDisplay";
 
@@ -23,30 +17,18 @@ import { QRDisplay } from "../components/QRDisplay";
 export function Lobby(): React.JSX.Element {
   const { state, dispatch, serverUrl } = useGameHost<HostGameState, HostAction>();
 
-  // Guard: this screen only renders when screen.tag === "lobby"
-  if (state.screen.tag !== "lobby") {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Invalid screen state</Text>
-      </View>
-    );
-  }
-
-  const { ruleset } = state.screen;
-  const { min, max } = ruleset.meta.players;
+  // All hooks run unconditionally, before the screen-tag guard below.
+  const ruleset = state.screen.tag === "lobby" ? state.screen.ruleset : null;
+  const min = ruleset?.meta.players.min ?? 0;
+  const max = ruleset?.meta.players.max ?? 0;
 
   const playerList = useMemo(
-    () =>
-      Object.entries(state.players).map(
-        ([id, player]): IPlayer => ({ ...player, id }),
-      ),
+    () => Object.entries(state.players).map(([id, player]): IPlayer => ({ ...player, id })),
     [state.players],
   );
 
-  const connectedCount = playerList.filter(
-    (p: IPlayer) => p.connected,
-  ).length;
-  const canStart = connectedCount >= min;
+  const connectedCount = playerList.filter((p: IPlayer) => p.connected).length;
+  const canStart = ruleset !== null && connectedCount >= min;
 
   const handleStart = useCallback(() => {
     if (!canStart) return;
@@ -57,15 +39,22 @@ export function Lobby(): React.JSX.Element {
     dispatch({ type: "BACK_TO_PICKER" });
   }, [dispatch]);
 
+  // Guard: this screen only renders when screen.tag === "lobby"
+  if (ruleset === null) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Invalid screen state</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Left panel: QR code + connection info */}
       <View style={styles.leftPanel}>
         <QRDisplay url={serverUrl} />
         <Text style={styles.gameName}>{ruleset.meta.name}</Text>
-        <Text style={styles.connectionHint}>
-          Scan to join on your phone
-        </Text>
+        <Text style={styles.connectionHint}>Scan to join on your phone</Text>
       </View>
 
       {/* Right panel: player list + controls */}
@@ -78,9 +67,7 @@ export function Lobby(): React.JSX.Element {
           {playerList.length === 0 ? (
             <Text style={styles.emptyHint}>Waiting for players…</Text>
           ) : (
-            playerList.map((player: IPlayer) => (
-              <PlayerRow key={player.id} player={player} />
-            ))
+            playerList.map((player: IPlayer) => <PlayerRow key={player.id} player={player} />)
           )}
         </ScrollView>
 
@@ -114,29 +101,17 @@ const PlayerRow = React.memo(function PlayerRow({
 }): React.JSX.Element {
   return (
     <View style={styles.playerRow}>
-      <View
-        style={[
-          styles.avatarCircle,
-          !player.connected && styles.avatarDisconnected,
-        ]}
-      >
-        <Text style={styles.avatarText}>
-          {player.name.charAt(0).toUpperCase()}
-        </Text>
+      <View style={[styles.avatarCircle, !player.connected && styles.avatarDisconnected]}>
+        <Text style={styles.avatarText}>{player.name.charAt(0).toUpperCase()}</Text>
       </View>
       <Text
-        style={[
-          styles.playerName,
-          !player.connected && styles.playerNameDisconnected,
-        ]}
+        style={[styles.playerName, !player.connected && styles.playerNameDisconnected]}
         numberOfLines={1}
         ellipsizeMode="tail"
       >
         {player.name}
       </Text>
-      {!player.connected && (
-        <Text style={styles.disconnectedBadge}>DISCONNECTED</Text>
-      )}
+      {!player.connected && <Text style={styles.disconnectedBadge}>DISCONNECTED</Text>}
     </View>
   );
 });

@@ -2,7 +2,7 @@
 // Mirrors the host's ScreenRouter: switches on `state.screen.tag`, the
 // single source of navigation truth shared by every connected client.
 
-import React from "react";
+import type React from "react";
 import type { HostAction, HostGameState } from "@card-engine/shared";
 import { Lobby } from "./screens/Lobby.js";
 import { RulesetPicker } from "./screens/RulesetPicker.js";
@@ -21,23 +21,9 @@ export function ScreenRouter({
 }): React.JSX.Element {
   switch (state.screen.tag) {
     case "ruleset_picker":
-      return (
-        <RulesetPicker
-          state={state}
-          dispatch={dispatch}
-          joinUrl={joinUrl}
-          roomId={roomId}
-        />
-      );
+      return <RulesetPicker state={state} dispatch={dispatch} joinUrl={joinUrl} roomId={roomId} />;
     case "lobby":
-      return (
-        <Lobby
-          state={state}
-          dispatch={dispatch}
-          joinUrl={joinUrl}
-          roomId={roomId}
-        />
-      );
+      return <Lobby state={state} dispatch={dispatch} joinUrl={joinUrl} roomId={roomId} />;
     case "game_table":
       return <GameTable state={state} dispatch={dispatch} />;
   }

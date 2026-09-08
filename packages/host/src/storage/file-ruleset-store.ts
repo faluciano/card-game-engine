@@ -4,14 +4,9 @@
 
 import { File, Directory, Paths } from "expo-file-system";
 import type { CardGameRuleset } from "@card-engine/shared";
+import type { RulesetStore, StoredRuleset } from "@card-engine/host-core";
 
-/** A stored ruleset with metadata for the local database. */
-export interface StoredRuleset {
-  readonly id: string;
-  readonly ruleset: CardGameRuleset;
-  readonly importedAt: number;
-  readonly lastPlayedAt: number | null;
-}
+export type { StoredRuleset };
 
 /** Metadata for a single stored ruleset (everything except the ruleset itself). */
 interface RulesetMetadataEntry {
@@ -50,7 +45,7 @@ function generateId(): string {
  * ├── {id}.cardgame.json      <- raw ruleset JSON
  * ```
  */
-export class FileRulesetStore {
+export class FileRulesetStore implements RulesetStore {
   private readonly rulesetsDir = new Directory(Paths.document, "rulesets");
   private readonly metadataFile = new File(this.rulesetsDir, "_metadata.json");
 
@@ -107,10 +102,7 @@ export class FileRulesetStore {
           importedAt: meta.importedAt,
           lastPlayedAt: meta.lastPlayedAt,
         });
-      } catch {
-        // Skip entries with missing or corrupt ruleset files
-        continue;
-      }
+      } catch {}
     }
 
     // Sort by importedAt descending (most recent first)
@@ -219,9 +211,7 @@ export class FileRulesetStore {
 
     const index = await this.readMetadata();
 
-    const entry = Object.entries(index).find(
-      ([, meta]) => meta.slug === slug,
-    );
+    const entry = Object.entries(index).find(([, meta]) => meta.slug === slug);
     if (!entry) return null;
 
     return this.getById(entry[0]);

@@ -1,11 +1,12 @@
 const { getDefaultConfig } = require("expo/metro-config");
-const path = require("path");
-const fs = require("fs");
+const path = require("node:path");
+const fs = require("node:fs");
 
 const config = getDefaultConfig(__dirname);
 
 const root = path.resolve(__dirname, "../..");
 const sharedPackage = path.resolve(__dirname, "../shared");
+const hostCorePackage = path.resolve(__dirname, "../host-core");
 const hostNodeModules = path.resolve(__dirname, "node_modules");
 
 const resolvePackage = (name, searchPaths) => {
@@ -27,7 +28,7 @@ const couchKitCorePath = resolvePackage("@couch-kit/core", [
   path.resolve(root, "node_modules"),
 ]);
 
-config.watchFolders = [root, sharedPackage, couchKitHostPath, couchKitCorePath];
+config.watchFolders = [root, sharedPackage, hostCorePackage, couchKitHostPath, couchKitCorePath];
 
 config.resolver.nodeModulesPaths = [
   hostNodeModules,
@@ -47,12 +48,13 @@ const reactNativePath = resolvePackage("react-native", singletonSearchPaths);
 const singletonPackages = {
   react: reactPath,
   "react-native": reactNativePath,
-  "react/jsx-runtime": reactPath + "/jsx-runtime",
-  "react/jsx-dev-runtime": reactPath + "/jsx-dev-runtime",
+  "react/jsx-runtime": `${reactPath}/jsx-runtime`,
+  "react/jsx-dev-runtime": `${reactPath}/jsx-dev-runtime`,
 };
 
 config.resolver.extraNodeModules = {
   "@card-engine/shared": sharedPackage,
+  "@card-engine/host-core": hostCorePackage,
   "@couch-kit/host": couchKitHostPath,
   "@couch-kit/core": couchKitCorePath,
   ...singletonPackages,

@@ -1,8 +1,8 @@
 // Resolve @expo/config-plugins via expo's own node_modules to work
 // around Bun monorepo hoisting (the package lives in .bun/ cache and
 // isn't directly resolvable from this directory).
-const path = require("path");
-const fs = require("fs");
+const path = require("node:path");
+const fs = require("node:fs");
 const expoDir = path.dirname(require.resolve("expo/package.json"));
 const configPluginsPath = require.resolve("@expo/config-plugins", {
   paths: [expoDir],
@@ -24,7 +24,7 @@ function withAndroidTV(config) {
     async (config) => {
       const drawableDir = path.join(
         config.modRequest.platformProjectRoot,
-        "app/src/main/res/drawable"
+        "app/src/main/res/drawable",
       );
       fs.mkdirSync(drawableDir, { recursive: true });
 
@@ -54,9 +54,7 @@ function withAndroidTV(config) {
     const features = manifest["uses-feature"];
 
     const ensureFeature = (name, required) => {
-      const exists = features.some(
-        (f) => f.$?.["android:name"] === name
-      );
+      const exists = features.some((f) => f.$?.["android:name"] === name);
       if (!exists) {
         features.push({
           $: {
@@ -74,9 +72,7 @@ function withAndroidTV(config) {
 
     const application = manifest.application?.[0];
     if (!application) {
-      console.warn(
-        "withAndroidTV: No <application> found in AndroidManifest.xml"
-      );
+      console.warn("withAndroidTV: No <application> found in AndroidManifest.xml");
       return config;
     }
 
@@ -93,9 +89,7 @@ function withAndroidTV(config) {
 
       for (const filter of intentFilters) {
         const actions = filter.action ?? [];
-        const isMainFilter = actions.some(
-          (a) => a.$?.["android:name"] === MAIN_ACTION
-        );
+        const isMainFilter = actions.some((a) => a.$?.["android:name"] === MAIN_ACTION);
 
         if (!isMainFilter) continue;
 
@@ -105,7 +99,7 @@ function withAndroidTV(config) {
         }
 
         const hasLeanback = filter.category.some(
-          (c) => c.$?.["android:name"] === LEANBACK_CATEGORY
+          (c) => c.$?.["android:name"] === LEANBACK_CATEGORY,
         );
 
         if (!hasLeanback) {

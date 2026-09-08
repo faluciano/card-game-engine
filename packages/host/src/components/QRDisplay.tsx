@@ -5,7 +5,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
-import { colors } from "../theme";
+import { colors } from "@card-engine/host-core";
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -28,12 +28,7 @@ export const QRDisplay = React.memo(function QRDisplay({
 
   return (
     <View style={[styles.qrBox, { width: boxSize, height: boxSize }]}>
-      <QRCode
-        value={url}
-        size={size}
-        color="black"
-        backgroundColor="white"
-      />
+      <QRCode value={url} size={size} color="black" backgroundColor="white" />
     </View>
   );
 });

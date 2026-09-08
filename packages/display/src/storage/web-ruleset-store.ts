@@ -1,17 +1,12 @@
 // ─── Web Ruleset Store ─────────────────────────────────────────────
-// Browser-side port of the host's FileRulesetStore. Persists installed
-// (non-built-in) rulesets in localStorage under a single JSON index,
-// exposing the same async interface the ruleset hooks expect.
+// Browser-side counterpart of the host's FileRulesetStore. Persists
+// installed (non-built-in) rulesets in localStorage under a single JSON
+// index, implementing the RulesetStore contract the host-core hooks expect.
 
 import type { CardGameRuleset } from "@card-engine/shared";
+import type { RulesetStore, StoredRuleset } from "@card-engine/host-core";
 
-/** A stored ruleset with metadata for the local database. */
-export interface StoredRuleset {
-  readonly id: string;
-  readonly ruleset: CardGameRuleset;
-  readonly importedAt: number;
-  readonly lastPlayedAt: number | null;
-}
+export type { StoredRuleset };
 
 interface Entry {
   readonly slug: string;
@@ -36,10 +31,10 @@ function generateId(): string {
 }
 
 /**
- * Persists rulesets in `localStorage`, mirroring the host `FileRulesetStore`
- * API so the ruleset orchestration hooks work unchanged on the web display.
+ * Persists rulesets in `localStorage`, implementing `RulesetStore` so the
+ * host-core ruleset hooks work unchanged on the web display.
  */
-export class WebRulesetStore {
+export class WebRulesetStore implements RulesetStore {
   private read(): Index {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -98,3 +93,10 @@ export class WebRulesetStore {
     return entry ? this.toStored(entry[0], entry[1]) : null;
   }
 }
+
+/**
+ * Module-level store instance shared by every host-core hook. The hooks take
+ * the store as a dependency, so a single stable instance avoids re-running
+ * effects on each render.
+ */
+export const rulesetStore = new WebRulesetStore();

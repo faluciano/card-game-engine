@@ -1,8 +1,8 @@
 // Resolve @expo/config-plugins via expo's own node_modules to work
 // around Bun monorepo hoisting (the package lives in .bun/ cache and
 // isn't directly resolvable from this directory).
-const path = require("path");
-const fs = require("fs");
+const path = require("node:path");
+const fs = require("node:fs");
 const expoDir = path.dirname(require.resolve("expo/package.json"));
 const configPluginsPath = require.resolve("@expo/config-plugins", {
   paths: [expoDir],
@@ -26,10 +26,7 @@ function withGradleOptimizations(config) {
   return withDangerousMod(config, [
     "android",
     async (config) => {
-      const gradlePropsPath = path.join(
-        config.modRequest.platformProjectRoot,
-        "gradle.properties"
-      );
+      const gradlePropsPath = path.join(config.modRequest.platformProjectRoot, "gradle.properties");
 
       if (fs.existsSync(gradlePropsPath)) {
         let contents = fs.readFileSync(gradlePropsPath, "utf8");
@@ -45,7 +42,7 @@ function withGradleOptimizations(config) {
         // Enable legacy JNI packaging (pairs with extractNativeLibs=true in withAndroidTV)
         contents = contents.replace(
           /expo\.useLegacyPackaging=false/,
-          "expo.useLegacyPackaging=true"
+          "expo.useLegacyPackaging=true",
         );
         if (!contents.includes("expo.useLegacyPackaging=")) {
           contents += "expo.useLegacyPackaging=true\n";
@@ -60,27 +57,24 @@ function withGradleOptimizations(config) {
       // Remove stale react-native-reanimated ProGuard rules (not a dependency)
       const proguardPath = path.join(
         config.modRequest.platformProjectRoot,
-        "app/proguard-rules.pro"
+        "app/proguard-rules.pro",
       );
       if (fs.existsSync(proguardPath)) {
         let proguard = fs.readFileSync(proguardPath, "utf8");
         proguard = proguard.replace(
           /# react-native-reanimated\n-keep class com\.swmansion\.reanimated\.\*\* \{ \*; \}\n-keep class com\.facebook\.react\.turbomodule\.\*\* \{ \*; \}\n\n?/,
-          ""
+          "",
         );
         fs.writeFileSync(proguardPath, proguard);
       }
 
       // Switch to optimized ProGuard defaults (enables method inlining, class merging)
-      const buildGradlePath = path.join(
-        config.modRequest.platformProjectRoot,
-        "app/build.gradle"
-      );
+      const buildGradlePath = path.join(config.modRequest.platformProjectRoot, "app/build.gradle");
       if (fs.existsSync(buildGradlePath)) {
         let buildGradle = fs.readFileSync(buildGradlePath, "utf8");
         buildGradle = buildGradle.replace(
           'getDefaultProguardFile("proguard-android.txt")',
-          'getDefaultProguardFile("proguard-android-optimize.txt")'
+          'getDefaultProguardFile("proguard-android-optimize.txt")',
         );
         fs.writeFileSync(buildGradlePath, buildGradle);
       }

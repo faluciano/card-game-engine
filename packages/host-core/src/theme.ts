@@ -1,5 +1,5 @@
 // ─── Theme ─────────────────────────────────────────────────────────
-// Shared color tokens for the Android TV host UI. Centralizes the palette
+// Shared color tokens for the host UIs (Android TV and web display). Centralizes the palette
 // that was previously hardcoded across screens so colors stay consistent.
 
 export const colors = {

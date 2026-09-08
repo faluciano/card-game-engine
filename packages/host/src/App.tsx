@@ -5,17 +5,20 @@
 // Each layer guards a precondition before rendering children.
 // This keeps the inner components blissfully unaware of boot concerns.
 
-import React from "react";
+import type React from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { GameHostProvider, useExtractAssets, useGameHost } from "@couch-kit/host";
 import type { AssetManifest } from "@couch-kit/host";
-import { hostReducer, createHostInitialState } from "./reducers/host-reducer";
-import type { HostAction, HostGameState } from "./types/host-state";
-import { useInstalledSlugs } from "./hooks/useInstalledSlugs";
-import { colors } from "./theme";
-import { useRulesetInstaller } from "./hooks/useRulesetInstaller";
-import { useRulesetUninstaller } from "./hooks/useRulesetUninstaller";
-import { BUILT_IN_INSTALLED } from "./built-in-rulesets";
+import { hostReducer, createHostInitialState } from "@card-engine/shared";
+import type { HostAction, HostGameState } from "@card-engine/shared";
+import {
+  BUILT_IN_INSTALLED,
+  colors,
+  useInstalledSlugs,
+  useRulesetInstaller,
+  useRulesetUninstaller,
+} from "@card-engine/host-core";
+import { rulesetStore } from "./storage";
 import { RulesetPicker } from "./screens/RulesetPicker";
 import { Lobby } from "./screens/Lobby";
 import { GameTable } from "./screens/GameTable";
@@ -121,9 +124,9 @@ function ScreenRouter(): React.JSX.Element {
   const { state, dispatch } = useGameHost<HostGameState, HostAction>();
 
   // ── Side-effect hooks ──────────────────────────────────────────
-  useInstalledSlugs(dispatch, BUILT_IN_INSTALLED);
-  useRulesetInstaller(state.pendingInstall, dispatch, BUILT_IN_INSTALLED);
-  useRulesetUninstaller(state.pendingUninstall, dispatch, BUILT_IN_INSTALLED);
+  useInstalledSlugs(rulesetStore, dispatch, BUILT_IN_INSTALLED);
+  useRulesetInstaller(rulesetStore, state.pendingInstall, dispatch, BUILT_IN_INSTALLED);
+  useRulesetUninstaller(rulesetStore, state.pendingUninstall, dispatch, BUILT_IN_INSTALLED);
 
   switch (state.screen.tag) {
     case "ruleset_picker":

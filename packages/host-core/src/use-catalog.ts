@@ -1,14 +1,13 @@
-// ─── Catalog Fetcher (host) ────────────────────────────────────────
-// Fetches the published game catalog from GitHub Pages so the TV can
+// ─── Catalog Fetcher ───────────────────────────────────────────────
+// Fetches the published game catalog from GitHub Pages so the host can
 // browse and install games directly (the "store"). Unlike the web
-// client, the host runs under Hermes with no localStorage, so this is
+// client, the TV host runs under Hermes with no localStorage, so this is
 // an in-memory fetch-on-mount with an explicit refetch().
 
 import { useState, useEffect, useCallback } from "react";
 import type { CatalogGame } from "@card-engine/shared";
 
-export const CATALOG_BASE_URL =
-  "https://faluciano.github.io/card-game-engine/";
+export const CATALOG_BASE_URL = "https://faluciano.github.io/card-game-engine/";
 
 const CATALOG_URL = `${CATALOG_BASE_URL}catalog.json`;
 
@@ -26,7 +25,7 @@ export interface UseCatalogResult {
 
 // ─── Envelope parser ───────────────────────────────────────────────
 
-function parseCatalogEnvelope(data: unknown): CatalogGame[] | null {
+export function parseCatalogEnvelope(data: unknown): CatalogGame[] | null {
   if (
     typeof data !== "object" ||
     data === null ||
@@ -49,6 +48,7 @@ export function useCatalog(): UseCatalogResult {
     setNonce((n) => n + 1);
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: nonce is a deliberate refetch trigger bumped by refetch(); the effect body has no other captures
   useEffect(() => {
     let cancelled = false;
 
@@ -67,8 +67,7 @@ export function useCatalog(): UseCatalogResult {
         setCatalog({ tag: "loaded", games });
       } catch (err) {
         if (cancelled) return;
-        const message =
-          err instanceof Error ? err.message : "Failed to load catalog";
+        const message = err instanceof Error ? err.message : "Failed to load catalog";
         setCatalog({ tag: "error", message });
       }
     }

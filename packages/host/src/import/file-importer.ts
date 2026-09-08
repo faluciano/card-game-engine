@@ -5,7 +5,7 @@ import { File } from "expo-file-system";
 import type { CardGameRuleset } from "@card-engine/shared";
 import { safeParseRuleset } from "@card-engine/shared";
 
-import { formatZodIssues } from "./format-zod-issues";
+import { formatZodIssues } from "@card-engine/host-core";
 
 /** Result of a file import attempt. Discriminated union. */
 export type FileImportResult =
@@ -18,9 +18,7 @@ export type FileImportResult =
  *
  * @param filePath - Absolute path to the .cardgame.json file.
  */
-export async function importFromFile(
-  filePath: string,
-): Promise<FileImportResult> {
+export async function importFromFile(filePath: string): Promise<FileImportResult> {
   if (!filePath.endsWith(".cardgame.json")) {
     return { ok: false, error: "File must have a .cardgame.json extension." };
   }

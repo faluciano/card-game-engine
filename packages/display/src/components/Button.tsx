@@ -4,8 +4,9 @@
 // browser display is pointer/keyboard driven, so this is a real
 // <button> that highlights on hover and keyboard focus.
 
-import React, { useState } from "react";
-import { colors } from "../theme.js";
+import type React from "react";
+import { useState } from "react";
+import { colors } from "@card-engine/host-core";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 
