@@ -1,5 +1,5 @@
 {
-  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
+  "$schema": "../packages/shared/src/schema/cardgame.v1.schema.json",
   "meta": {
     "name": "Blackjack",
     "slug": "blackjack",
@@ -71,9 +71,7 @@
       "name": "deal",
       "kind": "automatic",
       "actions": [],
-      "transitions": [
-        { "to": "player_turns", "when": "all_hands_dealt" }
-      ],
+      "transitions": [{ "to": "player_turns", "when": "all_hands_dealt" }],
       "onEnter": [
         "shuffle(draw_pile)",
         "deal(draw_pile, hand, 2)",
@@ -101,42 +99,26 @@
           "name": "double_down",
           "label": "Double Down",
           "condition": "card_count(current_player.hand) == 2 && hand_value(current_player.hand) < 21",
-          "effect": [
-            "draw(draw_pile, current_player.hand, 1)",
-            "end_turn()"
-          ]
+          "effect": ["draw(draw_pile, current_player.hand, 1)", "end_turn()"]
         }
       ],
-      "transitions": [
-        { "to": "dealer_turn", "when": "all_players_done" }
-      ],
+      "transitions": [{ "to": "dealer_turn", "when": "all_players_done" }],
       "turnOrder": "clockwise"
     },
     {
       "name": "dealer_turn",
       "kind": "automatic",
       "actions": [],
-      "transitions": [
-        { "to": "scoring", "when": "hand_value(dealer_hand) >= 17" }
-      ],
-      "onEnter": [
-        "reveal_all(dealer_hand)"
-      ],
-      "onStep": [
-        "if(hand_value(dealer_hand) < 17, draw(draw_pile, dealer_hand, 1))"
-      ]
+      "transitions": [{ "to": "scoring", "when": "hand_value(dealer_hand) >= 17" }],
+      "onEnter": ["reveal_all(dealer_hand)"],
+      "onStep": ["if(hand_value(dealer_hand) < 17, draw(draw_pile, dealer_hand, 1))"]
     },
     {
       "name": "scoring",
       "kind": "automatic",
       "actions": [],
-      "transitions": [
-        { "to": "round_end", "when": "scores_calculated" }
-      ],
-      "onEnter": [
-        "calculate_scores()",
-        "determine_winners()"
-      ]
+      "transitions": [{ "to": "round_end", "when": "scores_calculated" }],
+      "onEnter": ["calculate_scores()", "determine_winners()"]
     },
     {
       "name": "round_end",
@@ -145,15 +127,10 @@
         {
           "name": "new_round",
           "label": "New Round",
-          "effect": [
-            "collect_all_to(draw_pile)",
-            "reset_round()"
-          ]
+          "effect": ["collect_all_to(draw_pile)", "reset_round()"]
         }
       ],
-      "transitions": [
-        { "to": "deal", "when": "continue_game" }
-      ]
+      "transitions": [{ "to": "deal", "when": "continue_game" }]
     }
   ],
   "scoring": {

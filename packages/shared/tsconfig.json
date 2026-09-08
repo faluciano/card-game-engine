@@ -5,11 +5,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "rootDir": "src",
-    "outDir": "dist",
-    "baseUrl": "."
+    "outDir": "dist"
   },
-  "include": ["src"],
-  "references": [
-    { "path": "../schema" }
-  ]
+  "include": ["src"]
 }

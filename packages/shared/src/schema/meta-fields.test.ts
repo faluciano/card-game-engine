@@ -4,14 +4,12 @@
 // decks, variables manifest, and tieCondition.
 
 import { describe, it, expect } from "vitest";
-import { safeParseRuleset } from "../index";
+import { safeParseRuleset } from "./validation";
 
 // ─── Helper: Minimal Valid Ruleset Factory ─────────────────────────
 
 /** Returns a minimal valid ruleset object that passes Zod validation. */
-function makeMinimalRuleset(
-  overrides: Record<string, unknown> = {}
-): Record<string, unknown> {
+function makeMinimalRuleset(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const base = {
     meta: {
       name: "Test Game",
@@ -64,7 +62,10 @@ function makeMinimalRuleset(
     return {
       ...base,
       ...overrides,
-      meta: { ...(base.meta as Record<string, unknown>), ...(overrides.meta as Record<string, unknown>) },
+      meta: {
+        ...(base.meta as Record<string, unknown>),
+        ...(overrides.meta as Record<string, unknown>),
+      },
     };
   }
 
@@ -158,9 +159,7 @@ describe("meta field validation", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      const descIssue = result.error.issues.find(
-        (i) => i.path.includes("description")
-      );
+      const descIssue = result.error.issues.find((i) => i.path.includes("description"));
       expect(descIssue).toBeDefined();
     }
   });
@@ -174,9 +173,7 @@ describe("meta field validation", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      const tagsIssue = result.error.issues.find(
-        (i) => i.path.includes("tags")
-      );
+      const tagsIssue = result.error.issues.find((i) => i.path.includes("tags"));
       expect(tagsIssue).toBeDefined();
     }
   });
@@ -203,9 +200,7 @@ describe("meta field validation", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      const licenseIssue = result.error.issues.find(
-        (i) => i.path.includes("license")
-      );
+      const licenseIssue = result.error.issues.find((i) => i.path.includes("license"));
       expect(licenseIssue).toBeDefined();
     }
   });
@@ -223,9 +218,7 @@ describe("$schema field", () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.$schema).toBe(
-        "https://card-engine.dev/schemas/v1/cardgame.schema.json"
-      );
+      expect(result.data.$schema).toBe("https://card-engine.dev/schemas/v1/cardgame.schema.json");
     }
   });
 
@@ -249,9 +242,7 @@ describe("$schema field", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      const schemaIssue = result.error.issues.find(
-        (i) => i.path.includes("$schema")
-      );
+      const schemaIssue = result.error.issues.find((i) => i.path.includes("$schema"));
       expect(schemaIssue).toBeDefined();
     }
   });
@@ -322,9 +313,7 @@ describe("JSON Schema bug fixes verification", () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.scoring.tieCondition).toBe(
-        "my_score == dealer_score"
-      );
+      expect(result.data.scoring.tieCondition).toBe("my_score == dealer_score");
     }
   });
 });
@@ -334,28 +323,44 @@ describe("JSON Schema bug fixes verification", () => {
 describe("Deck copies boundary validation", () => {
   it("accepts copies = 1 (minimum)", () => {
     const result = safeParseRuleset(
-      makeMinimalRuleset({ deck: { preset: "standard_52", copies: 1, cardValues: { A: { kind: "fixed", value: 1 } } } })
+      makeMinimalRuleset({
+        deck: { preset: "standard_52", copies: 1, cardValues: { A: { kind: "fixed", value: 1 } } },
+      }),
     );
     expect(result.success).toBe(true);
   });
 
   it("accepts copies = 100 (maximum)", () => {
     const result = safeParseRuleset(
-      makeMinimalRuleset({ deck: { preset: "standard_52", copies: 100, cardValues: { A: { kind: "fixed", value: 1 } } } })
+      makeMinimalRuleset({
+        deck: {
+          preset: "standard_52",
+          copies: 100,
+          cardValues: { A: { kind: "fixed", value: 1 } },
+        },
+      }),
     );
     expect(result.success).toBe(true);
   });
 
   it("rejects copies = 0 (below minimum)", () => {
     const result = safeParseRuleset(
-      makeMinimalRuleset({ deck: { preset: "standard_52", copies: 0, cardValues: { A: { kind: "fixed", value: 1 } } } })
+      makeMinimalRuleset({
+        deck: { preset: "standard_52", copies: 0, cardValues: { A: { kind: "fixed", value: 1 } } },
+      }),
     );
     expect(result.success).toBe(false);
   });
 
   it("rejects copies = 101 (above maximum)", () => {
     const result = safeParseRuleset(
-      makeMinimalRuleset({ deck: { preset: "standard_52", copies: 101, cardValues: { A: { kind: "fixed", value: 1 } } } })
+      makeMinimalRuleset({
+        deck: {
+          preset: "standard_52",
+          copies: 101,
+          cardValues: { A: { kind: "fixed", value: 1 } },
+        },
+      }),
     );
     expect(result.success).toBe(false);
   });
@@ -411,7 +416,7 @@ describe("card value numeric shorthand", () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.deck.cardValues["A"]).toEqual({ kind: "dual", low: 1, high: 11 });
+      expect(result.data.deck.cardValues.A).toEqual({ kind: "dual", low: 1, high: 11 });
     }
   });
 
@@ -433,10 +438,10 @@ describe("card value numeric shorthand", () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.deck.cardValues["A"]).toEqual({ kind: "dual", low: 1, high: 11 });
+      expect(result.data.deck.cardValues.A).toEqual({ kind: "dual", low: 1, high: 11 });
       expect(result.data.deck.cardValues["2"]).toEqual({ kind: "fixed", value: 2 });
       expect(result.data.deck.cardValues["3"]).toEqual({ kind: "fixed", value: 3 });
-      expect(result.data.deck.cardValues["K"]).toEqual({ kind: "fixed", value: 10 });
+      expect(result.data.deck.cardValues.K).toEqual({ kind: "fixed", value: 10 });
     }
   });
 
@@ -474,9 +479,7 @@ describe("card value numeric shorthand", () => {
 describe("globalTransitions field", () => {
   it("parses ruleset with globalTransitions", () => {
     const ruleset = makeMinimalRuleset({
-      globalTransitions: [
-        { to: "play", when: "card_count(current_player.hand) == 0" },
-      ],
+      globalTransitions: [{ to: "play", when: "card_count(current_player.hand) == 0" }],
     });
 
     const result = safeParseRuleset(ruleset);

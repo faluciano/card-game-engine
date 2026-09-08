@@ -58,7 +58,7 @@ sections:
 
 ```json
 {
-  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
+  "$schema": "../packages/shared/src/schema/cardgame.v1.schema.json",
   "meta": {
     "name": "string",
     "slug": "string (lowercase, hyphens only)",
@@ -104,7 +104,7 @@ For the blackjack ruleset, the `meta` block looks like this:
 
 ```json
 {
-  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
+  "$schema": "../packages/shared/src/schema/cardgame.v1.schema.json",
   "meta": {
     "name": "Blackjack",
     "slug": "blackjack",
@@ -1430,14 +1430,14 @@ A JSON Schema (draft-07) is also available for editor autocompletion and
 pre-commit validation:
 
 ```
-packages/schema/src/schema/cardgame.v1.schema.json
+packages/shared/src/schema/cardgame.v1.schema.json
 ```
 
 You can reference it in your `.cardgame.json` files for editor support:
 
 ```json
 {
-  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
+  "$schema": "../packages/shared/src/schema/cardgame.v1.schema.json",
   "meta": { "..." }
 }
 ```

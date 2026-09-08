@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [shared, schema, host]
+        package: [shared, host]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

@@ -5,7 +5,7 @@
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { safeParseRuleset } from "../packages/schema/src/index";
+import { safeParseRuleset } from "../packages/shared/src/index";
 
 const RULESETS_DIR = join(import.meta.dir, "..", "rulesets");
 const OUTPUT_PATH = join(import.meta.dir, "..", "catalog.json");
@@ -29,9 +29,7 @@ interface Catalog {
 
 async function main(): Promise<void> {
   const entries = await readdir(RULESETS_DIR);
-  const files = entries
-    .filter((f) => f.endsWith(".cardgame.json"))
-    .sort();
+  const files = entries.filter((f) => f.endsWith(".cardgame.json")).sort();
 
   if (files.length === 0) {
     console.error("No .cardgame.json files found in rulesets/");
@@ -89,7 +87,7 @@ async function main(): Promise<void> {
     games,
   };
 
-  await writeFile(OUTPUT_PATH, JSON.stringify(catalog, null, 2) + "\n", "utf-8");
+  await writeFile(OUTPUT_PATH, `${JSON.stringify(catalog, null, 2)}\n`, "utf-8");
 
   console.log();
   console.log(`Cataloged ${games.length} game(s) to catalog.json`);
