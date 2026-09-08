@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { CardGameRuleset } from "@card-engine/shared";
 import { FileRulesetStore } from "./file-ruleset-store";
 
 // ══════════════════════════════════════════════════════════════════════
@@ -22,9 +23,7 @@ vi.mock("expo-file-system", () => {
     readonly uri: string;
 
     constructor(...segments: (string | { uri: string })[]) {
-      const joined = segments
-        .map((s) => (typeof s === "string" ? s : s.uri))
-        .join("/");
+      const joined = segments.map((s) => (typeof s === "string" ? s : s.uri)).join("/");
       this.uri = normalizeUri(joined);
     }
 
@@ -51,9 +50,7 @@ vi.mock("expo-file-system", () => {
     readonly uri: string;
 
     constructor(...segments: (string | { uri: string })[]) {
-      const joined = segments
-        .map((s) => (typeof s === "string" ? s : s.uri))
-        .join("/");
+      const joined = segments.map((s) => (typeof s === "string" ? s : s.uri)).join("/");
       const normalized = normalizeUri(joined);
       this.uri = normalized.endsWith("/") ? normalized : `${normalized}/`;
     }
@@ -90,7 +87,8 @@ const METADATA_PATH = `${RULESETS_DIR}_metadata.json`;
 // Factories
 // ══════════════════════════════════════════════════════════════════════
 
-function makeRuleset(slug = "test-game", name = "Test Game") {
+/** Minimal ruleset that satisfies `CardGameRuleset` for store round-trips. */
+function makeRuleset(slug = "test-game", name = "Test Game"): CardGameRuleset {
   return {
     meta: {
       slug,
@@ -99,19 +97,17 @@ function makeRuleset(slug = "test-game", name = "Test Game") {
       author: "Test",
       players: { min: 2, max: 4 },
     },
-    deck: { preset: "standard52" },
+    deck: { preset: "standard_52", copies: 1, cardValues: {} },
     zones: [],
-    setup: [],
+    roles: [{ name: "player", isHuman: true, count: "per_player" }],
     phases: [],
-    scoring: { type: "manual" },
+    scoring: { method: "0", winCondition: "false" },
+    ui: { layout: "semicircle", tableColor: "felt_green" },
   };
 }
 
 function makeMetadataIndex(
-  entries: Record<
-    string,
-    { slug: string; importedAt: number; lastPlayedAt: number | null }
-  >,
+  entries: Record<string, { slug: string; importedAt: number; lastPlayedAt: number | null }>,
 ) {
   return entries;
 }
@@ -175,14 +171,8 @@ describe("FileRulesetStore", () => {
       });
 
       setFile(METADATA_PATH, JSON.stringify(metadata));
-      setFile(
-        `${RULESETS_DIR}id-older.cardgame.json`,
-        JSON.stringify(rulesetA),
-      );
-      setFile(
-        `${RULESETS_DIR}id-newer.cardgame.json`,
-        JSON.stringify(rulesetB),
-      );
+      setFile(`${RULESETS_DIR}id-older.cardgame.json`, JSON.stringify(rulesetA));
+      setFile(`${RULESETS_DIR}id-newer.cardgame.json`, JSON.stringify(rulesetB));
 
       const result = await store.list();
 
@@ -219,10 +209,7 @@ describe("FileRulesetStore", () => {
       });
 
       setFile(METADATA_PATH, JSON.stringify(metadata));
-      setFile(
-        `${RULESETS_DIR}id-good.cardgame.json`,
-        JSON.stringify(rulesetGood),
-      );
+      setFile(`${RULESETS_DIR}id-good.cardgame.json`, JSON.stringify(rulesetGood));
       // id-missing has no file — .text() will throw
 
       const result = await store.list();
@@ -261,9 +248,7 @@ describe("FileRulesetStore", () => {
 
       // Verify metadata was written
       const writtenMetadata = JSON.parse(getFile(METADATA_PATH)!);
-      expect(
-        writtenMetadata["aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee"],
-      ).toEqual({
+      expect(writtenMetadata["aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee"]).toEqual({
         slug: "my-game",
         importedAt: now,
         lastPlayedAt: null,
@@ -306,10 +291,7 @@ describe("FileRulesetStore", () => {
       });
 
       setFile(METADATA_PATH, JSON.stringify(metadata));
-      setFile(
-        `${RULESETS_DIR}found-id.cardgame.json`,
-        JSON.stringify(ruleset),
-      );
+      setFile(`${RULESETS_DIR}found-id.cardgame.json`, JSON.stringify(ruleset));
 
       const result = await store.getById("found-id");
 
@@ -393,9 +375,7 @@ describe("FileRulesetStore", () => {
       expect(metadata["slug-override-id"].slug).toBe("custom-slug");
 
       // Verify ruleset file still has original slug
-      const rulesetFile = JSON.parse(
-        getFile(`${RULESETS_DIR}slug-override-id.cardgame.json`)!,
-      );
+      const rulesetFile = JSON.parse(getFile(`${RULESETS_DIR}slug-override-id.cardgame.json`)!);
       expect(rulesetFile.meta.slug).toBe("original-slug");
     });
 
@@ -454,10 +434,7 @@ describe("FileRulesetStore", () => {
       });
 
       setFile(METADATA_PATH, JSON.stringify(metadata));
-      setFile(
-        `${RULESETS_DIR}target-id.cardgame.json`,
-        JSON.stringify(ruleset),
-      );
+      setFile(`${RULESETS_DIR}target-id.cardgame.json`, JSON.stringify(ruleset));
 
       const result = await store.getBySlug("target-slug");
 

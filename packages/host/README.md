@@ -1,10 +1,10 @@
 # @card-engine/host
 
-Android TV host application for the card game engine. Runs as the authoritative game server and shared table display on a TV, managing game state, persisting sessions to local SQLite, and serving player views over local WiFi via CouchKit.
+Android TV host application for the card game engine. Runs as the authoritative game server and shared table display on a TV, managing game state, persisting imported rulesets as JSON files, and serving player views over local WiFi via CouchKit.
 
 Players connect their phones by scanning a QR code displayed on the TV. The host loads a `.cardgame.json` ruleset, runs the engine's reducer for every action, and broadcasts filtered per-player state back to each connected client.
 
-> Storage, import, bridge layer, screens, and orchestration hook are fully implemented with 79 unit tests across the storage and import layers. Screen components are React Native UI and are verified manually on-device.
+> Storage, import, bridge layer, screens, and orchestration hook are fully implemented with 47 unit tests across the storage and import layers. Screen components are React Native UI and are verified manually on-device.
 
 ## Directory Structure
 
@@ -13,15 +13,14 @@ packages/host/
 ├── android/                  Native Android TV project (Expo prebuild)
 ├── src/
 │   ├── __mocks__/
-│   │   ├── expo-file-system.ts  Test mock for expo-file-system
-│   │   └── op-sqlite.ts         Test mock for op-sqlite DB interface
+│   │   └── expo-file-system.ts  Test mock for expo-file-system
 │   ├── hooks/
 │   │   └── useGameOrchestrator.ts  Auto-dispatches lifecycle transitions
 │   ├── import/
 │   │   ├── file-importer.ts     Import .cardgame.json from local file
 │   │   ├── url-importer.ts      Import .cardgame.json from HTTPS URL
 │   │   ├── format-zod-issues.ts Human-readable Zod error formatting
-│   │   ├── *.test.ts            Unit tests (10 + 14 + 8 tests)
+│   │   ├── *.test.ts            Unit tests (9 + 14 + 8 tests)
 │   │   └── index.ts
 │   ├── reducers/
 │   │   └── host-reducer.ts      Bridge reducer (CouchKit ↔ card engine)
@@ -30,16 +29,12 @@ packages/host/
 │   │   ├── Lobby.tsx            QR code display + player list + start gate
 │   │   └── GameTable.tsx        Zone rendering, scores, results overlay
 │   ├── storage/
-│   │   ├── migrations.ts        SQLite schema (3 tables, versioned)
-│   │   ├── ruleset-store.ts     Ruleset CRUD with gzip compression
-│   │   ├── session-store.ts     Game state snapshot persistence
-│   │   ├── action-logger.ts     Append-only action log for replay
-│   │   ├── *.test.ts            Unit tests (15 + 12 + 11 + 9 tests)
+│   │   ├── file-ruleset-store.ts  Ruleset CRUD as JSON files (expo-file-system)
+│   │   ├── *.test.ts            Unit tests (16 tests)
 │   │   └── index.ts
 │   ├── types/
 │   │   └── host-state.ts        Bridge types (HostGameState, HostAction, HostScreen)
-│   ├── App.tsx                  Root: AssetGate → GameHostProvider → ServerErrorGate → ScreenRouter
-│   └── index.ts                 Public API re-exports
+│   └── App.tsx                  Root: AssetGate → GameHostProvider → ServerErrorGate → ScreenRouter
 ├── vitest.config.ts             Test config with native module aliases
 ├── app.json                     Expo config (landscape, dark, new arch)
 ├── package.json
@@ -126,47 +121,15 @@ The hook is called inside `GameTable` and uses a ref-based timer with careful cl
 
 ## Storage Layer
 
-Local persistence uses [op-sqlite](https://github.com/nicholasgasior/op-engineering/op-sqlite) for SQLite access and [pako](https://github.com/nicholasgasior/pako) for gzip compression. All JSON game data (rulesets, state snapshots, actions) is compressed before storage to reduce disk usage.
+Local persistence uses [expo-file-system](https://docs.expo.dev/versions/latest/sdk/filesystem/) (the `File` / `Directory` / `Paths` API) with no native SQLite dependency. Imported rulesets are stored as plain JSON files:
 
-### SQLite Schema
+```
+${Paths.document}/rulesets/
+├── _metadata.json          { [id]: { slug, importedAt, lastPlayedAt } }
+└── <id>.cardgame.json      the ruleset itself
+```
 
-Three tables defined in `migrations.ts`, applied via versioned idempotent migrations:
-
-**`rulesets`** -- Imported game definitions.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `TEXT PK` | Unique ruleset identifier |
-| `slug` | `TEXT UNIQUE` | URL-safe short name |
-| `compressed_data` | `BLOB` | Gzipped JSON (`CardGameRuleset`) |
-| `imported_at` | `INTEGER` | Unix timestamp |
-| `last_played_at` | `INTEGER` | Nullable, updated on game start |
-
-**`sessions`** -- Game state snapshots for crash recovery.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `session_id` | `TEXT PK` | Unique session identifier |
-| `compressed_state` | `BLOB` | Gzipped JSON (`CardGameState`) |
-| `saved_at` | `INTEGER` | Unix timestamp |
-
-**`action_log`** -- Append-only log for replay and undo.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `INTEGER PK` | Auto-increment |
-| `session_id` | `TEXT FK` | References `sessions.session_id` |
-| `version` | `INTEGER` | Monotonic action sequence number |
-| `action_json` | `TEXT` | Serialized `ResolvedAction` |
-| `timestamp` | `INTEGER` | Indexed for range queries |
-
-Index: `idx_action_log_session` on `(session_id, version)`.
-
-### Store Classes
-
-- **`RulesetStore`** -- CRUD for rulesets. Compresses with `pako.gzip` on write, decompresses with `pako.ungzip` on read. Methods: `list()`, `getById(id)`, `save(ruleset)`, `delete(id)`.
-- **`SessionStore`** -- Snapshot persistence for crash recovery. Saves compressed state at phase transitions or every N actions. Methods: `saveSnapshot(state)`, `loadSnapshot(sessionId)`, `listSessions()`, `deleteSession(sessionId)`.
-- **`ActionLogger`** -- Append-only action log. Actions are never modified or deleted during a game session. Enables deterministic replay by re-applying actions from a snapshot. Methods: `append(sessionId, action)`, `getActions(sessionId, fromVersion?)`, `getActionCount(sessionId)`.
+- **`FileRulesetStore`** -- CRUD for rulesets. Methods: `list()`, `getById(id)`, `getBySlug(slug)`, `save(ruleset)`, `saveWithSlug(ruleset, slug)`, `delete(id)`. Entries whose file is missing or unparseable are skipped by `list()` rather than failing the whole read.
 
 ## Import System
 
@@ -251,33 +214,24 @@ bun run test          # Run once
 bun run test:watch    # Watch mode
 ```
 
-79 tests across 7 test files covering the storage and import layers:
+25 tests across 2 test files covering the storage and file-import layers (URL import and Zod issue formatting tests moved to `@card-engine/host-core`):
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
-| `migrations.test.ts` | 15 | Migration runner, meta table, multi-statement SQL |
-| `ruleset-store.test.ts` | 12 | CRUD, pako compression round-trip, guards |
-| `session-store.test.ts` | 11 | Snapshot save/load, cascade delete, upsert |
-| `action-logger.test.ts` | 9 | Append, query with version filter, count |
-| `file-importer.test.ts` | 10 | Extension guard, file read, JSON parse, validation |
-| `url-importer.test.ts` | 14 | HTTPS guard, size limits, fetch errors, validation |
-| `format-zod-issues.test.ts` | 8 | Path formatting, root issues, nested paths |
+| `file-ruleset-store.test.ts` | 16 | CRUD, metadata index, slug lookup/override, corrupt-entry tolerance |
+| `file-importer.test.ts` | 9 | Extension guard, file read, JSON parse, validation |
 
-Tests use constructor-injected mock DB instances (no `vi.mock` for storage) and real pako compression for round-trip verification. Screen components, the bridge reducer, and the orchestrator hook are React Native UI code verified manually on-device — they depend on CouchKit provider context and native modules not available in the Vitest environment.
+Storage tests run against an in-memory `expo-file-system` mock (see `vitest.config.ts` alias and the `vi.mock` in the test file). Screen components, the bridge reducer, and the orchestrator hook are React Native UI code verified manually on-device — they depend on CouchKit provider context and native modules not available in the Vitest environment.
 
 ## Current Status
 
 | Component | Status |
 |-----------|--------|
-| SQLite schema (`migrations.ts`) | ✅ Implemented — 3 tables with versioned migrations |
-| Migration runner (`runMigrations`) | ✅ Implemented — meta table tracking, multi-statement SQL splitting |
-| `RulesetStore` | ✅ Implemented — CRUD with pako gzip compression |
-| `SessionStore` | ✅ Implemented — snapshot upsert with transactional cascade delete |
-| `ActionLogger` | ✅ Implemented — append-only log with version filtering |
+| `FileRulesetStore` | ✅ Implemented — JSON-file CRUD with metadata index via expo-file-system |
 | `importFromFile` | ✅ Implemented — expo-file-system read, Zod validation |
 | `importFromUrl` | ✅ Implemented — HTTPS-only, size limits, Zod validation |
 | `formatZodIssues` | ✅ Implemented — human-readable Zod error formatting |
-| Unit tests | ✅ 79 tests passing across 7 files |
+| Unit tests | ✅ 25 tests passing across 2 files |
 | Bridge types (`HostGameState`, `HostAction`, `HostScreen`) | ✅ Implemented — CouchKit ↔ card engine reconciliation |
 | Bridge reducer (`hostReducer`) | ✅ Implemented — navigation, game lifecycle, engine delegation |
 | `App.tsx` pipeline | ✅ Implemented — AssetGate → GameHostProvider → ServerErrorGate → ScreenRouter |
