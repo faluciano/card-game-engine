@@ -28,7 +28,7 @@ The TV runs the authoritative game engine: it loads the ruleset, advances the FS
 - **Declarative JSON rulesets** — define game logic without writing code
 - **Safe expression language** — conditions and effects use a constrained (non-Turing-complete) evaluator with `if()` conditional branching and `while()` loops
 - **41 query builtins + 23 effect builtins** — covering common card game mechanics (draw, discard, shuffle, score, card matching, pattern matching, turn order, trick-taking, string variables, etc.)
-- **Phase-based FSM** — supports automatic, player_action, and simultaneous phase types
+- **Phase-based FSM** — supports `automatic`, `turn_based`, and `all_players` (simultaneous) phase types
 - **Turn order mechanics** — clockwise/counterclockwise direction, reverse, skip, and set-next-player effects
 - **Seeded PRNG** — mulberry32 with `crypto.getRandomValues` seed hardening enables deterministic replay from an action log
 - **Hidden information** — per-player state filtering via `createPlayerView` with per-variable `public` visibility
@@ -41,14 +41,21 @@ The TV runs the authoritative game engine: it loads the ruleset, advances the FS
 ```
 card-game-engine/
 ├── packages/
-│   ├── shared/        @card-engine/shared   — game engine core (types, expression
-│   │                                          evaluator, interpreter, PRNG)
-│   ├── schema/        @card-engine/schema   — JSON Schema, Zod validation, types
-│   │                                          (card, ruleset, state)
+│   ├── shared/        @card-engine/shared   — game engine core (types, JSON Schema,
+│   │                                          Zod validation, expression evaluator,
+│   │                                          interpreter, PRNG)
+│   ├── host-core/     @card-engine/host-core — framework-light host logic shared by
+│   │                                          the TV host and the browser display
+│   │                                          (catalog fetching, ruleset import,
+│   │                                          install hooks, orchestrator, built-in
+│   │                                          rulesets, theme tokens)
 │   ├── host/          @card-engine/host     — Android TV app (Expo + CouchKit host
 │   │                                          + expo-file-system storage)
-│   └── client/        @card-engine/client   — phone controller (Vite + React +
-│                                              CouchKit client)
+│   ├── client/        @card-engine/client   — phone controller (Vite + React +
+│   │                                          CouchKit client)
+│   └── display/       @card-engine/display  — browser display that owns the game
+│                                              (Vite + React + CouchKit display,
+│                                              via a Cloudflare Workers relay)
 ├── rulesets/          .cardgame.json rule files
 ├── package.json       Bun monorepo root (workspaces)
 └── tsconfig.json      composite TS project references
@@ -56,10 +63,11 @@ card-game-engine/
 
 | Package | Runtime | Key Dependencies |
 |---------|---------|------------------|
-| `schema` | Pure TypeScript | Zod |
-| `shared` | Pure TypeScript, zero framework deps | @card-engine/schema, Zod |
+| `shared` | Pure TypeScript, zero framework deps | Zod, CouchKit core |
+| `host-core` | Framework-light TypeScript | @card-engine/shared, React (peer) |
 | `host` | Expo + React Native | CouchKit host, expo-file-system |
-| `client` | Vite + React 18 | CouchKit client |
+| `client` | Vite + React 19 | CouchKit client |
+| `display` | Vite + React 19 | CouchKit display |
 
 ## Getting Started
 
@@ -87,14 +95,14 @@ bun run dev:client
 
 ### Testing
 
-Tests live in the shared, schema, and host packages and use Vitest:
+Tests live in the shared and host packages and use Vitest:
 
 ```sh
 cd packages/shared
 bunx vitest run
 ```
 
-883 tests across the shared (770), schema (19), and host (94) packages cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation, player views, game phases, integration scenarios), schema meta fields, and the host package (storage, importers). The client package is verified via `tsc` type-checking and Vite production build.
+The shared and host suites cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation and meta fields, player views, game phases, integration scenarios) and the host package (storage, importers). The client and display packages are verified via `tsc` type-checking and Vite production builds. Current test counts are listed in [Project Status](#project-status).
 
 ### Build and Deploy
 
@@ -111,7 +119,7 @@ bun run build:client       # TypeScript check + Vite production build
 bun run bundle:client      # Bundle client dist into the host's Android assets
 ```
 
-Type-check the shared and client packages:
+Type-check every package (`tsc -b packages/client packages/host-core` covers shared via project references, then the display and host packages):
 
 ```sh
 bun run typecheck
@@ -125,7 +133,11 @@ bun run typecheck
 | `bun run build:client` | TypeScript check + Vite production build |
 | `bun run bundle:client` | Bundle client dist into host's Android assets |
 | `bun run build:android` | Bundle client + Expo Android build |
-| `bun run typecheck` | Type-check shared and client packages |
+| `bun run typecheck` | Type-check client and host-core (+ shared via references), display, and host |
+| `bun run typecheck:host` | Type-check the host package only |
+| `bun run dev:display` | Start the browser display dev server |
+| `bun run build:display` | Build the browser display |
+| `bun run lint` | Biome lint and format check (`bun run format` to fix) |
 | `bun run validate` | Validate all rulesets against the JSON Schema |
 | `bun run catalog` | Generate `catalog.json` from all rulesets' metadata |
 
@@ -144,16 +156,17 @@ See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format
 
 ## Project Status
 
-All four implementation phases are **complete** with **883 passing tests** across shared (770), schema (19), and host (94) packages.
+All four implementation phases are **complete**. Test counts as of this writing: shared 839, host-core 37, host 25 (run `bunx vitest run` in each package for the current numbers).
 
-| Phase | Status | Tests |
-|-------|--------|-------|
-| Phase 1 — Engine Core | ✅ Complete | 770 |
-| Phase 1.5 — Documentation | ✅ Complete | — |
-| Phase 2 — Storage & Import | ✅ Complete | 94 |
-| Phase 3 — Host Screens & CouchKit Integration | ✅ Complete | — |
-| Phase 3.4 — Schema Package & Catalog | ✅ Complete | 19 |
-| Phase 4 — Client Controller App | ✅ Complete | — |
+| Phase | Status |
+|-------|--------|
+| Phase 1 — Engine Core | ✅ Complete |
+| Phase 1.5 — Documentation | ✅ Complete |
+| Phase 2 — Storage & Import | ✅ Complete |
+| Phase 3 — Host Screens & CouchKit Integration | ✅ Complete |
+| Phase 3.4 — Schema & Catalog | ✅ Complete |
+| Phase 4 — Client Controller App | ✅ Complete |
+| Cross-Network Play — Browser Display + Relay | ✅ Complete |
 
 The app builds and deploys to Android TV via `bun run build:android`. The host runs an HTTP+WebSocket server via CouchKit; phones connect by scanning a QR code displayed on the TV.
 
@@ -213,7 +226,6 @@ see `services/relay-worker` (Cloudflare) or `services/relay` (Bun) in the
 
 ## Known Issues
 
-- **`all_players_done` sentinel always returns true** — after any declare action the engine immediately advances through all automatic phases. Affects games where multiple players must each complete an action before the round advances.
 - **JDK version after prebuild** — `expo prebuild --clean` regenerates `gradle.properties`, removing the `org.gradle.java.home` override. Must re-add JDK 17 path and `local.properties` with `sdk.dir` after each prebuild.
 
 ## License
