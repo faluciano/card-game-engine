@@ -7,8 +7,12 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: "Release tag to build and upload the APK to (e.g. v1.8.5)."
-        required: true
+        description: >-
+          Release tag to build and upload the APK to (e.g. v1.8.5). Leave
+          empty to only build the APK and publish it as a workflow artifact
+          (used by apk-check.yml to verify the native build on PRs).
+        required: false
+        default: ""
         type: string
 
 permissions:
