@@ -3,17 +3,8 @@
 // Each phase has a kind (automatic | turn_based | all_players),
 // allowed actions, and conditional transitions to other phases.
 
-import type {
-  CardGameState,
-  PhaseAction,
-  PhaseDefinition,
-  PhaseTransition,
-} from "../types/index";
-import {
-  evaluateCondition,
-  ExpressionError,
-  type EvalContext,
-} from "./expression-evaluator";
+import type { CardGameState, PhaseAction, PhaseDefinition, PhaseTransition } from "../types/index";
+import { evaluateCondition, ExpressionError, type EvalContext } from "./expression-evaluator";
 
 /** The result of evaluating a phase transition. */
 export type TransitionResult =
@@ -30,7 +21,7 @@ export class PhaseMachine {
 
   constructor(
     phases: readonly PhaseDefinition[],
-    globalTransitions: readonly PhaseTransition[] = []
+    globalTransitions: readonly PhaseTransition[] = [],
   ) {
     const map = new Map<string, PhaseDefinition>();
     for (const phase of phases) {
@@ -69,7 +60,7 @@ export class PhaseMachine {
       // Fail fast: a misconfigured ruleset should be caught immediately.
       if (!this.phasesByName.has(transition.to)) {
         throw new Error(
-          `Phase "${state.currentPhase}" has a transition to unknown phase: "${transition.to}"`
+          `Phase "${state.currentPhase}" has a transition to unknown phase: "${transition.to}"`,
         );
       }
 
@@ -84,7 +75,7 @@ export class PhaseMachine {
         if (error instanceof ExpressionError) {
           console.warn(
             `Phase "${state.currentPhase}": transition condition "${transition.when}" ` +
-              `failed to evaluate: ${error.message}. Treating as not met.`
+              `failed to evaluate: ${error.message}. Treating as not met.`,
           );
           continue;
         }
@@ -96,9 +87,7 @@ export class PhaseMachine {
     // 2. Evaluate global transitions (fallback after phase-specific ones)
     for (const transition of this.globalTransitions) {
       if (!this.phasesByName.has(transition.to)) {
-        throw new Error(
-          `Global transition targets unknown phase: "${transition.to}"`
-        );
+        throw new Error(`Global transition targets unknown phase: "${transition.to}"`);
       }
 
       try {
@@ -110,7 +99,7 @@ export class PhaseMachine {
         if (error instanceof ExpressionError) {
           console.warn(
             `Global transition condition "${transition.when}" ` +
-              `failed to evaluate: ${error.message}. Treating as not met.`
+              `failed to evaluate: ${error.message}. Treating as not met.`,
           );
           continue;
         }

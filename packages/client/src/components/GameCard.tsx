@@ -2,7 +2,7 @@
 // Individual catalog entry rendered as an app-store style card.
 // Shows game metadata and an install/installed action button.
 
-import React from "react";
+import type React from "react";
 import type { CSSProperties } from "react";
 import type { CatalogGame } from "@card-engine/shared";
 
@@ -289,13 +289,9 @@ export function GameCard({
     <div style={cardStyle}>
       <div style={infoStyle}>
         <span style={nameStyle}>{game.name}</span>
-        <span style={descriptionStyle}>
-          {game.description ?? "No description"}
-        </span>
+        <span style={descriptionStyle}>{game.description ?? "No description"}</span>
         <div style={metaRowStyle}>
-          <span style={badgeStyle}>
-            {formatPlayerRange(game.players.min, game.players.max)}
-          </span>
+          <span style={badgeStyle}>{formatPlayerRange(game.players.min, game.players.max)}</span>
           {(game.tags ?? []).map((tag) => (
             <span key={tag} style={tagStyle}>
               {tag}

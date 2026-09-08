@@ -5,7 +5,8 @@
 // When onCardSelect is provided, cards in the player's own zones become
 // interactive — enabling card selection for play_card actions.
 
-import React, { useCallback } from "react";
+import type React from "react";
+import { useCallback } from "react";
 import type { CSSProperties } from "react";
 import type { Card, PlayerView, CardInstanceId } from "@card-engine/shared";
 import { CardMini } from "./CardMini.js";
@@ -88,9 +89,7 @@ export function HandViewer({
   // Exclude zones where all cards are null (visibility-hidden zones)
   const otherZones = Object.entries(zones).filter(
     ([name, zone]) =>
-      !name.endsWith(mySuffix) &&
-      zone.cardCount > 0 &&
-      zone.cards.some((card) => card !== null),
+      !name.endsWith(mySuffix) && zone.cardCount > 0 && zone.cards.some((card) => card !== null),
   );
 
   const hasAnyCards = myZones.length > 0 || otherZones.length > 0;
@@ -117,9 +116,7 @@ export function HandViewer({
       {otherZones.map(([name, zone]) => {
         // For non-owner zones (e.g. discard pile), only show visible cards
         // to avoid rendering dozens of face-down placeholders
-        const displayCards = zone.cards.filter(
-          (card): card is Card => card !== null,
-        );
+        const displayCards = zone.cards.filter((card): card is Card => card !== null);
 
         return (
           <div key={name} style={zoneStyle}>
@@ -129,10 +126,7 @@ export function HandViewer({
                 <CardMini
                   key={card.id}
                   card={card}
-                  emphasized={
-                    displayCards.length > 0 &&
-                    index === displayCards.length - 1
-                  }
+                  emphasized={displayCards.length > 0 && index === displayCards.length - 1}
                 />
               ))}
             </div>

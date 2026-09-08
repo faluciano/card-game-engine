@@ -3,7 +3,7 @@
 // Displays the result (win/draw/loss), score summary, and a button
 // to start a new round.
 
-import React from "react";
+import type React from "react";
 import type { CSSProperties } from "react";
 
 interface RoundResultsBannerProps {

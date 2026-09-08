@@ -11,6 +11,7 @@ import type {
   GameReducer,
   GameSessionId,
   GameStatus,
+  PhaseDefinition,
   Player,
   PlayerId,
   ResolvedAction,
@@ -21,16 +22,14 @@ import type {
 import { parseRuleset } from "../schema/validation";
 import { getPresetDeck, type CardTemplate } from "../deck/presets";
 import { PhaseMachine } from "./phase-machine";
+import { registerAllBuiltins, type EffectDescription, type MutableEvalContext } from "./builtins";
 import {
-  registerAllBuiltins,
-  type EffectDescription,
-  type MutableEvalContext,
-} from "./builtins";
-import { evaluateCondition, evaluateExpression, type EvalContext, type EvalResult } from "./expression-evaluator";
-import {
-  validateAction,
-  executePhaseAction,
-} from "./action-validator";
+  evaluateCondition,
+  evaluateExpression,
+  type EvalContext,
+  type EvalResult,
+} from "./expression-evaluator";
+import { validateAction, executePhaseAction } from "./action-validator";
 import { createRng, generateSeed, type SeededRng } from "./prng";
 import { isHumanPlayer } from "./role-utils";
 
@@ -41,7 +40,7 @@ const MAX_ACTION_LOG_SIZE = 500;
 
 /** Extract initial numeric variables from the unified manifest. */
 function getInitialVariables(
-  manifest: Readonly<Record<string, VariableDefinition>> | undefined
+  manifest: Readonly<Record<string, VariableDefinition>> | undefined,
 ): Record<string, number> {
   if (!manifest) return {};
   const result: Record<string, number> = {};
@@ -53,7 +52,7 @@ function getInitialVariables(
 
 /** Extract initial string variables from the unified manifest. */
 function getInitialStringVariables(
-  manifest: Readonly<Record<string, VariableDefinition>> | undefined
+  manifest: Readonly<Record<string, VariableDefinition>> | undefined,
 ): Record<string, string> {
   if (!manifest) return {};
   const result: Record<string, string> = {};
@@ -68,12 +67,10 @@ function getInitialStringVariables(
 /** Appends an entry to the action log, capping at MAX_ACTION_LOG_SIZE. */
 function appendToLog(
   log: readonly ResolvedAction[],
-  entry: ResolvedAction
+  entry: ResolvedAction,
 ): readonly ResolvedAction[] {
   const newLog = [...log, entry];
-  return newLog.length > MAX_ACTION_LOG_SIZE
-    ? newLog.slice(-MAX_ACTION_LOG_SIZE)
-    : newLog;
+  return newLog.length > MAX_ACTION_LOG_SIZE ? newLog.slice(-MAX_ACTION_LOG_SIZE) : newLog;
 }
 
 // ─── loadRuleset ───────────────────────────────────────────────────
@@ -98,11 +95,11 @@ export function loadRuleset(raw: unknown): CardGameRuleset {
         issues: Array<{ path: (string | number)[]; message: string }>;
       };
       const formattedIssues = zodError.issues.map(
-        (issue) => `${issue.path.join(".")}: ${issue.message}`
+        (issue) => `${issue.path.join(".")}: ${issue.message}`,
       );
       throw new RulesetParseError(
         `Invalid ruleset: ${formattedIssues.length} issue(s)`,
-        formattedIssues
+        formattedIssues,
       );
     }
     throw error;
@@ -121,16 +118,16 @@ export function createInitialState(
   ruleset: CardGameRuleset,
   sessionId: GameSessionId,
   players: readonly Player[],
-  seed: number = generateSeed()
+  seed: number = generateSeed(),
 ): CardGameState {
   if (players.length < ruleset.meta.players.min) {
     throw new RangeError(
-      `Need at least ${ruleset.meta.players.min} players, got ${players.length}`
+      `Need at least ${ruleset.meta.players.min} players, got ${players.length}`,
     );
   }
   if (players.length > ruleset.meta.players.max) {
     throw new RangeError(
-      `At most ${ruleset.meta.players.max} players allowed, got ${players.length}`
+      `At most ${ruleset.meta.players.max} players allowed, got ${players.length}`,
     );
   }
 
@@ -138,9 +135,7 @@ export function createInitialState(
 
   // Build deck from preset templates or custom card definitions
   const templates =
-    ruleset.deck.preset === "custom"
-      ? ruleset.deck.cards
-      : getPresetDeck(ruleset.deck.preset);
+    ruleset.deck.preset === "custom" ? ruleset.deck.cards : getPresetDeck(ruleset.deck.preset);
   const allCards = createDeterministicCards(templates, ruleset.deck.copies, rng);
 
   // Initialize zones
@@ -174,7 +169,7 @@ export function createInitialState(
  */
 export function createReducer(
   ruleset: CardGameRuleset,
-  seed: number = generateSeed()
+  seed: number = generateSeed(),
 ): GameReducer {
   // Ensure builtins are registered (idempotent)
   registerAllBuiltins();
@@ -215,22 +210,24 @@ export function createReducer(
  */
 function handleJoin(
   state: CardGameState,
-  action: Extract<CardGameAction, { kind: "join" }>
+  action: Extract<CardGameAction, { kind: "join" }>,
 ): CardGameState {
-  const existingIndex = state.players.findIndex(
-    (p) => p.id === action.playerId
-  );
+  const existingIndex = state.players.findIndex((p) => p.id === action.playerId);
 
   if (existingIndex !== -1) {
     // Reconnect existing player
     const updated = state.players.map((p, i) =>
-      i === existingIndex ? { ...p, connected: true } : p
+      i === existingIndex ? { ...p, connected: true } : p,
     );
     return {
       ...state,
       players: updated,
       version: state.version + 1,
-      actionLog: appendToLog(state.actionLog, { action, timestamp: Date.now(), version: state.version + 1 }),
+      actionLog: appendToLog(state.actionLog, {
+        action,
+        timestamp: Date.now(),
+        version: state.version + 1,
+      }),
     };
   }
 
@@ -246,7 +243,11 @@ function handleJoin(
     ...state,
     players: [...state.players, newPlayer],
     version: state.version + 1,
-    actionLog: appendToLog(state.actionLog, { action, timestamp: Date.now(), version: state.version + 1 }),
+    actionLog: appendToLog(state.actionLog, {
+      action,
+      timestamp: Date.now(),
+      version: state.version + 1,
+    }),
   };
 }
 
@@ -256,22 +257,22 @@ function handleJoin(
  */
 function handleLeave(
   state: CardGameState,
-  action: Extract<CardGameAction, { kind: "leave" }>
+  action: Extract<CardGameAction, { kind: "leave" }>,
 ): CardGameState {
-  const playerIndex = state.players.findIndex(
-    (p) => p.id === action.playerId
-  );
+  const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
   if (playerIndex === -1) return state;
 
-  const updated = state.players.map((p, i) =>
-    i === playerIndex ? { ...p, connected: false } : p
-  );
+  const updated = state.players.map((p, i) => (i === playerIndex ? { ...p, connected: false } : p));
 
   return {
     ...state,
     players: updated,
     version: state.version + 1,
-    actionLog: appendToLog(state.actionLog, { action, timestamp: Date.now(), version: state.version + 1 }),
+    actionLog: appendToLog(state.actionLog, {
+      action,
+      timestamp: Date.now(),
+      version: state.version + 1,
+    }),
   };
 }
 
@@ -282,7 +283,7 @@ function handleLeave(
 function handleStartGame(
   state: CardGameState,
   phaseMachine: PhaseMachine,
-  rng: SeededRng
+  rng: SeededRng,
 ): CardGameState {
   // Guard: must be waiting for players
   if (state.status.kind !== "waiting_for_players") {
@@ -318,33 +319,35 @@ function handleDeclare(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "declare" }>,
   phaseMachine: PhaseMachine,
-  rng: SeededRng
+  rng: SeededRng,
 ): CardGameState {
   const validation = validateAction(state, action, phaseMachine);
   if (!validation.valid) return state;
 
-  const playerIndex = state.players.findIndex(
-    (p) => p.id === action.playerId
-  );
+  const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
 
   const effects = executePhaseAction(
     state,
     action.declaration,
     playerIndex,
     phaseMachine,
-    action.params
+    action.params,
   );
 
-    let newState = applyEffects(state, effects, rng);
+  let newState = applyEffects(state, effects, rng);
 
-    // ── Auto-end turn via phase expression ──────────────────────────
-    newState = maybeAutoEndTurn(newState, state, effects, playerIndex, phaseMachine);
+  // ── Auto-end turn via phase expression ──────────────────────────
+  newState = maybeAutoEndTurn(newState, state, effects, playerIndex, phaseMachine);
 
-    // Bump version and log
+  // Bump version and log
   newState = {
     ...newState,
     version: newState.version + 1,
-    actionLog: appendToLog(newState.actionLog, { action, timestamp: Date.now(), version: newState.version + 1 }),
+    actionLog: appendToLog(newState.actionLog, {
+      action,
+      timestamp: Date.now(),
+      version: newState.version + 1,
+    }),
   };
 
   // Check transitions after the action
@@ -362,7 +365,7 @@ function handlePlayCard(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "play_card" }>,
   phaseMachine: PhaseMachine,
-  rng: SeededRng
+  rng: SeededRng,
 ): CardGameState {
   const validation = validateAction(state, action, phaseMachine);
   if (!validation.valid) return state;
@@ -385,11 +388,9 @@ function handlePlayCard(
   let newState: CardGameState = { ...state, zones };
 
   // ── Execute phase action effects (if "play_card" action exists) ─
-  const playerIndex = state.players.findIndex(
-    (p) => p.id === action.playerId
-  );
+  const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
 
-  let phase;
+  let phase: PhaseDefinition | undefined;
   try {
     phase = phaseMachine.getPhase(state.currentPhase);
   } catch {
@@ -399,12 +400,7 @@ function handlePlayCard(
   const playCardAction = phase?.actions.find((a) => a.name === "play_card");
 
   if (playCardAction) {
-    const effects = executePhaseAction(
-      newState,
-      "play_card",
-      playerIndex,
-      phaseMachine
-    );
+    const effects = executePhaseAction(newState, "play_card", playerIndex, phaseMachine);
 
     newState = applyEffects(newState, effects, rng);
 
@@ -416,7 +412,11 @@ function handlePlayCard(
   newState = {
     ...newState,
     version: newState.version + 1,
-    actionLog: appendToLog(newState.actionLog, { action, timestamp: Date.now(), version: newState.version + 1 }),
+    actionLog: appendToLog(newState.actionLog, {
+      action,
+      timestamp: Date.now(),
+      version: newState.version + 1,
+    }),
   };
 
   // Check transitions after the action
@@ -433,7 +433,7 @@ function handlePlayCard(
 function handleDrawCard(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "draw_card" }>,
-  phaseMachine: PhaseMachine
+  phaseMachine: PhaseMachine,
 ): CardGameState {
   const validation = validateAction(state, action, phaseMachine);
   if (!validation.valid) return state;
@@ -452,7 +452,11 @@ function handleDrawCard(
     ...state,
     zones,
     version: state.version + 1,
-    actionLog: appendToLog(state.actionLog, { action, timestamp: Date.now(), version: state.version + 1 }),
+    actionLog: appendToLog(state.actionLog, {
+      action,
+      timestamp: Date.now(),
+      version: state.version + 1,
+    }),
   };
 }
 
@@ -463,21 +467,25 @@ function handleEndTurn(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "end_turn" }>,
   phaseMachine: PhaseMachine,
-  rng: SeededRng
+  rng: SeededRng,
 ): CardGameState {
   const validation = validateAction(state, action, phaseMachine);
   if (!validation.valid) return state;
 
   const count = state.players.length;
   const nextPlayerIndex =
-    ((state.currentPlayerIndex + state.turnDirection) % count + count) % count;
+    (((state.currentPlayerIndex + state.turnDirection) % count) + count) % count;
 
   let newState: CardGameState = {
     ...state,
     currentPlayerIndex: nextPlayerIndex,
     turnsTakenThisPhase: state.turnsTakenThisPhase + 1,
     version: state.version + 1,
-    actionLog: appendToLog(state.actionLog, { action, timestamp: Date.now(), version: state.version + 1 }),
+    actionLog: appendToLog(state.actionLog, {
+      action,
+      timestamp: Date.now(),
+      version: state.version + 1,
+    }),
   };
 
   // Check transitions (e.g., all_players_done triggers phase change)
@@ -492,7 +500,7 @@ function handleEndTurn(
 function handleAdvancePhase(
   state: CardGameState,
   phaseMachine: PhaseMachine,
-  rng: SeededRng
+  rng: SeededRng,
 ): CardGameState {
   const transition = phaseMachine.evaluateTransitions(state);
   if (transition.kind === "stay") return state;
@@ -522,7 +530,7 @@ function handleAdvancePhase(
 function handleStepPhase(
   state: CardGameState,
   phaseMachine: PhaseMachine,
-  rng: SeededRng
+  rng: SeededRng,
 ): CardGameState {
   if (!phaseMachine.isAutomaticPhase(state.currentPhase)) return state;
 
@@ -559,7 +567,7 @@ function handleStepPhase(
 function handleResetRound(
   state: CardGameState,
   phaseMachine: PhaseMachine,
-  rng: SeededRng
+  rng: SeededRng,
 ): CardGameState {
   const firstPhase = state.ruleset.phases[0]!.name;
 
@@ -600,7 +608,7 @@ const MAX_PHASE_ITERATIONS = 50;
 function runAutomaticPhases(
   state: CardGameState,
   phaseMachine: PhaseMachine,
-  rng: SeededRng
+  rng: SeededRng,
 ): CardGameState {
   let current = state;
   let iterations = 0;
@@ -653,7 +661,7 @@ function runAutomaticPhases(
 function checkTransitionsAndRunAuto(
   state: CardGameState,
   phaseMachine: PhaseMachine,
-  rng: SeededRng
+  rng: SeededRng,
 ): CardGameState {
   const transition = phaseMachine.evaluateTransitions(state);
   if (transition.kind === "stay") {
@@ -683,9 +691,9 @@ function maybeAutoEndTurn(
   previousState: CardGameState,
   effects: readonly EffectDescription[],
   playerIndex: number,
-  phaseMachine: PhaseMachine
+  phaseMachine: PhaseMachine,
 ): CardGameState {
-  let phase;
+  let phase: PhaseDefinition;
   try {
     phase = phaseMachine.getPhase(state.currentPhase);
   } catch {
@@ -702,7 +710,8 @@ function maybeAutoEndTurn(
     if (evaluateCondition(autoEndTurnCondition, ctx)) {
       // Apply end_turn directly via a mini-draft to avoid exposing StateDraft
       const count = state.players.length;
-      const nextIndex = ((state.currentPlayerIndex + state.turnDirection) % count + count) % count;
+      const nextIndex =
+        (((state.currentPlayerIndex + state.turnDirection) % count) + count) % count;
       return {
         ...state,
         currentPlayerIndex: nextIndex,
@@ -750,7 +759,7 @@ interface StateDraft {
 function applyEffects(
   state: CardGameState,
   effects: readonly EffectDescription[],
-  rng: SeededRng
+  rng: SeededRng,
 ): CardGameState {
   if (effects.length === 0) return state;
 
@@ -814,7 +823,15 @@ function applyEffects(
   }
 
   for (const effect of effects) {
-    applySingleEffect(draft, effect, rng, ensureZones, ensureScores, ensureVariables, ensureStringVariables);
+    applySingleEffect(
+      draft,
+      effect,
+      rng,
+      ensureZones,
+      ensureScores,
+      ensureVariables,
+      ensureStringVariables,
+    );
   }
 
   return draft as unknown as CardGameState;
@@ -948,12 +965,10 @@ function applyDealEffect(
   if (!fromZone) return;
 
   const zones = ensureZones();
-  let fromCards = [...fromZone.cards];
+  const fromCards = [...fromZone.cards];
 
   // Find all per-player variants of the "to" zone, or the exact zone
-  const targetZones = Object.keys(zones).filter(
-    (name) => name === to || name.startsWith(`${to}:`)
-  );
+  const targetZones = Object.keys(zones).filter((name) => name === to || name.startsWith(`${to}:`));
 
   // If no matching zones, return unchanged
   if (targetZones.length === 0) return;
@@ -1022,9 +1037,7 @@ function applySetFaceUpEffect(
   if (!zone || cardIndex < 0 || cardIndex >= zone.cards.length) return;
 
   const zones = ensureZones();
-  const updatedCards = zone.cards.map((card, i) =>
-    i === cardIndex ? { ...card, faceUp } : card
-  );
+  const updatedCards = zone.cards.map((card, i) => (i === cardIndex ? { ...card, faceUp } : card));
 
   zones[zoneName] = { ...zone, cards: updatedCards };
 }
@@ -1052,7 +1065,7 @@ function applyRevealAllEffect(
  */
 function applyEndTurnEffect(draft: StateDraft): void {
   const count = draft.players.length;
-  const nextIndex = ((draft.currentPlayerIndex + draft.turnDirection) % count + count) % count;
+  const nextIndex = (((draft.currentPlayerIndex + draft.turnDirection) % count) + count) % count;
 
   draft.currentPlayerIndex = nextIndex;
   draft.turnsTakenThisPhase = draft.turnsTakenThisPhase + 1;
@@ -1065,7 +1078,7 @@ function applyEndTurnEffect(draft: StateDraft): void {
  */
 function buildNpcZoneMap(
   roleName: string,
-  zones: Readonly<Record<string, { readonly definition: { readonly owners: readonly string[] } }>>
+  zones: Readonly<Record<string, { readonly definition: { readonly owners: readonly string[] } }>>,
 ): Readonly<Record<string, string>> {
   const zoneMap: Record<string, string> = {};
   const prefix = `${roleName}_`;
@@ -1073,9 +1086,7 @@ function buildNpcZoneMap(
     const zone = zones[zoneName]!;
     if (zone.definition.owners.includes(roleName)) {
       // Strip role prefix if present; otherwise use zone name as-is
-      const baseKey = zoneName.startsWith(prefix)
-        ? zoneName.substring(prefix.length)
-        : zoneName;
+      const baseKey = zoneName.startsWith(prefix) ? zoneName.substring(prefix.length) : zoneName;
       zoneMap[baseKey] = zoneName;
     }
   }
@@ -1105,7 +1116,7 @@ function applyCalculateScoresEffect(
         const result = evaluateExpression(scoring.method, ctx);
         if (result.kind !== "number") {
           throw new Error(
-            `scoring.method must return a number, got ${result.kind} for player ${i}`
+            `scoring.method must return a number, got ${result.kind} for player ${i}`,
           );
         }
         scores[`player_score:${i}`] = result.value;
@@ -1120,7 +1131,7 @@ function applyCalculateScoresEffect(
       const result = evaluateExpression(scoring.method, ctx);
       if (result.kind !== "number") {
         throw new Error(
-          `scoring.method must return a number, got ${result.kind} for role "${role.name}"`
+          `scoring.method must return a number, got ${result.kind} for role "${role.name}"`,
         );
       }
       scores[`${role.name}_score`] = result.value;
@@ -1167,7 +1178,7 @@ function applyDetermineWinnersEffect(
  * Collects all cards from all zones into the specified target zone.
  */
 function applyCollectAllToEffect(
-  draft: StateDraft,
+  _draft: StateDraft,
   params: Record<string, unknown>,
   ensureZones: () => Record<string, ZoneState>,
 ): void {
@@ -1216,7 +1227,7 @@ function applyResetRoundEffect(draft: StateDraft): void {
  * Sets a custom variable to a specific value.
  */
 function applySetVarEffect(
-  draft: StateDraft,
+  _draft: StateDraft,
   params: Record<string, unknown>,
   ensureVariables: () => Record<string, number>,
 ): void {
@@ -1230,7 +1241,7 @@ function applySetVarEffect(
  * Sets a custom string variable to a specific value.
  */
 function applySetStrVarEffect(
-  draft: StateDraft,
+  _draft: StateDraft,
   params: Record<string, unknown>,
   ensureStringVariables: () => Record<string, string>,
 ): void {
@@ -1245,7 +1256,7 @@ function applySetStrVarEffect(
  * If the variable doesn't exist yet, treats it as starting from 0.
  */
 function applyIncVarEffect(
-  draft: StateDraft,
+  _draft: StateDraft,
   params: Record<string, unknown>,
   ensureVariables: () => Record<string, number>,
 ): void {
@@ -1297,9 +1308,7 @@ function applyFlipTopEffect(
   if (!zone) return;
 
   const zones = ensureZones();
-  const updatedCards = zone.cards.map((card, i) =>
-    i < count ? { ...card, faceUp: true } : card
-  );
+  const updatedCards = zone.cards.map((card, i) => (i < count ? { ...card, faceUp: true } : card));
 
   zones[zoneName] = { ...zone, cards: updatedCards };
 }
@@ -1338,17 +1347,14 @@ function applyReverseTurnOrderEffect(draft: StateDraft): void {
  */
 function applySkipNextPlayerEffect(draft: StateDraft): void {
   const count = draft.players.length;
-  const nextIndex = ((draft.currentPlayerIndex + draft.turnDirection) % count + count) % count;
+  const nextIndex = (((draft.currentPlayerIndex + draft.turnDirection) % count) + count) % count;
   draft.currentPlayerIndex = nextIndex;
 }
 
 /**
  * Sets the current player to a specific index.
  */
-function applySetNextPlayerEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-): void {
+function applySetNextPlayerEffect(draft: StateDraft, params: Record<string, unknown>): void {
   const playerIndex = params.playerIndex as number;
   if (playerIndex < 0 || playerIndex >= draft.players.length) return;
   draft.currentPlayerIndex = playerIndex;
@@ -1453,7 +1459,7 @@ function applyAccumulateScoresEffect(
 function createDeterministicCards(
   templates: readonly CardTemplate[],
   copies: number,
-  rng: SeededRng
+  rng: SeededRng,
 ): Card[] {
   const cards: Card[] = [];
   for (let copy = 0; copy < copies; copy++) {
@@ -1492,21 +1498,17 @@ function generateDeterministicId(rng: SeededRng): string {
 function initializeZones(
   ruleset: CardGameRuleset,
   players: readonly Player[],
-  allCards: readonly Card[]
+  allCards: readonly Card[],
 ): Record<string, ZoneState> {
   const zones: Record<string, ZoneState> = {};
 
   // Build set of per-player role names
   const perPlayerRoles = new Set(
-    ruleset.roles
-      .filter((r) => r.count === "per_player")
-      .map((r) => r.name)
+    ruleset.roles.filter((r) => r.count === "per_player").map((r) => r.name),
   );
 
   for (const zoneConfig of ruleset.zones) {
-    const isPerPlayer = zoneConfig.owners.some((o) =>
-      perPlayerRoles.has(o)
-    );
+    const isPerPlayer = zoneConfig.owners.some((o) => perPlayerRoles.has(o));
 
     if (isPerPlayer) {
       // Create one zone per human player
@@ -1535,14 +1537,12 @@ function initializeZones(
   }
 
   // Put all cards in the draw pile
-  const drawPile = zones["draw_pile"];
+  const drawPile = zones.draw_pile;
   if (drawPile) {
-    zones["draw_pile"] = { ...drawPile, cards: [...allCards] };
+    zones.draw_pile = { ...drawPile, cards: [...allCards] };
   } else {
     // Fallback: find first ownerless zone
-    const ownerless = Object.entries(zones).find(
-      ([_, z]) => z.definition.owners.length === 0
-    );
+    const ownerless = Object.entries(zones).find(([_, z]) => z.definition.owners.length === 0);
     if (ownerless) {
       const [name, zone] = ownerless;
       zones[name] = { ...zone, cards: [...allCards] };
@@ -1558,7 +1558,7 @@ function initializeZones(
 export class RulesetParseError extends Error {
   constructor(
     message: string,
-    public readonly issues: readonly string[]
+    public readonly issues: readonly string[],
   ) {
     super(message);
     this.name = "RulesetParseError";

@@ -6,8 +6,8 @@ import type {
   CardGameAction,
   CardGameRuleset,
   CardGameState,
+  PhaseDefinition,
   PlayerId,
-  PhaseAction,
 } from "../types/index";
 import {
   evaluateCondition,
@@ -44,7 +44,7 @@ export interface ValidAction {
 export function getValidActions(
   state: CardGameState,
   playerId: PlayerId,
-  phaseMachine?: PhaseMachine
+  phaseMachine?: PhaseMachine,
 ): readonly ValidAction[] {
   // Ensure builtins are registered (idempotent) — needed when called
   // outside the reducer (e.g., from client-side getValidActions)
@@ -59,7 +59,7 @@ export function getValidActions(
   const machine = phaseMachine ?? new PhaseMachine(state.ruleset.phases);
 
   // Get current phase
-  let phase;
+  let phase: PhaseDefinition;
   try {
     phase = machine.getPhase(state.currentPhase);
   } catch {
@@ -90,9 +90,7 @@ export function getValidActions(
     // so builtins like played_card_matches_top() treat the action as
     // generically available (per-card filtering happens at play time).
     const bindings: Record<string, EvalResult> =
-      action.name === "play_card"
-        ? { played_card_index: { kind: "number", value: -1 } }
-        : {};
+      action.name === "play_card" ? { played_card_index: { kind: "number", value: -1 } } : {};
     const ctx: EvalContext = { state, playerIndex, bindings };
     let enabled = true;
 
@@ -103,7 +101,7 @@ export function getValidActions(
         if (error instanceof ExpressionError) {
           // Log the error for debuggability — never silently swallow
           console.warn(
-            `[ActionValidator] Condition "${action.condition}" failed for action "${action.name}": ${error.message}`
+            `[ActionValidator] Condition "${action.condition}" failed for action "${action.name}": ${error.message}`,
           );
           enabled = false;
         } else {
@@ -135,14 +133,14 @@ export function getPlayableCardIndices(
   state: CardGameState,
   ruleset: CardGameRuleset,
   playerIndex: number,
-  phaseMachine?: PhaseMachine
+  phaseMachine?: PhaseMachine,
 ): number[] {
   // Ensure builtins are registered (idempotent)
   registerAllBuiltins();
 
   // Resolve the current phase
   const machine = phaseMachine ?? new PhaseMachine(ruleset.phases);
-  let phase;
+  let phase: PhaseDefinition;
   try {
     phase = machine.getPhase(state.currentPhase);
   } catch {
@@ -204,7 +202,7 @@ export function getPlayableCardIndices(
 export function validateAction(
   state: CardGameState,
   action: CardGameAction,
-  phaseMachine?: PhaseMachine
+  phaseMachine?: PhaseMachine,
 ): ActionValidationResult {
   // Guard: game must be in progress for most actions
   if (state.status.kind !== "in_progress") {
@@ -263,9 +261,9 @@ export function validateAction(
 function validateDeclareAction(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "declare" }>,
-  machine: PhaseMachine
+  machine: PhaseMachine,
 ): ActionValidationResult {
-  let phase;
+  let phase: PhaseDefinition;
   try {
     phase = machine.getPhase(state.currentPhase);
   } catch {
@@ -278,25 +276,18 @@ function validateDeclareAction(
   }
 
   // Find the player
-  const playerIndex = state.players.findIndex(
-    (p) => p.id === action.playerId
-  );
+  const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
   if (playerIndex === -1) {
     return { valid: false, reason: "Player not found" };
   }
 
   // For turn_based: verify it's the player's turn
-  if (
-    phase.kind === "turn_based" &&
-    state.currentPlayerIndex !== playerIndex
-  ) {
+  if (phase.kind === "turn_based" && state.currentPlayerIndex !== playerIndex) {
     return { valid: false, reason: "It is not your turn" };
   }
 
   // Look up the declaration in the phase's actions
-  const phaseAction = phase.actions.find(
-    (a) => a.name === action.declaration
-  );
+  const phaseAction = phase.actions.find((a) => a.name === action.declaration);
   if (!phaseAction) {
     return {
       valid: false,
@@ -336,7 +327,7 @@ function validateDeclareAction(
 function validatePlayCard(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "play_card" }>,
-  machine: PhaseMachine
+  machine: PhaseMachine,
 ): ActionValidationResult {
   const turnCheck = validatePlayerTurn(state, action.playerId, machine);
   if (!turnCheck.valid) return turnCheck;
@@ -361,7 +352,7 @@ function validatePlayCard(
   }
 
   // If the current phase has a "play_card" action with a condition, validate it
-  let phase;
+  let phase: PhaseDefinition;
   try {
     phase = machine.getPhase(state.currentPhase);
   } catch {
@@ -371,9 +362,7 @@ function validatePlayCard(
 
   const playCardAction = phase.actions.find((a) => a.name === "play_card");
   if (playCardAction?.condition) {
-    const playerIndex = state.players.findIndex(
-      (p) => p.id === action.playerId
-    );
+    const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
     // Compute the index of the played card in fromZone for per-card validation
     const cardIndex = fromZone.cards.findIndex((c) => c.id === action.cardId);
     const ctx: EvalContext = {
@@ -411,7 +400,7 @@ function validatePlayCard(
 function validateDrawCard(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "draw_card" }>,
-  machine: PhaseMachine
+  machine: PhaseMachine,
 ): ActionValidationResult {
   const turnCheck = validatePlayerTurn(state, action.playerId, machine);
   if (!turnCheck.valid) return turnCheck;
@@ -443,7 +432,7 @@ function validateDrawCard(
 function validateEndTurn(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "end_turn" }>,
-  machine: PhaseMachine
+  machine: PhaseMachine,
 ): ActionValidationResult {
   return validatePlayerTurn(state, action.playerId, machine);
 }
@@ -454,14 +443,14 @@ function validateEndTurn(
 function validatePlayerTurn(
   state: CardGameState,
   playerId: PlayerId,
-  machine: PhaseMachine
+  machine: PhaseMachine,
 ): ActionValidationResult {
   const playerIndex = state.players.findIndex((p) => p.id === playerId);
   if (playerIndex === -1) {
     return { valid: false, reason: "Player not found" };
   }
 
-  let phase;
+  let phase: PhaseDefinition;
   try {
     phase = machine.getPhase(state.currentPhase);
   } catch {
@@ -469,10 +458,7 @@ function validatePlayerTurn(
     return { valid: false, reason: "Unknown phase" };
   }
 
-  if (
-    phase.kind === "turn_based" &&
-    state.currentPlayerIndex !== playerIndex
-  ) {
+  if (phase.kind === "turn_based" && state.currentPlayerIndex !== playerIndex) {
     return { valid: false, reason: "It is not your turn" };
   }
 
@@ -496,15 +482,13 @@ export function executePhaseAction(
   actionName: string,
   playerIndex: number,
   phaseMachine: PhaseMachine,
-  actionParams?: Readonly<Record<string, string | number | boolean>>
+  actionParams?: Readonly<Record<string, string | number | boolean>>,
 ): EffectDescription[] {
   const phase = phaseMachine.getPhase(state.currentPhase);
   const phaseAction = phase.actions.find((a) => a.name === actionName);
 
   if (!phaseAction) {
-    throw new Error(
-      `Action '${actionName}' not found in phase '${state.currentPhase}'`
-    );
+    throw new Error(`Action '${actionName}' not found in phase '${state.currentPhase}'`);
   }
 
   const context: MutableEvalContext = {

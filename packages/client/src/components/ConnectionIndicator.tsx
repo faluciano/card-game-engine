@@ -2,7 +2,8 @@
 // Persistent connection health dot. Shows green when connected,
 // yellow with pulse when reconnecting, red when disconnected.
 
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 
 interface ConnectionIndicatorProps {
@@ -65,9 +66,7 @@ const STATUS_CONFIG: Record<
   error: { dotStyle: redDotStyle, label: "Connection error" },
 };
 
-export function ConnectionIndicator({
-  status,
-}: ConnectionIndicatorProps): React.JSX.Element {
+export function ConnectionIndicator({ status }: ConnectionIndicatorProps): React.JSX.Element {
   const [dimmed, setDimmed] = useState(false);
 
   useEffect(() => {

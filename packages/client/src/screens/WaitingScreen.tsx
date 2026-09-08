@@ -2,7 +2,7 @@
 // Generic waiting screen with a message and animated card suits.
 // Used when the host is selecting a game or during loading states.
 
-import React from "react";
+import type React from "react";
 import type { CSSProperties } from "react";
 
 interface WaitingScreenProps {
@@ -31,9 +31,7 @@ const messageStyle: CSSProperties = {
   animation: "pulse 1.5s ease-in-out infinite",
 };
 
-export function WaitingScreen({
-  message,
-}: WaitingScreenProps): React.JSX.Element {
+export function WaitingScreen({ message }: WaitingScreenProps): React.JSX.Element {
   return (
     <div style={containerStyle}>
       <p style={suitStyle}>{"\u2660 \u2665 \u2663 \u2666"}</p>

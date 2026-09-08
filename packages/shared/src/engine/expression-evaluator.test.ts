@@ -8,17 +8,30 @@ import {
   registerBuiltin,
   clearBuiltins,
   type EvalContext,
-  type EvalResult,
   type ASTNode,
+  type BinaryOp,
+  type FunctionCall,
   type Token,
+  type UnaryOp,
 } from "./expression-evaluator";
-import type {
-  CardGameState,
-  GameSessionId,
-  PlayerId,
-} from "../types/index";
+import type { CardGameState, GameSessionId, PlayerId } from "../types/index";
 
 // ─── Test Helpers ──────────────────────────────────────────────────
+
+function asBinaryOp(node: ASTNode): BinaryOp {
+  if (node.kind !== "BinaryOp") throw new Error(`Expected BinaryOp, got ${node.kind}`);
+  return node;
+}
+
+function asUnaryOp(node: ASTNode): UnaryOp {
+  if (node.kind !== "UnaryOp") throw new Error(`Expected UnaryOp, got ${node.kind}`);
+  return node;
+}
+
+function asFunctionCall(node: ASTNode): FunctionCall {
+  if (node.kind !== "FunctionCall") throw new Error(`Expected FunctionCall, got ${node.kind}`);
+  return node;
+}
 
 function makeSessionId(id: string): GameSessionId {
   return id as GameSessionId;
@@ -61,7 +74,11 @@ function createMockState(overrides?: Partial<CardGameState>): CardGameState {
         cards: [],
       },
       dealer_hand: {
-        definition: { name: "dealer_hand", visibility: { kind: "partial", rule: "first_card_only" }, owners: ["dealer"] },
+        definition: {
+          name: "dealer_hand",
+          visibility: { kind: "partial", rule: "first_card_only" },
+          owners: ["dealer"],
+        },
         cards: [],
       },
       draw_pile: {
@@ -431,9 +448,10 @@ describe("expression-evaluator", () => {
         // && is lower precedence than >, so it should be:
         // BinaryOp(&&, Identifier(a), BinaryOp(>, Identifier(b), NumberLiteral(5)))
         expect(ast.kind).toBe("BinaryOp");
-        expect((ast as any).operator).toBe("&&");
-        expect((ast as any).right.kind).toBe("BinaryOp");
-        expect((ast as any).right.operator).toBe(">");
+        const op = asBinaryOp(ast);
+        expect(op.operator).toBe("&&");
+        expect(op.right.kind).toBe("BinaryOp");
+        expect(asBinaryOp(op.right).operator).toBe(">");
       });
 
       it("|| binds looser than &&: a && b || c → (a && b) || c", () => {
@@ -454,16 +472,18 @@ describe("expression-evaluator", () => {
       it("equality binds tighter than &&: a == 1 && b != 2 → (a == 1) && (b != 2)", () => {
         const ast = parseExpr("a == 1 && b != 2");
         expect(ast.kind).toBe("BinaryOp");
-        expect((ast as any).operator).toBe("&&");
-        expect((ast as any).left.operator).toBe("==");
-        expect((ast as any).right.operator).toBe("!=");
+        const op = asBinaryOp(ast);
+        expect(op.operator).toBe("&&");
+        expect(asBinaryOp(op.left).operator).toBe("==");
+        expect(asBinaryOp(op.right).operator).toBe("!=");
       });
 
       it("comparison binds tighter than equality: x < 5 == true → (x < 5) == true", () => {
         const ast = parseExpr("x < 5 == true");
         expect(ast.kind).toBe("BinaryOp");
-        expect((ast as any).operator).toBe("==");
-        expect((ast as any).left.operator).toBe("<");
+        const op = asBinaryOp(ast);
+        expect(op.operator).toBe("==");
+        expect(asBinaryOp(op.left).operator).toBe("<");
       });
     });
 
@@ -570,10 +590,12 @@ describe("expression-evaluator", () => {
       it("parses function call on member access result", () => {
         const ast = parseExpr("hand_value(current_player.hand) < 21");
         expect(ast.kind).toBe("BinaryOp");
-        expect((ast as any).operator).toBe("<");
-        expect((ast as any).left.kind).toBe("FunctionCall");
-        expect((ast as any).left.callee).toBe("hand_value");
-        expect((ast as any).left.args[0].kind).toBe("MemberAccess");
+        const op = asBinaryOp(ast);
+        expect(op.operator).toBe("<");
+        expect(op.left.kind).toBe("FunctionCall");
+        const call = asFunctionCall(op.left);
+        expect(call.callee).toBe("hand_value");
+        expect(call.args[0]?.kind).toBe("MemberAccess");
       });
     });
 
@@ -639,9 +661,10 @@ describe("expression-evaluator", () => {
       it("unary has higher precedence than binary: -a + b → (-a) + b", () => {
         const ast = parseExpr("-a + b");
         expect(ast.kind).toBe("BinaryOp");
-        expect((ast as any).operator).toBe("+");
-        expect((ast as any).left.kind).toBe("UnaryOp");
-        expect((ast as any).left.operator).toBe("-");
+        const op = asBinaryOp(ast);
+        expect(op.operator).toBe("+");
+        expect(op.left.kind).toBe("UnaryOp");
+        expect(asUnaryOp(op.left).operator).toBe("-");
       });
     });
 
@@ -721,7 +744,9 @@ describe("expression-evaluator", () => {
 
       it("throws when arithmetic applied to non-numeric operands", () => {
         expect(() => evaluateExpression("true + 1", makeContext())).toThrow(ExpressionError);
-        expect(() => evaluateExpression("true + 1", makeContext())).toThrow("requires numeric operands");
+        expect(() => evaluateExpression("true + 1", makeContext())).toThrow(
+          "requires numeric operands",
+        );
       });
     });
 
@@ -758,7 +783,9 @@ describe("expression-evaluator", () => {
 
       it("throws when comparison applied to non-numeric operands", () => {
         expect(() => evaluateExpression("true > 1", makeContext())).toThrow(ExpressionError);
-        expect(() => evaluateExpression("true > 1", makeContext())).toThrow("requires numeric operands");
+        expect(() => evaluateExpression("true > 1", makeContext())).toThrow(
+          "requires numeric operands",
+        );
       });
     });
 
@@ -892,18 +919,26 @@ describe("expression-evaluator", () => {
       });
 
       it("resolves current_player_index from state", () => {
-        const result = evaluateExpression("current_player_index", makeContext({ currentPlayerIndex: 1 }));
+        const result = evaluateExpression(
+          "current_player_index",
+          makeContext({ currentPlayerIndex: 1 }),
+        );
         expect(result).toEqual({ kind: "number", value: 1 });
       });
 
       it("resolves score identifiers", () => {
-        const result = evaluateExpression("team_score", makeContext({ scores: { team_score: 42 } }));
+        const result = evaluateExpression(
+          "team_score",
+          makeContext({ scores: { team_score: 42 } }),
+        );
         expect(result).toEqual({ kind: "number", value: 42 });
       });
 
       it("throws on unknown identifier", () => {
         expect(() => evaluateExpression("nonexistent_var", makeContext())).toThrow(ExpressionError);
-        expect(() => evaluateExpression("nonexistent_var", makeContext())).toThrow("Unknown identifier");
+        expect(() => evaluateExpression("nonexistent_var", makeContext())).toThrow(
+          "Unknown identifier",
+        );
       });
     });
 
@@ -911,17 +946,14 @@ describe("expression-evaluator", () => {
       it("resolves a variable name to its numeric value", () => {
         const result = evaluateExpression(
           "round_count",
-          makeContext({ variables: { round_count: 3 } })
+          makeContext({ variables: { round_count: 3 } }),
         );
         expect(result).toEqual({ kind: "number", value: 3 });
       });
 
       it("variable does not shadow zones or scores", () => {
         // If a name exists as a zone, it should resolve as a zone (string), not as a variable
-        const result = evaluateExpression(
-          "hand",
-          makeContext({ variables: { hand: 99 } })
-        );
+        const result = evaluateExpression("hand", makeContext({ variables: { hand: 99 } }));
         // "hand" exists as a zone in the mock state, so it resolves as zone name string
         expect(result).toEqual({ kind: "string", value: "hand" });
       });
@@ -929,7 +961,7 @@ describe("expression-evaluator", () => {
       it("variable not found returns undefined (falls through to unknown)", () => {
         // A name that's not a zone, score, or variable should throw
         expect(() =>
-          evaluateExpression("no_such_thing", makeContext({ variables: { other: 1 } }))
+          evaluateExpression("no_such_thing", makeContext({ variables: { other: 1 } })),
         ).toThrow(ExpressionError);
       });
     });
@@ -962,7 +994,9 @@ describe("expression-evaluator", () => {
 
       it("throws when - applied to non-number", () => {
         expect(() => evaluateExpression("-true", makeContext())).toThrow(ExpressionError);
-        expect(() => evaluateExpression("-true", makeContext())).toThrow("requires numeric operand");
+        expect(() => evaluateExpression("-true", makeContext())).toThrow(
+          "requires numeric operand",
+        );
       });
     });
 
@@ -1005,7 +1039,9 @@ describe("expression-evaluator", () => {
 
       it("throws on unknown function", () => {
         expect(() => evaluateExpression("unknown_func()", makeContext())).toThrow(ExpressionError);
-        expect(() => evaluateExpression("unknown_func()", makeContext())).toThrow("Unknown function");
+        expect(() => evaluateExpression("unknown_func()", makeContext())).toThrow(
+          "Unknown function",
+        );
       });
     });
 
@@ -1039,7 +1075,7 @@ describe("expression-evaluator", () => {
         // Actually, left-associative parsing creates a left-leaning tree, not deep.
         // To trigger depth, we need right-recursion via unary or parenthesized nesting.
         // Build: -(-(-(-(-(1))))) ... 70+ levels
-        const expr = "-".repeat(70) + "5";
+        const expr = `${"-".repeat(70)}5`;
         expect(() => evaluateExpression(expr, makeContext())).toThrow(ExpressionError);
         expect(() => evaluateExpression(expr, makeContext())).toThrow("Maximum evaluation depth");
       });
@@ -1061,12 +1097,16 @@ describe("expression-evaluator", () => {
 
     it("throws on non-boolean expression result", () => {
       expect(() => evaluateCondition("2 + 3", makeContext())).toThrow(ExpressionError);
-      expect(() => evaluateCondition("2 + 3", makeContext())).toThrow("Expected boolean expression");
+      expect(() => evaluateCondition("2 + 3", makeContext())).toThrow(
+        "Expected boolean expression",
+      );
     });
 
     it("throws on string expression result", () => {
       expect(() => evaluateCondition('"hello"', makeContext())).toThrow(ExpressionError);
-      expect(() => evaluateCondition('"hello"', makeContext())).toThrow("Expected boolean expression");
+      expect(() => evaluateCondition('"hello"', makeContext())).toThrow(
+        "Expected boolean expression",
+      );
     });
   });
 
@@ -1100,7 +1140,7 @@ describe("expression-evaluator", () => {
 
       const result = evaluateExpression(
         "while(check_counter(), increment_counter())",
-        makeContext()
+        makeContext(),
       );
       expect(result).toEqual({ kind: "boolean", value: true });
       expect(counter).toBe(maxIterations);
@@ -1108,30 +1148,30 @@ describe("expression-evaluator", () => {
 
     it("throws when exceeding max iterations", () => {
       registerBuiltin("noop", () => {});
-      expect(() =>
-        evaluateExpression("while(true, noop())", makeContext())
-      ).toThrow(ExpressionError);
-      expect(() =>
-        evaluateExpression("while(true, noop())", makeContext())
-      ).toThrow("exceeded maximum iterations");
+      expect(() => evaluateExpression("while(true, noop())", makeContext())).toThrow(
+        ExpressionError,
+      );
+      expect(() => evaluateExpression("while(true, noop())", makeContext())).toThrow(
+        "exceeded maximum iterations",
+      );
     });
 
     it("throws on wrong number of arguments", () => {
       expect(() => evaluateExpression("while(true)", makeContext())).toThrow(
-        "requires exactly 2 arguments"
+        "requires exactly 2 arguments",
       );
       registerBuiltin("noop", () => {});
       expect(() => evaluateExpression("while(true, noop(), noop())", makeContext())).toThrow(
-        "requires exactly 2 arguments"
+        "requires exactly 2 arguments",
       );
     });
 
     it("throws on non-boolean condition", () => {
       registerBuiltin("noop", () => {});
       registerBuiltin("get_num", () => ({ kind: "number" as const, value: 1 }));
-      expect(() =>
-        evaluateExpression("while(get_num(), noop())", makeContext())
-      ).toThrow("condition must be boolean");
+      expect(() => evaluateExpression("while(get_num(), noop())", makeContext())).toThrow(
+        "condition must be boolean",
+      );
     });
   });
 
@@ -1171,53 +1211,41 @@ describe("expression-evaluator", () => {
     });
 
     it("throws on non-boolean condition", () => {
-      expect(() =>
-        evaluateExpression("if(42, 1, 2)", makeContext())
-      ).toThrow("if() condition must be boolean");
+      expect(() => evaluateExpression("if(42, 1, 2)", makeContext())).toThrow(
+        "if() condition must be boolean",
+      );
     });
 
     it("throws on too few arguments", () => {
-      expect(() =>
-        evaluateExpression("if(true)", makeContext())
-      ).toThrow("if() requires 2-3 arguments");
+      expect(() => evaluateExpression("if(true)", makeContext())).toThrow(
+        "if() requires 2-3 arguments",
+      );
     });
 
     it("throws on too many arguments", () => {
-      expect(() =>
-        evaluateExpression("if(true, 1, 2, 3)", makeContext())
-      ).toThrow("if() requires 2-3 arguments");
+      expect(() => evaluateExpression("if(true, 1, 2, 3)", makeContext())).toThrow(
+        "if() requires 2-3 arguments",
+      );
     });
 
     it("handles nested if expressions", () => {
-      const result = evaluateExpression(
-        "if(true, if(false, 1, 2), 3)",
-        makeContext()
-      );
+      const result = evaluateExpression("if(true, if(false, 1, 2), 3)", makeContext());
       expect(result).toEqual({ kind: "number", value: 2 });
     });
 
     it("only evaluates the chosen branch (lazy evaluation)", () => {
       // If the false branch were evaluated, unknown_fn() would throw
-      const result = evaluateExpression(
-        "if(true, 42, unknown_fn())",
-        makeContext()
-      );
+      const result = evaluateExpression("if(true, 42, unknown_fn())", makeContext());
       expect(result).toEqual({ kind: "number", value: 42 });
     });
 
     it("returns string result from then_expr", () => {
-      const result = evaluateExpression(
-        'if(true, "yes", "no")',
-        makeContext()
-      );
+      const result = evaluateExpression('if(true, "yes", "no")', makeContext());
       expect(result).toEqual({ kind: "string", value: "yes" });
     });
 
     it("returns boolean result from else_expr", () => {
-      const result = evaluateExpression(
-        "if(false, true, false)",
-        makeContext()
-      );
+      const result = evaluateExpression("if(false, true, false)", makeContext());
       expect(result).toEqual({ kind: "boolean", value: false });
     });
   });

@@ -2,7 +2,8 @@
 // Ephemeral notification overlay. Auto-dismisses after a configurable
 // duration. Used for action rejection feedback.
 
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 
 interface ToastProps {

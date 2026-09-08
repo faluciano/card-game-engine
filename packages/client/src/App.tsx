@@ -4,18 +4,15 @@
 // CouchKit's useGameClient hook. Routes screens based on connection
 // status and game state.
 
-import React, { useMemo, useState } from "react";
+import type React from "react";
+import { useMemo, useState } from "react";
 import {
   useGameClient,
   createRelayTransport,
   useRelayRoom,
   describeRelayError,
 } from "@couch-kit/client";
-import {
-  EMPTY_CLIENT_VIEW,
-  type HostAction,
-  type HostClientView,
-} from "@card-engine/shared";
+import { EMPTY_CLIENT_VIEW, type HostAction, type HostClientView } from "@card-engine/shared";
 import { NameEntryScreen } from "./screens/NameEntryScreen.js";
 import { JoinScreen } from "./screens/JoinScreen.js";
 import { ConnectingScreen } from "./screens/ConnectingScreen.js";
@@ -30,20 +27,15 @@ import { ScreenTransition } from "./components/ScreenTransition.js";
 
 const STORAGE_KEY = "ck_player_name";
 
-
 // Relay (cross-network) opt-in. When the controller is opened with `?room=CODE`,
 // it connects to the shared relay for that room instead of the default LAN
 // WebSocket, letting phones join a browser display from any network.
 const DEFAULT_RELAY_URL =
-  import.meta.env.VITE_RELAY_URL ??
-  "wss://couch-kit-relay.faluciano.workers.dev";
+  import.meta.env.VITE_RELAY_URL ?? "wss://couch-kit-relay.faluciano.workers.dev";
 
 function readRelayUrl(): string {
   try {
-    return (
-      new URLSearchParams(window.location.search).get("relay") ??
-      DEFAULT_RELAY_URL
-    );
+    return new URLSearchParams(window.location.search).get("relay") ?? DEFAULT_RELAY_URL;
   } catch {
     return DEFAULT_RELAY_URL;
   }
@@ -52,7 +44,7 @@ function readRelayUrl(): string {
 function readStoredName(): string | null {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored && stored.trim() ? stored.trim() : null;
+    return stored?.trim() ? stored.trim() : null;
   } catch {
     return null;
   }
@@ -136,12 +128,14 @@ function GameClient({
   // view rather than the whole game and cannot reduce over it. It renders what
   // the host sends — which is the point, since the cards it must not see are
   // never delivered.
-  const { status, state, playerId, sendAction, disconnectReason } =
-    useGameClient<HostClientView, HostAction>({
-      initialState: EMPTY_CLIENT_VIEW,
-      name: playerName,
-      createTransport: createRelayTransport({ url, roomId }),
-    });
+  const { status, state, playerId, sendAction, disconnectReason } = useGameClient<
+    HostClientView,
+    HostAction
+  >({
+    initialState: EMPTY_CLIENT_VIEW,
+    name: playerName,
+    createTransport: createRelayTransport({ url, roomId }),
+  });
 
   // A terminal relay failure (wrong or expired code, full room) is worth
   // explaining; an ordinary drop is retried and needs no screen.

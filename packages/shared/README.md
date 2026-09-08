@@ -6,7 +6,7 @@ The engine interprets ruleset files at runtime -- no code generation, no game-sp
 
 ## API Reference
 
-All public symbols are re-exported from `src/index.ts` through four module groups: types, engine, deck, and schema.
+All public symbols are re-exported from `src/index.ts` through five module groups: types, engine, deck, schema, and bridge.
 
 ### Interpreter
 
@@ -289,7 +289,7 @@ Pure functions that read state without side effects.
 | `card_count(zone)`               | zone name           | `number`  | Number of cards in zone                              |
 | `sum_card_values(zone, strategy)`| zone name, number   | `number`  | Sum card values using a target threshold strategy    |
 | `prefer_high_under(target)`      | number              | `number`  | Returns the target as a strategy descriptor          |
-| `all_players_done()`             | none                | `boolean` | Sentinel -- always returns true                      |
+| `all_players_done()`             | none                | `boolean` | True once `turnsTakenThisPhase` >= human player count (each `end_turn()` counts one) |
 | `all_hands_dealt()`              | none                | `boolean` | Sentinel -- always returns true                      |
 | `scores_calculated()`            | none                | `boolean` | Sentinel -- always returns true                      |
 | `continue_game()`                | none                | `boolean` | Sentinel -- returns true (game continues)            |
@@ -403,7 +403,7 @@ A zone where hidden cards are replaced with `null` placeholders. Contains `name`
 
 ## Testing
 
-771 tests across 9 test files covering the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, integration scenarios, and host bridge catalog actions.
+14 test files cover the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, paced phases, simultaneous phases, integration scenarios, schema meta fields, and the host bridge (catalog actions, action errors, client views). Run `bunx vitest run` for the current count (839 at the time of writing).
 
 ```sh
 # Run all tests
@@ -423,3 +423,6 @@ Test files:
 - `src/engine/prng.test.ts` -- Determinism, distribution, shuffle, pick
 - `src/engine/interpreter.test.ts` -- Reducer creation, initial state, action handling
 - `src/engine/integration.test.ts` -- Full game flow end-to-end
+- `src/engine/step-phase.test.ts` -- Paced automatic phases (`step_phase` + `onStep`)
+- `src/engine/all-players-done.test.ts` -- `all_players_done()` gating an `all_players` phase
+- `src/bridge/__tests__/` -- Host bridge: catalog actions, action errors, client views

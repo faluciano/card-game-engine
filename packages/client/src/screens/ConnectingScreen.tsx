@@ -1,7 +1,7 @@
 // ─── Connecting Screen ─────────────────────────────────────────────
 // Shows spinner and connection status while connecting to the TV host.
 
-import React from "react";
+import type React from "react";
 import type { CSSProperties } from "react";
 
 interface ConnectingScreenProps {
@@ -47,9 +47,7 @@ const STATUS_TEXT: Record<ConnectingScreenProps["status"], string> = {
   error: "Connection error",
 };
 
-export function ConnectingScreen({
-  status,
-}: ConnectingScreenProps): React.JSX.Element {
+export function ConnectingScreen({ status }: ConnectingScreenProps): React.JSX.Element {
   const isRetrying = status === "disconnected" || status === "error";
 
   return (

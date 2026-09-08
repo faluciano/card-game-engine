@@ -4,7 +4,8 @@
 // A null card means it is hidden from this player.
 // When onSelect is provided, cards become interactive with selection state.
 
-import React, { useCallback } from "react";
+import type React from "react";
+import { useCallback } from "react";
 import type { CSSProperties } from "react";
 import type { Card, CardInstanceId } from "@card-engine/shared";
 
@@ -100,7 +101,7 @@ export function CardMini({
   // Non-null card = player is allowed to see it (visibility already enforced
   // by createPlayerView). Show face-up regardless of card.faceUp property.
   if (!card) {
-    return <div style={faceDownStyle} aria-label="Face-down card" />;
+    return <div role="img" style={faceDownStyle} aria-label="Face-down card" />;
   }
 
   const isRed = RED_SUITS.has(card.suit);
@@ -109,23 +110,19 @@ export function CardMini({
 
   const isInteractive = onSelect !== undefined;
   const cardStyle: CSSProperties = {
-    ...(selected
-      ? faceUpSelectedStyle
-      : emphasized
-        ? faceUpEmphasizedStyle
-        : faceUpStyle),
+    ...(selected ? faceUpSelectedStyle : emphasized ? faceUpEmphasizedStyle : faceUpStyle),
     ...(isInteractive ? faceUpInteractiveStyle : {}),
     // Playability styling: undefined means no filtering applied
     ...(playable === false ? { opacity: 0.4, filter: "grayscale(0.3)" } : {}),
-    ...(playable === true && !selected
-      ? { boxShadow: "0 0 6px var(--color-success)" }
-      : {}),
+    ...(playable === true && !selected ? { boxShadow: "0 0 6px var(--color-success)" } : {}),
   };
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: role/tabIndex/handlers are all gated on isInteractive
+    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: role is "button" or "img" at runtime, both support aria-label
     <div
       style={cardStyle}
-      role={isInteractive ? "button" : undefined}
+      role={isInteractive ? "button" : "img"}
       tabIndex={isInteractive ? 0 : undefined}
       aria-label={`${card.rank} of ${card.suit}${selected ? " (selected)" : ""}${playable === false ? " (not playable)" : ""}`}
       aria-pressed={isInteractive ? selected : undefined}

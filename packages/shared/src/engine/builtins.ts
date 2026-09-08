@@ -83,10 +83,7 @@ function getZone(state: CardGameState, name: string): ZoneState {
  * Looks up the CardValue definition for a given card rank.
  * Falls back to checking the rank string directly in cardValues.
  */
-function getCardValue(
-  cardValues: Readonly<Record<string, CardValue>>,
-  rank: string,
-): CardValue {
+function getCardValue(cardValues: Readonly<Record<string, CardValue>>, rank: string): CardValue {
   const cv = cardValues[rank];
   if (!cv) {
     throw new ExpressionError(`No card value defined for rank '${rank}'`);
@@ -133,9 +130,7 @@ function requireString(arg: EvalResult, name: string): string {
  */
 function requireBoolean(arg: EvalResult, name: string): boolean {
   if (arg.kind !== "boolean") {
-    throw new ExpressionError(
-      `Expected boolean for '${name}', got ${arg.kind}`,
-    );
+    throw new ExpressionError(`Expected boolean for '${name}', got ${arg.kind}`);
   }
   return arg.value;
 }
@@ -143,11 +138,7 @@ function requireBoolean(arg: EvalResult, name: string): boolean {
 /**
  * Validates that the correct number of arguments were passed.
  */
-function assertArgCount(
-  fnName: string,
-  args: readonly EvalResult[],
-  expected: number,
-): void {
+function assertArgCount(fnName: string, args: readonly EvalResult[], expected: number): void {
   if (args.length !== expected) {
     throw new ExpressionError(
       `${fnName}() requires exactly ${expected} argument(s), got ${args.length}`,
@@ -275,9 +266,7 @@ export function computeHandValue(
  */
 const handValueBuiltin: BuiltinFunction = (args, context) => {
   if (args.length < 1 || args.length > 2) {
-    throw new ExpressionError(
-      `hand_value() requires 1-2 arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`hand_value() requires 1-2 arguments, got ${args.length}`);
   }
   const zoneName = resolveZoneName(args[0]!);
   const zone = getZone(context.state, zoneName);
@@ -305,9 +294,7 @@ const cardCountBuiltin: BuiltinFunction = (args, context) => {
  */
 const allPlayersDoneBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `all_players_done() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`all_players_done() takes no arguments, got ${args.length}`);
   }
   const { state } = context;
   const humanPlayerCount = state.players.filter((p) =>
@@ -322,9 +309,7 @@ const allPlayersDoneBuiltin: BuiltinFunction = (args, context) => {
  */
 const allHandsDealtBuiltin: BuiltinFunction = (args, _context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `all_hands_dealt() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`all_hands_dealt() takes no arguments, got ${args.length}`);
   }
   return EVAL_TRUE;
 };
@@ -334,9 +319,7 @@ const allHandsDealtBuiltin: BuiltinFunction = (args, _context) => {
  */
 const scoresCalculatedBuiltin: BuiltinFunction = (args, _context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `scores_calculated() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`scores_calculated() takes no arguments, got ${args.length}`);
   }
   return EVAL_TRUE;
 };
@@ -346,9 +329,7 @@ const scoresCalculatedBuiltin: BuiltinFunction = (args, _context) => {
  */
 const continueGameBuiltin: BuiltinFunction = (args, _context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `continue_game() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`continue_game() takes no arguments, got ${args.length}`);
   }
   return EVAL_TRUE;
 };
@@ -503,9 +484,7 @@ const topCardRankNameBuiltin: BuiltinFunction = (args, context) => {
   const zoneName = resolveZoneName(args[0]!);
   const zone = getZone(context.state, zoneName);
   if (zone.cards.length === 0) {
-    throw new ExpressionError(
-      `top_card_rank_name(): zone '${zoneName}' is empty`,
-    );
+    throw new ExpressionError(`top_card_rank_name(): zone '${zoneName}' is empty`);
   }
   return { kind: "string", value: zone.cards[0]!.rank };
 };
@@ -554,17 +533,13 @@ const cardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
     );
   }
   if (targetZone.cards.length === 0) {
-    throw new ExpressionError(
-      `card_matches_top(): target zone '${targetZoneName}' is empty`,
-    );
+    throw new ExpressionError(`card_matches_top(): target zone '${targetZoneName}' is empty`);
   }
   const card = handZone.cards[cardIndex]!;
   const topCard = targetZone.cards[0]!;
-  const activeSuit = context.state.stringVariables["active_suit"] ?? "";
+  const activeSuit = context.state.stringVariables.active_suit ?? "";
   const matchSuit = activeSuit || topCard.suit;
-  return card.suit === matchSuit || card.rank === topCard.rank
-    ? EVAL_TRUE
-    : EVAL_FALSE;
+  return card.suit === matchSuit || card.rank === topCard.rank ? EVAL_TRUE : EVAL_FALSE;
 };
 
 /**
@@ -581,7 +556,7 @@ const hasPlayableCardBuiltin: BuiltinFunction = (args, context) => {
     return EVAL_FALSE;
   }
   const topCard = targetZone.cards[0]!;
-  const activeSuit = context.state.stringVariables["active_suit"] ?? "";
+  const activeSuit = context.state.stringVariables.active_suit ?? "";
   const matchSuit = activeSuit || topCard.suit;
   const found = handZone.cards.some(
     (card) => card.suit === matchSuit || card.rank === topCard.rank,
@@ -652,9 +627,7 @@ const revealAllBuiltin: BuiltinFunction = (args, context) => {
  */
 const endTurnBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `end_turn() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`end_turn() takes no arguments, got ${args.length}`);
   }
   pushEffect(context, { kind: "end_turn", params: {} });
 };
@@ -664,9 +637,7 @@ const endTurnBuiltin: BuiltinFunction = (args, context) => {
  */
 const calculateScoresBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `calculate_scores() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`calculate_scores() takes no arguments, got ${args.length}`);
   }
   pushEffect(context, { kind: "calculate_scores", params: {} });
 };
@@ -676,9 +647,7 @@ const calculateScoresBuiltin: BuiltinFunction = (args, context) => {
  */
 const determineWinnersBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `determine_winners() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`determine_winners() takes no arguments, got ${args.length}`);
   }
   pushEffect(context, { kind: "determine_winners", params: {} });
 };
@@ -697,9 +666,7 @@ const collectAllToBuiltin: BuiltinFunction = (args, context) => {
  */
 const resetRoundBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `reset_round() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`reset_round() takes no arguments, got ${args.length}`);
   }
   pushEffect(context, { kind: "reset_round", params: {} });
 };
@@ -746,9 +713,7 @@ const moveAllBuiltin: BuiltinFunction = (args, context) => {
  */
 const reverseTurnOrderBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `reverse_turn_order() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`reverse_turn_order() takes no arguments, got ${args.length}`);
   }
   pushEffect(context, { kind: "reverse_turn_order", params: {} });
 };
@@ -759,9 +724,7 @@ const reverseTurnOrderBuiltin: BuiltinFunction = (args, context) => {
  */
 const skipNextPlayerBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `skip_next_player() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`skip_next_player() takes no arguments, got ${args.length}`);
   }
   pushEffect(context, { kind: "skip_next_player", params: {} });
 };
@@ -781,9 +744,7 @@ const setNextPlayerBuiltin: BuiltinFunction = (args, context) => {
  */
 const turnDirectionBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `turn_direction() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`turn_direction() takes no arguments, got ${args.length}`);
   }
   return { kind: "number", value: context.state.turnDirection };
 };
@@ -1006,9 +967,7 @@ const trickWinnerBuiltin: BuiltinFunction = (args, context) => {
 
   // Check for trump suit
   const trumpSuit =
-    state.stringVariables.trump_suit !== undefined
-      ? state.stringVariables.trump_suit
-      : undefined;
+    state.stringVariables.trump_suit !== undefined ? state.stringVariables.trump_suit : undefined;
 
   // Collect all player cards with their indices
   type TrickEntry = { playerIndex: number; card: Card };
@@ -1135,9 +1094,7 @@ const hasCardWithBuiltin: BuiltinFunction = (args, context) => {
   const rank = requireString(args[1]!, "rank");
   const suit = requireString(args[2]!, "suit");
   const zone = getZone(context.state, zoneName);
-  const found = zone.cards.some(
-    (card) => card.rank === rank && card.suit === suit,
-  );
+  const found = zone.cards.some((card) => card.rank === rank && card.suit === suit);
   return found ? EVAL_TRUE : EVAL_FALSE;
 };
 
@@ -1197,9 +1154,7 @@ const setLeadPlayerBuiltin: BuiltinFunction = (args, context) => {
  */
 const endGameBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `end_game() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`end_game() takes no arguments, got ${args.length}`);
   }
   pushEffect(context, { kind: "end_game", params: {} });
 };
@@ -1266,9 +1221,7 @@ function coerceToString(arg: EvalResult): string {
     case "boolean":
       return String(arg.value);
     default:
-      throw new ExpressionError(
-        `Cannot coerce ${(arg as { kind: string }).kind} to string`,
-      );
+      throw new ExpressionError(`Cannot coerce ${(arg as { kind: string }).kind} to string`);
   }
 }
 
@@ -1330,11 +1283,9 @@ const playedCardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
 
   const card = handZone.cards[cardIndex]!;
   const topCard = targetZone.cards[0]!;
-  const activeSuit = context.state.stringVariables["active_suit"] ?? "";
+  const activeSuit = context.state.stringVariables.active_suit ?? "";
   const matchSuit = activeSuit || topCard.suit;
-  return card.suit === matchSuit || card.rank === topCard.rank
-    ? EVAL_TRUE
-    : EVAL_FALSE;
+  return card.suit === matchSuit || card.rank === topCard.rank ? EVAL_TRUE : EVAL_FALSE;
 };
 
 // ─── Cumulative Score Builtins ─────────────────────────────────────
@@ -1356,9 +1307,7 @@ const getCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
  */
 const maxCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `max_cumulative_score() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`max_cumulative_score() takes no arguments, got ${args.length}`);
   }
   const { players, variables } = context.state;
   const roles = context.state.ruleset.roles;
@@ -1376,9 +1325,7 @@ const maxCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
  */
 const minCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `min_cumulative_score() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`min_cumulative_score() takes no arguments, got ${args.length}`);
   }
   const { players, variables } = context.state;
   const roles = context.state.ruleset.roles;
@@ -1399,9 +1346,7 @@ const minCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
  */
 const accumulateScoresBuiltin: BuiltinFunction = (args, context) => {
   if (args.length !== 0) {
-    throw new ExpressionError(
-      `accumulate_scores() takes no arguments, got ${args.length}`,
-    );
+    throw new ExpressionError(`accumulate_scores() takes no arguments, got ${args.length}`);
   }
   pushEffect(context, { kind: "accumulate_scores", params: {} });
 };

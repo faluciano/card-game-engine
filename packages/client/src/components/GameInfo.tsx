@@ -1,7 +1,7 @@
 // ─── Game Info ─────────────────────────────────────────────────────
 // Compact status bar showing phase, turn number, score, and turn indicator.
 
-import React from "react";
+import type React from "react";
 import type { CSSProperties } from "react";
 import type { PlayerView } from "@card-engine/shared";
 import { ActiveSuitBadge } from "./ActiveSuitBadge.js";
@@ -65,17 +65,11 @@ const turnIndicatorPulseStyle: CSSProperties = {
  * "player_turn" -> "Player Turn"
  */
 function formatPhaseName(phase: string): string {
-  return phase
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return phase.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function GameInfo({
-  playerView,
-  turnPulse = false,
-}: GameInfoProps): React.JSX.Element {
-  const { currentPhase, turnNumber, scores, isMyTurn, myPlayerId, stringVariables } =
-    playerView;
+export function GameInfo({ playerView, turnPulse = false }: GameInfoProps): React.JSX.Element {
+  const { currentPhase, turnNumber, scores, isMyTurn, myPlayerId, stringVariables } = playerView;
 
   const myScore = scores[myPlayerId] ?? 0;
   const activeSuit = stringVariables?.active_suit ?? "";
@@ -92,14 +86,10 @@ export function GameInfo({
       </div>
       <div style={rowStyle}>
         <span style={labelStyle}>Score</span>
-        <span style={{ ...valueStyle, color: "var(--color-warning)" }}>
-          {myScore}
-        </span>
+        <span style={{ ...valueStyle, color: "var(--color-warning)" }}>{myScore}</span>
       </div>
       {isMyTurn && (
-        <div style={turnPulse ? turnIndicatorPulseStyle : turnIndicatorStyle}>
-          Your Turn
-        </div>
+        <div style={turnPulse ? turnIndicatorPulseStyle : turnIndicatorStyle}>Your Turn</div>
       )}
       <ActiveSuitBadge activeSuit={activeSuit} />
     </div>

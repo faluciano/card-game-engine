@@ -2,7 +2,7 @@
 // Compact row showing opponent names and card counts.
 // Uses zone data from PlayerView (cardCount is available for all zones).
 
-import React from "react";
+import type React from "react";
 import type { CSSProperties } from "react";
 import type { PlayerView } from "@card-engine/shared";
 
@@ -53,9 +53,7 @@ const countBadgeStyle: CSSProperties = {
   lineHeight: 1,
 };
 
-export function OpponentInfo({
-  playerView,
-}: OpponentInfoProps): React.JSX.Element | null {
+export function OpponentInfo({ playerView }: OpponentInfoProps): React.JSX.Element | null {
   const { myPlayerId, players, zones } = playerView;
 
   const opponents = players
@@ -71,11 +69,7 @@ export function OpponentInfo({
         const cardCount = handZone?.cardCount ?? 0;
 
         return (
-          <div
-            key={player.id}
-            style={pillStyle}
-            aria-label={`${player.name}: ${cardCount} cards`}
-          >
+          <div key={player.id} style={pillStyle}>
             <span style={nameStyle}>{player.name}</span>
             <span style={countBadgeStyle}>{cardCount}</span>
           </div>

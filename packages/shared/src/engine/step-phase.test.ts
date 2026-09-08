@@ -60,9 +60,9 @@ function makeCounterRuleset(): CardGameRuleset {
         name: "counting",
         kind: "automatic",
         actions: [],
-        transitions: [{ to: "done", when: "get_var(\"counter\") >= 3" }],
-        onEnter: ["set_var(\"counter\", 0)"],
-        onStep: ["set_var(\"counter\", get_var(\"counter\") + 1)"],
+        transitions: [{ to: "done", when: 'get_var("counter") >= 3' }],
+        onEnter: ['set_var("counter", 0)'],
+        onStep: ['set_var("counter", get_var("counter") + 1)'],
       },
       {
         name: "done",
@@ -117,7 +117,7 @@ function loadBlackjack(): CardGameRuleset {
 
 /** Naive dealer hand value (aces high unless bust) for test assertions. */
 function dealerHandValue(state: CardGameState): number {
-  const cards = state.zones["dealer_hand"]!.cards;
+  const cards = state.zones.dealer_hand!.cards;
   let total = 0;
   let aces = 0;
   for (const card of cards) {
@@ -140,9 +140,11 @@ function dealerHandValue(state: CardGameState): number {
  * Finds a seed where, after both players stand, the dealer's opening hand
  * is below 17 so the round *lingers* in `dealer_turn` awaiting steps.
  */
-function findLingeringGame(
-  ruleset: CardGameRuleset,
-): { state: CardGameState; reducer: GameReducer; players: Player[] } {
+function findLingeringGame(ruleset: CardGameRuleset): {
+  state: CardGameState;
+  reducer: GameReducer;
+  players: Player[];
+} {
   for (let seed = 1; seed < 500; seed++) {
     const players = makePlayers(2);
     const reducer = createReducer(ruleset, seed);
@@ -176,7 +178,7 @@ describe("step_phase — generic paced automatic phase", () => {
   it("lingers in the automatic phase after onEnter (no auto-resolve)", () => {
     const { state } = startCounter();
     expect(state.currentPhase).toBe("counting");
-    expect(state.variables["counter"]).toBe(0);
+    expect(state.variables.counter).toBe(0);
   });
 
   it("applies onStep exactly once per step_phase action", () => {
@@ -184,10 +186,10 @@ describe("step_phase — generic paced automatic phase", () => {
 
     const s1 = reducer(state, { kind: "step_phase" });
     expect(s1.currentPhase).toBe("counting");
-    expect(s1.variables["counter"]).toBe(1);
+    expect(s1.variables.counter).toBe(1);
 
     const s2 = reducer(s1, { kind: "step_phase" });
-    expect(s2.variables["counter"]).toBe(2);
+    expect(s2.variables.counter).toBe(2);
     expect(s2.currentPhase).toBe("counting");
   });
 
@@ -197,7 +199,7 @@ describe("step_phase — generic paced automatic phase", () => {
     for (let i = 0; i < 3; i++) {
       s = reducer(s, { kind: "step_phase" });
     }
-    expect(s.variables["counter"]).toBe(3);
+    expect(s.variables.counter).toBe(3);
     expect(s.currentPhase).toBe("done");
   });
 
@@ -230,11 +232,9 @@ describe("step_phase — blackjack dealer pacing", () => {
 
     expect(state.currentPhase).toBe("dealer_turn");
     // Only the opening two cards — no cards drawn on entry.
-    expect(state.zones["dealer_hand"]!.cards).toHaveLength(2);
+    expect(state.zones.dealer_hand!.cards).toHaveLength(2);
     // Both dealer cards are revealed face-up.
-    expect(
-      state.zones["dealer_hand"]!.cards.every((c) => c.faceUp),
-    ).toBe(true);
+    expect(state.zones.dealer_hand!.cards.every((c) => c.faceUp)).toBe(true);
     expect(dealerHandValue(state)).toBeLessThan(17);
   });
 
@@ -243,13 +243,13 @@ describe("step_phase — blackjack dealer pacing", () => {
     const { state, reducer } = findLingeringGame(ruleset);
 
     let s = state;
-    let prevCount = s.zones["dealer_hand"]!.cards.length;
+    let prevCount = s.zones.dealer_hand!.cards.length;
     let steps = 0;
 
     while (s.currentPhase === "dealer_turn" && steps < 20) {
       s = reducer(s, { kind: "step_phase" });
       steps += 1;
-      const count = s.zones["dealer_hand"]!.cards.length;
+      const count = s.zones.dealer_hand!.cards.length;
       // Each step adds at most one dealer card (paced, not bulk).
       expect(count - prevCount).toBeLessThanOrEqual(1);
       prevCount = count;

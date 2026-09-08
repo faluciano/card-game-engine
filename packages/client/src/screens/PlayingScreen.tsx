@@ -6,10 +6,11 @@
 // instead of showing every card — discard shows only the top card with
 // a tap-to-expand modal, deck shows a face-down card with count badge.
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type React from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { Card, PlayerView, HostAction, CardInstanceId } from "@card-engine/shared";
-import { type ValidAction } from "@card-engine/shared";
+import type { ValidAction } from "@card-engine/shared";
 import { GameInfo } from "../components/GameInfo.js";
 import { HandViewer } from "../components/HandViewer.js";
 import { ActionBar } from "../components/ActionBar.js";
@@ -18,11 +19,7 @@ import { RoundResultsBanner } from "../components/RoundResultsBanner.js";
 import { OpponentInfo } from "../components/OpponentInfo.js";
 
 /** Zone names that get special compact rendering instead of full card lists. */
-const COMPACT_ZONE_NAMES: ReadonlySet<string> = new Set([
-  "discard",
-  "draw_pile",
-  "deck",
-]);
+const COMPACT_ZONE_NAMES: ReadonlySet<string> = new Set(["discard", "draw_pile", "deck"]);
 
 /** Tracks which card the player has tapped for a play_card action. */
 interface SelectedCard {
@@ -72,6 +69,13 @@ const compactZoneLabelStyle: CSSProperties = {
 const compactCardWrapperStyle: CSSProperties = {
   position: "relative",
   cursor: "pointer",
+  background: "none",
+  border: "none",
+  padding: 0,
+  margin: 0,
+  font: "inherit",
+  color: "inherit",
+  textAlign: "inherit",
 };
 
 const countBadgeStyle: CSSProperties = {
@@ -210,18 +214,14 @@ export function PlayingScreen({
     .map((a) => a.actionName)
     .sort()
     .join(",");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: actionFingerprint is the deliberate trigger — selection resets whenever the set of valid actions changes, not when state setters change
   useEffect(() => {
     setSelectedCard(null);
   }, [actionFingerprint]);
 
-  const handleCardSelect = useCallback(
-    (cardId: CardInstanceId, zoneName: string) => {
-      setSelectedCard((prev) =>
-        prev?.cardId === cardId ? null : { cardId, zoneName },
-      );
-    },
-    [],
-  );
+  const handleCardSelect = useCallback((cardId: CardInstanceId, zoneName: string) => {
+    setSelectedCard((prev) => (prev?.cardId === cardId ? null : { cardId, zoneName }));
+  }, []);
 
   const handleSendAction = useCallback(
     (action: HostAction) => {
@@ -244,22 +244,16 @@ export function PlayingScreen({
   }, [playerView]);
 
   // Extract compact zone data
-  const discardZone = playerView.zones["discard"];
-  const deckZone =
-    playerView.zones["draw_pile"] ?? playerView.zones["deck"];
-  const deckZoneName =
-    playerView.zones["draw_pile"] != null ? "draw_pile" : "deck";
+  const discardZone = playerView.zones.discard;
+  const deckZone = playerView.zones.draw_pile ?? playerView.zones.deck;
+  const deckZoneName = playerView.zones.draw_pile != null ? "draw_pile" : "deck";
 
   // Discard: visible (non-null) cards — index 0 is the most recently played card
   const discardCards = useMemo<readonly Card[]>(
-    () =>
-      discardZone?.cards.filter((c): c is Card => c !== null) ?? [],
+    () => discardZone?.cards.filter((c): c is Card => c !== null) ?? [],
     [discardZone],
   );
-  const discardTopCard =
-    discardCards.length > 0
-      ? discardCards[0]!
-      : null;
+  const discardTopCard = discardCards.length > 0 ? discardCards[0]! : null;
 
   const isRoundEnd = playerView.currentPhase === "round_end";
   const myResult = playerView.scores[`result:${playerView.myPlayerId}`] ?? 0;
@@ -269,7 +263,10 @@ export function PlayingScreen({
   const npcScores = Object.entries(playerView.scores)
     .filter(([key]) => key.endsWith("_score"))
     .map(([key, value]) => ({
-      label: key.replace(/_score$/, "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+      label: key
+        .replace(/_score$/, "")
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase()),
       score: value,
     }));
 
@@ -291,31 +288,20 @@ export function PlayingScreen({
           {/* Discard pile: top card with count badge */}
           {discardZone != null && discardZone.cardCount > 0 && (
             <div style={compactZoneStyle}>
-              <span style={compactZoneLabelStyle}>
-                {formatZoneName("discard")}
-              </span>
-              <div
+              <span style={compactZoneLabelStyle}>{formatZoneName("discard")}</span>
+              <button
+                type="button"
                 style={compactCardWrapperStyle}
-                role="button"
-                tabIndex={0}
                 aria-label={`Discard pile, ${discardZone.cardCount} cards. Tap to view all.`}
                 onClick={() => setDiscardModalOpen(true)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setDiscardModalOpen(true);
-                  }
-                }}
               >
                 {discardTopCard != null ? (
                   <CardMini card={discardTopCard} emphasized />
                 ) : (
                   <CardMini card={null} />
                 )}
-                <span style={countBadgeStyle}>
-                  {discardZone.cardCount}
-                </span>
-              </div>
+                <span style={countBadgeStyle}>{discardZone.cardCount}</span>
+              </button>
               {discardCards.length > 1 && (
                 <button
                   type="button"
@@ -331,9 +317,7 @@ export function PlayingScreen({
           {/* Deck / Draw pile: face-down card with count badge */}
           {deckZone != null && deckZone.cardCount > 0 && (
             <div style={compactZoneStyle}>
-              <span style={compactZoneLabelStyle}>
-                {formatZoneName(deckZoneName)}
-              </span>
+              <span style={compactZoneLabelStyle}>{formatZoneName(deckZoneName)}</span>
               <div style={{ position: "relative" }}>
                 <CardMini card={null} />
                 <span style={countBadgeStyle}>{deckZone.cardCount}</span>
@@ -364,9 +348,7 @@ export function PlayingScreen({
           onNewRound={() => {
             // Find the first available declare action for this phase
             // instead of hardcoding a declaration name.
-            const declareAction = validActions.find(
-              (a) => a.actionName !== "play_card",
-            );
+            const declareAction = validActions.find((a) => a.actionName !== "play_card");
             if (!declareAction) return;
             handleSendAction({
               type: "GAME_ACTION",
@@ -393,12 +375,15 @@ export function PlayingScreen({
               setDiscardModalOpen(false);
             }
           }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setDiscardModalOpen(false);
+            }
+          }}
         >
           <div style={modalContentStyle}>
             <div style={modalHeaderStyle}>
-              <span style={modalTitleStyle}>
-                Discard Pile ({discardCards.length})
-              </span>
+              <span style={modalTitleStyle}>Discard Pile ({discardCards.length})</span>
               <button
                 type="button"
                 style={modalCloseStyle}
@@ -409,11 +394,7 @@ export function PlayingScreen({
             </div>
             <div style={modalCardsGridStyle}>
               {discardCards.map((card, index) => (
-                <CardMini
-                  key={card.id}
-                  card={card}
-                  emphasized={index === 0}
-                />
+                <CardMini key={card.id} card={card} emphasized={index === 0} />
               ))}
             </div>
           </div>

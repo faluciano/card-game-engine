@@ -19,11 +19,17 @@ import type { HostAction, HostGameState, HostScreen, InstalledGame } from "./hos
 
 /** Crypto-quality session ID. Falls back to Math.random() on Hermes. */
 function generateSessionId(): string {
-  if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
+  if (
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.randomUUID === "function"
+  ) {
     return globalThis.crypto.randomUUID();
   }
   // Fallback for Hermes (no crypto.randomUUID)
-  const hex = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, "0");
+  const hex = () =>
+    Math.floor(Math.random() * 0x10000)
+      .toString(16)
+      .padStart(4, "0");
   return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-${(0x8 | (Math.random() * 0x4) | 0).toString(16)}${hex().slice(1)}-${hex()}${hex()}${hex()}`;
 }
 
@@ -67,7 +73,10 @@ export function createHostInitialState(): HostGameState {
  * - `"ruleset_picker"` / `"lobby"` for pre-game screens
  * - `"game:<engine_status_kind>"` for in-game states
  */
-export function deriveStatus(screen: HostScreen, engineState: HostGameState["engineState"]): string {
+export function deriveStatus(
+  screen: HostScreen,
+  engineState: HostGameState["engineState"],
+): string {
   switch (screen.tag) {
     case "ruleset_picker":
       return "ruleset_picker";
@@ -122,10 +131,7 @@ export const hostReducer = hostReducerImpl;
 
 // ─── Action Handlers ───────────────────────────────────────────────
 
-function handleSelectRuleset(
-  state: HostGameState,
-  ruleset: CardGameRuleset,
-): HostGameState {
+function handleSelectRuleset(state: HostGameState, ruleset: CardGameRuleset): HostGameState {
   // Guard: block during active game — can only select from picker or lobby
   if (state.screen.tag === "game_table") return state;
 
@@ -157,14 +163,12 @@ function handleStartGame(state: HostGameState): HostGameState {
   const { ruleset } = state.screen;
 
   // Map CouchKit's Record<string, IPlayer> → engine's Player[]
-  const enginePlayers: Player[] = Object.entries(state.players).map(
-    ([id, couchPlayer]) => ({
-      id: id as PlayerId,
-      name: couchPlayer.name,
-      role: "player",
-      connected: couchPlayer.connected,
-    }),
-  );
+  const enginePlayers: Player[] = Object.entries(state.players).map(([id, couchPlayer]) => ({
+    id: id as PlayerId,
+    name: couchPlayer.name,
+    role: "player",
+    connected: couchPlayer.connected,
+  }));
 
   // Guard: need at least one player to create a session
   if (enginePlayers.length === 0) return state;
@@ -186,10 +190,7 @@ function handleStartGame(state: HostGameState): HostGameState {
   };
 }
 
-function handleGameAction(
-  state: HostGameState,
-  action: CardGameAction,
-): HostGameState {
+function handleGameAction(state: HostGameState, action: CardGameAction): HostGameState {
   // Guard: block engine-internal actions from client submissions
   if (
     action.kind === "advance_phase" ||
@@ -304,10 +305,7 @@ function handleSetInstalledSlugs(
   };
 }
 
-function handleUninstallRuleset(
-  state: HostGameState,
-  slug: string,
-): HostGameState {
+function handleUninstallRuleset(state: HostGameState, slug: string): HostGameState {
   // Guard: can only uninstall from picker or lobby
   if (state.screen.tag === "game_table") return state;
 
@@ -316,10 +314,7 @@ function handleUninstallRuleset(
   if (!isInstalled) return state;
 
   // Guard: cannot uninstall the currently-selected lobby game
-  if (
-    state.screen.tag === "lobby" &&
-    state.screen.ruleset.meta.slug === slug
-  ) {
+  if (state.screen.tag === "lobby" && state.screen.ruleset.meta.slug === slug) {
     return state;
   }
 

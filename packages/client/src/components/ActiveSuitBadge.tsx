@@ -2,16 +2,14 @@
 // Compact pill badge showing the currently active suit (e.g. Crazy Eights).
 // Only renders when activeSuit is non-empty.
 
-import React from "react";
+import type React from "react";
 import type { CSSProperties } from "react";
 
 interface ActiveSuitBadgeProps {
   readonly activeSuit: string; // "Hearts" | "Diamonds" | "Clubs" | "Spades" | ""
 }
 
-const SUIT_DISPLAY: Readonly<
-  Record<string, { readonly symbol: string; readonly red: boolean }>
-> = {
+const SUIT_DISPLAY: Readonly<Record<string, { readonly symbol: string; readonly red: boolean }>> = {
   hearts: { symbol: "\u2665", red: true },
   diamonds: { symbol: "\u2666", red: true },
   clubs: { symbol: "\u2663", red: false },
@@ -36,22 +34,18 @@ const symbolStyle: CSSProperties = {
   lineHeight: 1,
 };
 
-export function ActiveSuitBadge({
-  activeSuit,
-}: ActiveSuitBadgeProps): React.JSX.Element | null {
+export function ActiveSuitBadge({ activeSuit }: ActiveSuitBadgeProps): React.JSX.Element | null {
   if (!activeSuit) return null;
 
   const display = SUIT_DISPLAY[activeSuit];
   if (!display) return null;
 
-  const color = display.red
-    ? "var(--color-card-red)"
-    : "var(--color-card-black)";
+  const color = display.red ? "var(--color-card-red)" : "var(--color-card-black)";
 
   const label = activeSuit.charAt(0).toUpperCase() + activeSuit.slice(1);
 
   return (
-    <div style={badgeStyle} aria-label={`Active suit: ${label}`}>
+    <div role="img" style={badgeStyle} aria-label={`Active suit: ${label}`}>
       <span style={{ ...symbolStyle, color }}>{display.symbol}</span>
       <span style={{ color }}>{label}</span>
     </div>
