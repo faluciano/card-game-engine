@@ -8,13 +8,15 @@ export default defineConfig({
     port: 5173,
   },
   build: {
-    target: "ES2022",
     outDir: "dist",
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ["react", "react-dom"],
-          engine: ["@card-engine/shared"],
+        // Rolldown (Vite 8) replaces the object form of manualChunks.
+        codeSplitting: {
+          groups: [
+            { name: "vendor", test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+            { name: "engine", test: /[\\/]packages[\\/](shared|host-core)[\\/]/ },
+          ],
         },
       },
     },
