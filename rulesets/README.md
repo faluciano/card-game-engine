@@ -8,6 +8,9 @@ This directory contains example `.cardgame.json` ruleset files that the Card Gam
 |------|------|--------|---------|
 | `blackjack.cardgame.json` | Blackjack | Banking / dealer vs. players | 1–6 |
 | `crazy-eights.cardgame.json` | Crazy Eights | Matching / shedding | 2–4 |
+| `war.cardgame.json` | War | Comparing / simultaneous play | 2 |
+| `go-fish.cardgame.json` | Go Fish | Collecting / asking | 2–4 |
+| `hearts.cardgame.json` | Hearts | Trick-taking / avoidance | 4 |
 
 ## Catalog Fields
 

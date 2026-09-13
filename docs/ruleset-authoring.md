@@ -588,6 +588,21 @@ number. If the parameter is a boolean, it is returned as `1` (true) or `0`
 (false). If the parameter does not exist or no params were provided, it returns
 `0`.
 
+Params are also visible to the action's `condition`, so a ruleset can reject an
+invalid choice before any effect runs. Because `getValidActions()` evaluates the
+condition *without* params (to decide whether to show the button at all), guard
+the param-dependent part with a `get_param(name) == 0` check — the same idea as
+the `played_card_index == -1` sentinel for `play_card`:
+
+```json
+{
+  "name": "ask",
+  "label": "Ask for a rank",
+  "condition": "get_param(\"rank\") == 0 || has_card_matching_rank(current_player.hand, get_param(\"rank\"))",
+  "effect": ["set_str_var(\"asked_rank\", get_param(\"rank\"))"]
+}
+```
+
 **Example -- UNO color choice:** When a player plays a Wild card, they must
 choose a color. The client sends:
 
@@ -725,6 +740,7 @@ for player 1, and so on.
 | `draw(from, to, count)` | Draws `count` cards from `from` into `to` for the current player. |
 | `move_top(from, to, count)` | Moves the top `count` cards from `from` zone to `to` zone. Works on any two arbitrary zones (not player-scoped like `draw`). |
 | `move_all(from, to)` | Moves all cards from `from` zone to `to` zone. Cards retain their face-up state. |
+| `move_rank(from, to, rank)` | Moves every card whose rank string equals `rank` from `from` to `to`, keeping relative order and face-up state. Used to hand over asked-for cards or lay down a book in Go Fish. No-op if nothing matches. |
 | `flip_top(zone, count)` | Sets the top `count` cards in `zone` to face-up. |
 | `set_face_up(zone, index, bool)` | Sets the face-up state of a specific card in a zone. |
 | `reveal_all(zone)` | Sets all cards in a zone to face-up. |
@@ -1781,9 +1797,12 @@ For single-round games, combine everything in one scoring phase:
 
 ### Limitations
 
-- **Follow-suit enforcement**: Per-card validation via `played_card_matches_top(zone)` and
-  `condition` on `play_card` actions now enables basic suit/rank matching (e.g.,
-  Crazy Eights). Full follow-suit rules (must play led suit if able) require
-  additional UI-level support or future enhancements.
+- **Follow-suit enforcement**: Per-card validation via `condition` on the
+  `play_card` action handles it entirely in the ruleset. With
+  `played_card_index` bound, combine `trick_card_count()`, `led_card_suit()`,
+  `has_card_matching_suit()` and `card_suit()` to express "must follow the led
+  suit if able", "may not lead hearts until broken", and so on. See
+  `rulesets/hearts.cardgame.json` for a complete example; `getPlayableCardIndices()`
+  gives clients the resulting legal cards to highlight.
 - **Card passing**: Pre-game card passing is not yet
   supported. Requires a new action type for selecting multiple cards to pass.

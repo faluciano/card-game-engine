@@ -1,0 +1,159 @@
+{
+  "$schema": "../packages/shared/src/schema/cardgame.v1.schema.json",
+  "meta": {
+    "name": "Go Fish",
+    "slug": "go-fish",
+    "version": "1.0.0",
+    "author": "faluciano",
+    "players": {
+      "min": 2,
+      "max": 4
+    },
+    "description": "Ask another player for a rank you hold. If they have it, take their cards and ask again; if not, go fish. Collect books of four to win",
+    "tags": ["collecting", "asking", "classic", "kids", "family"],
+    "license": "public-domain"
+  },
+  "deck": {
+    "preset": "standard_52",
+    "copies": 1,
+    "cardValues": {
+      "A": 1,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9,
+      "10": 10,
+      "J": 11,
+      "Q": 12,
+      "K": 13
+    }
+  },
+  "zones": [
+    {
+      "name": "draw_pile",
+      "visibility": { "kind": "hidden" },
+      "owners": []
+    },
+    {
+      "name": "hand",
+      "visibility": { "kind": "owner_only" },
+      "owners": ["player"]
+    },
+    {
+      "name": "books",
+      "visibility": { "kind": "public" },
+      "owners": ["player"]
+    }
+  ],
+  "roles": [
+    {
+      "name": "player",
+      "isHuman": true,
+      "count": "per_player"
+    }
+  ],
+  "variables": {
+    "asked_rank": { "type": "string", "initial": "", "public": true },
+    "target": { "type": "number", "initial": -1, "public": true },
+    "last_catch": { "type": "number", "initial": 0, "public": true },
+    "caught": { "type": "number", "initial": 0 },
+    "drew": { "type": "number", "initial": 0 }
+  },
+  "phases": [
+    {
+      "name": "setup",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [{ "to": "turn_start", "when": "all_hands_dealt" }],
+      "onEnter": ["shuffle(draw_pile)", "deal(draw_pile, hand, if(player_count == 2, 7, 5))"]
+    },
+    {
+      "name": "turn_start",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        {
+          "to": "game_over",
+          "when": "count_sets(\"books:0\", 4) + count_sets(\"books:1\", 4) + if(player_count > 2, count_sets(\"books:2\", 4), 0) + if(player_count > 3, count_sets(\"books:3\", 4), 0) == 13"
+        },
+        { "to": "player_turns", "when": "card_count(current_player.hand) > 0" },
+        { "to": "skip_turn", "when": "true" }
+      ],
+      "onEnter": [
+        "if(card_count(current_player.hand) == 0 && card_count(draw_pile) > 0, draw(draw_pile, current_player.hand, 1))"
+      ]
+    },
+    {
+      "name": "skip_turn",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [{ "to": "turn_start", "when": "true" }],
+      "onEnter": ["end_turn()"]
+    },
+    {
+      "name": "player_turns",
+      "kind": "turn_based",
+      "actions": [
+        {
+          "name": "ask",
+          "label": "Ask for a rank",
+          "condition": "get_param(\"rank\") == 0 || (has_card_matching_rank(current_player.hand, get_param(\"rank\")) && get_param(\"target\") != current_player_index && get_param(\"target\") >= 0 && get_param(\"target\") < player_count)",
+          "effect": [
+            "set_str_var(\"asked_rank\", get_param(\"rank\"))",
+            "set_var(\"target\", get_param(\"target\"))"
+          ]
+        }
+      ],
+      "transitions": [{ "to": "resolve_ask", "when": "get_str_var(\"asked_rank\") != \"\"" }],
+      "turnOrder": "clockwise"
+    },
+    {
+      "name": "resolve_ask",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [{ "to": "check_books", "when": "true" }],
+      "onEnter": [
+        "set_var(\"last_catch\", count_rank(concat(\"hand:\", get_var(\"target\")), get_str_var(\"asked_rank\")))",
+        "if(has_card_matching_rank(concat(\"hand:\", get_var(\"target\")), get_str_var(\"asked_rank\")), set_var(\"caught\", 1), set_var(\"caught\", 0))",
+        "if(has_card_matching_rank(concat(\"hand:\", get_var(\"target\")), get_str_var(\"asked_rank\")), move_rank(concat(\"hand:\", get_var(\"target\")), current_player.hand, get_str_var(\"asked_rank\")))",
+        "if(!has_card_matching_rank(concat(\"hand:\", get_var(\"target\")), get_str_var(\"asked_rank\")) && card_count(draw_pile) > 0, set_var(\"drew\", 1), set_var(\"drew\", 0))",
+        "if(!has_card_matching_rank(concat(\"hand:\", get_var(\"target\")), get_str_var(\"asked_rank\")), draw(draw_pile, current_player.hand, 1))"
+      ]
+    },
+    {
+      "name": "check_books",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [{ "to": "turn_start", "when": "true" }],
+      "onEnter": [
+        "if(get_var(\"drew\") == 1 && card_rank_name(current_player.hand, card_count(current_player.hand) - 1) == get_str_var(\"asked_rank\"), set_var(\"caught\", 1))",
+        "if(count_rank(current_player.hand, get_str_var(\"asked_rank\")) == 4, move_rank(current_player.hand, current_player.books, get_str_var(\"asked_rank\")))",
+        "if(get_var(\"drew\") == 1 && count_rank(current_player.hand, card_rank_name(current_player.hand, card_count(current_player.hand) - 1)) == 4, move_rank(current_player.hand, current_player.books, card_rank_name(current_player.hand, card_count(current_player.hand) - 1)))",
+        "if(get_var(\"caught\") == 0 && !(get_var(\"drew\") == 1 && card_rank_name(current_player.hand, card_count(current_player.hand) - 1) == get_str_var(\"asked_rank\")), end_turn())",
+        "set_str_var(\"asked_rank\", \"\")",
+        "set_var(\"target\", -1)"
+      ]
+    },
+    {
+      "name": "game_over",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [],
+      "onEnter": ["calculate_scores()", "accumulate_scores()", "determine_winners()", "end_game()"]
+    }
+  ],
+  "scoring": {
+    "method": "count_sets(current_player.books, 4)",
+    "winCondition": "get_cumulative_score(current_player_index) == max_cumulative_score()",
+    "bustCondition": "false",
+    "tieCondition": "false"
+  },
+  "ui": {
+    "layout": "circle",
+    "tableColor": "felt_green"
+  }
+}

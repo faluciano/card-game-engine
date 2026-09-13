@@ -890,6 +890,9 @@ function applySingleEffect(
     case "move_all":
       applyMoveAllEffect(draft, effect.params, ensureZones);
       return;
+    case "move_rank":
+      applyMoveRankEffect(draft, effect.params, ensureZones);
+      return;
     case "reverse_turn_order":
       applyReverseTurnOrderEffect(draft);
       return;
@@ -1332,6 +1335,33 @@ function applyMoveAllEffect(
   const zones = ensureZones();
   zones[fromName] = { ...fromZone, cards: [] };
   zones[toName] = { ...toZone, cards: [...toZone.cards, ...fromZone.cards] };
+}
+
+/**
+ * Moves every card with the given rank from one zone to another.
+ * Cards keep their relative order and faceUp state. No-op if either
+ * zone is missing or no card matches.
+ */
+function applyMoveRankEffect(
+  draft: StateDraft,
+  params: Record<string, unknown>,
+  ensureZones: () => Record<string, ZoneState>,
+): void {
+  const fromName = params.from as string;
+  const toName = params.to as string;
+  const rank = params.rank as string;
+
+  const fromZone = draft.zones[fromName];
+  const toZone = draft.zones[toName];
+  if (!fromZone || !toZone) return;
+
+  const matching = fromZone.cards.filter((card) => card.rank === rank);
+  if (matching.length === 0) return;
+  const remaining = fromZone.cards.filter((card) => card.rank !== rank);
+
+  const zones = ensureZones();
+  zones[fromName] = { ...fromZone, cards: remaining };
+  zones[toName] = { ...toZone, cards: [...toZone.cards, ...matching] };
 }
 
 /**

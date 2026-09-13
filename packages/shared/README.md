@@ -349,6 +349,7 @@ Mutating functions that record effect descriptions for the interpreter to apply.
 | `move_top(from, to, count)`         | zone, zone, number         | Move top count cards from one zone to another      |
 | `flip_top(zone, count)`             | zone, number               | Set top count cards in zone to face-up             |
 | `move_all(from, to)`                | zone, zone                 | Move all cards from one zone to another            |
+| `move_rank(from, to, rank)`         | zone, zone, string         | Move every card of the given rank between zones    |
 | `collect_trick(prefix, target)`     | string, zone               | Move all `{prefix}:{N}` cards into target (face-down) |
 | `set_lead_player(index)`            | number                     | Set `lead_player` variable and `currentPlayerIndex`    |
 | `end_game()`                        | none                       | Transition game status to `finished`                   |
@@ -403,7 +404,7 @@ A zone where hidden cards are replaced with `null` placeholders. Contains `name`
 
 ## Testing
 
-14 test files cover the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, paced phases, simultaneous phases, integration scenarios, schema meta fields, and the host bridge (catalog actions, action errors, client views). Run `bunx vitest run` for the current count (839 at the time of writing).
+17 test files cover the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, paced phases, simultaneous phases, integration scenarios, the shipped War / Go Fish / Hearts rulesets, schema meta fields, and the host bridge (catalog actions, action errors, client views). Run `bunx vitest run` for the current count (873 at the time of writing).
 
 ```sh
 # Run all tests
@@ -423,6 +424,7 @@ Test files:
 - `src/engine/prng.test.ts` -- Determinism, distribution, shuffle, pick
 - `src/engine/interpreter.test.ts` -- Reducer creation, initial state, action handling
 - `src/engine/integration.test.ts` -- Full game flow end-to-end
+- `src/engine/war-ruleset.test.ts`, `go-fish-ruleset.test.ts`, `hearts-ruleset.test.ts` -- Seeded scripted games through the shipped rulesets
 - `src/engine/step-phase.test.ts` -- Paced automatic phases (`step_phase` + `onStep`)
 - `src/engine/all-players-done.test.ts` -- `all_players_done()` gating an `all_players` phase
 - `src/bridge/__tests__/` -- Host bridge: catalog actions, action errors, client views
