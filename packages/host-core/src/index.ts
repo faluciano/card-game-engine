@@ -119,3 +119,12 @@ export {
   type StoreGameModel,
   type StoreViewModel,
 } from "./use-ruleset-picker-model";
+export {
+  countConnected,
+  formatPlayerCount,
+  playerInitial,
+  toPlayerList,
+  useLobbyModel,
+  type LobbyModel,
+  type LobbyPlayer,
+} from "./use-lobby-model";

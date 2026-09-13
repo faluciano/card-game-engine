@@ -1,14 +1,14 @@
 // ─── Lobby Screen ──────────────────────────────────────────────────
-// Waiting room where players scan a QR code to join. Shows connected
-// players, the selected game info, and a start button that activates
-// once the minimum player count is met.
+// Waiting room where players scan a QR code to join. A thin RN renderer
+// over `useLobbyModel` from host-core: connected players, the selected
+// game info, and a start button that activates once the minimum player
+// count is met.
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useGameHost } from "@couch-kit/host";
-import type { IPlayer } from "@couch-kit/core";
 import type { HostAction, HostGameState } from "@card-engine/shared";
-import { colors } from "@card-engine/host-core";
+import { colors, playerInitial, useLobbyModel, type LobbyPlayer } from "@card-engine/host-core";
 
 import { QRDisplay } from "../components/QRDisplay";
 
@@ -16,34 +16,14 @@ import { QRDisplay } from "../components/QRDisplay";
 
 export function Lobby(): React.JSX.Element {
   const { state, dispatch, serverUrl } = useGameHost<HostGameState, HostAction>();
-
   // All hooks run unconditionally, before the screen-tag guard below.
-  const ruleset = state.screen.tag === "lobby" ? state.screen.ruleset : null;
-  const min = ruleset?.meta.players.min ?? 0;
-  const max = ruleset?.meta.players.max ?? 0;
-
-  const playerList = useMemo(
-    () => Object.entries(state.players).map(([id, player]): IPlayer => ({ ...player, id })),
-    [state.players],
-  );
-
-  const connectedCount = playerList.filter((p: IPlayer) => p.connected).length;
-  const canStart = ruleset !== null && connectedCount >= min;
-
-  const handleStart = useCallback(() => {
-    if (!canStart) return;
-    dispatch({ type: "START_GAME" });
-  }, [dispatch, canStart]);
-
-  const handleBack = useCallback(() => {
-    dispatch({ type: "BACK_TO_PICKER" });
-  }, [dispatch]);
+  const model = useLobbyModel(state, dispatch);
 
   // Guard: this screen only renders when screen.tag === "lobby"
-  if (ruleset === null) {
+  if (model.kind !== "lobby") {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Invalid screen state</Text>
+        <Text style={styles.errorText}>{model.message}</Text>
       </View>
     );
   }
@@ -53,35 +33,33 @@ export function Lobby(): React.JSX.Element {
       {/* Left panel: QR code + connection info */}
       <View style={styles.leftPanel}>
         <QRDisplay url={serverUrl} />
-        <Text style={styles.gameName}>{ruleset.meta.name}</Text>
+        <Text style={styles.gameName}>{model.gameName}</Text>
         <Text style={styles.connectionHint}>Scan to join on your phone</Text>
       </View>
 
       {/* Right panel: player list + controls */}
       <View style={styles.rightPanel}>
-        <Text style={styles.playerCountLabel}>
-          {connectedCount} / {min}–{max} players
-        </Text>
+        <Text style={styles.playerCountLabel}>{model.playerCountLabel}</Text>
 
         <ScrollView style={styles.playerList} contentContainerStyle={styles.playerListContent}>
-          {playerList.length === 0 ? (
+          {model.playerList.length === 0 ? (
             <Text style={styles.emptyHint}>Waiting for players…</Text>
           ) : (
-            playerList.map((player: IPlayer) => <PlayerRow key={player.id} player={player} />)
+            model.playerList.map((player) => <PlayerRow key={player.id} player={player} />)
           )}
         </ScrollView>
 
         <View style={styles.controls}>
           <LobbyButton
             label="Start Game"
-            onPress={handleStart}
-            disabled={!canStart}
+            onPress={model.start}
+            disabled={!model.canStart}
             isPrimary
             isFirst
           />
           <LobbyButton
             label="Back"
-            onPress={handleBack}
+            onPress={model.back}
             disabled={false}
             isPrimary={false}
             isFirst={false}
@@ -97,12 +75,12 @@ export function Lobby(): React.JSX.Element {
 const PlayerRow = React.memo(function PlayerRow({
   player,
 }: {
-  readonly player: IPlayer;
+  readonly player: LobbyPlayer;
 }): React.JSX.Element {
   return (
     <View style={styles.playerRow}>
       <View style={[styles.avatarCircle, !player.connected && styles.avatarDisconnected]}>
-        <Text style={styles.avatarText}>{player.name.charAt(0).toUpperCase()}</Text>
+        <Text style={styles.avatarText}>{playerInitial(player)}</Text>
       </View>
       <Text
         style={[styles.playerName, !player.connected && styles.playerNameDisconnected]}
