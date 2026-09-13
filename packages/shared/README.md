@@ -404,7 +404,7 @@ A zone where hidden cards are replaced with `null` placeholders. Contains `name`
 
 ## Testing
 
-14 test files cover the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, paced phases, simultaneous phases, integration scenarios, schema meta fields, and the host bridge (catalog actions, action errors, client views). Run `bunx vitest run` for the current count (839 at the time of writing).
+17 test files cover the expression evaluator, builtins, phase machine, action validator, state filter, PRNG, interpreter, paced phases, simultaneous phases, integration scenarios, the shipped War / Go Fish / Hearts rulesets, schema meta fields, and the host bridge (catalog actions, action errors, client views). Run `bunx vitest run` for the current count (873 at the time of writing).
 
 ```sh
 # Run all tests
@@ -424,6 +424,7 @@ Test files:
 - `src/engine/prng.test.ts` -- Determinism, distribution, shuffle, pick
 - `src/engine/interpreter.test.ts` -- Reducer creation, initial state, action handling
 - `src/engine/integration.test.ts` -- Full game flow end-to-end
+- `src/engine/war-ruleset.test.ts`, `go-fish-ruleset.test.ts`, `hearts-ruleset.test.ts` -- Seeded scripted games through the shipped rulesets
 - `src/engine/step-phase.test.ts` -- Paced automatic phases (`step_phase` + `onStep`)
 - `src/engine/all-players-done.test.ts` -- `all_players_done()` gating an `all_players` phase
 - `src/bridge/__tests__/` -- Host bridge: catalog actions, action errors, client views

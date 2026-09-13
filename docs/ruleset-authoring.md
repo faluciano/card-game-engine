@@ -1797,9 +1797,12 @@ For single-round games, combine everything in one scoring phase:
 
 ### Limitations
 
-- **Follow-suit enforcement**: Per-card validation via `played_card_matches_top(zone)` and
-  `condition` on `play_card` actions now enables basic suit/rank matching (e.g.,
-  Crazy Eights). Full follow-suit rules (must play led suit if able) require
-  additional UI-level support or future enhancements.
+- **Follow-suit enforcement**: Per-card validation via `condition` on the
+  `play_card` action handles it entirely in the ruleset. With
+  `played_card_index` bound, combine `trick_card_count()`, `led_card_suit()`,
+  `has_card_matching_suit()` and `card_suit()` to express "must follow the led
+  suit if able", "may not lead hearts until broken", and so on. See
+  `rulesets/hearts.cardgame.json` for a complete example; `getPlayableCardIndices()`
+  gives clients the resulting legal cards to highlight.
 - **Card passing**: Pre-game card passing is not yet
   supported. Requires a new action type for selecting multiple cards to pass.

@@ -151,6 +151,7 @@ The [`rulesets/`](rulesets/) directory contains example rulesets:
 - **`crazy-eights.cardgame.json`** — a matching/shedding game demonstrating wild 8s (suit choosing), per-card play validation, string variables, draw pile reshuffle, and `if()` conditional branching
 - **`war.cardgame.json`** — a two-player comparing game demonstrating simultaneous `all_players` play, cross-zone rank comparison, tie → war → burn flows through a shared pot, and won-pile replenishment
 - **`go-fish.cardgame.json`** — a collecting game demonstrating `declare` actions with parameters (rank + target), param validation in action conditions, `move_rank`, draw-on-miss, and go-again turns
+- **`hearts.cardgame.json`** — a four-player trick-taking game demonstrating follow-suit validation via per-card `play_card` conditions, hearts breaking, `trick_winner`/`collect_trick`, penalty scoring with shooting the moon, and multi-round cumulative scoring to 100
 
 Rulesets support optional catalog fields (`description`, `tags`, `license`) in their `meta` block. Run `bun run catalog` to generate a `catalog.json` index of all rulesets for browsing and discovery. Run `bun run validate` to validate all rulesets against the schema.
 

@@ -1,0 +1,163 @@
+{
+  "$schema": "../packages/shared/src/schema/cardgame.v1.schema.json",
+  "meta": {
+    "name": "Hearts",
+    "slug": "hearts",
+    "version": "1.0.0",
+    "author": "faluciano",
+    "players": {
+      "min": 4,
+      "max": 4
+    },
+    "description": "Trick-taking avoidance game: follow suit, dodge hearts and the Queen of Spades, or shoot the moon. Lowest score when someone reaches 100 wins",
+    "tags": ["trick-taking", "avoidance", "classic", "strategy"],
+    "license": "public-domain"
+  },
+  "deck": {
+    "preset": "standard_52",
+    "copies": 1,
+    "cardValues": {
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9,
+      "10": 10,
+      "J": 11,
+      "Q": 12,
+      "K": 13,
+      "A": 14
+    }
+  },
+  "zones": [
+    {
+      "name": "draw_pile",
+      "visibility": { "kind": "hidden" },
+      "owners": []
+    },
+    {
+      "name": "hand",
+      "visibility": { "kind": "owner_only" },
+      "owners": ["player"]
+    },
+    {
+      "name": "trick",
+      "visibility": { "kind": "public" },
+      "owners": ["player"],
+      "maxCards": 1
+    },
+    {
+      "name": "won",
+      "visibility": { "kind": "hidden" },
+      "owners": ["player"]
+    }
+  ],
+  "roles": [
+    {
+      "name": "player",
+      "isHuman": true,
+      "count": "per_player"
+    }
+  ],
+  "variables": {
+    "lead_player": { "type": "number", "initial": 0, "public": true },
+    "tricks_played": { "type": "number", "initial": 0, "public": true },
+    "hearts_broken": { "type": "number", "initial": 0, "public": true }
+  },
+  "phases": [
+    {
+      "name": "setup",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [{ "to": "find_leader", "when": "all_hands_dealt" }],
+      "onEnter": ["shuffle(draw_pile)", "deal(draw_pile, hand, 13)"]
+    },
+    {
+      "name": "find_leader",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [{ "to": "play_trick", "when": "true" }],
+      "onEnter": [
+        "if(has_card_with(\"hand:0\", \"2\", \"clubs\"), set_lead_player(0))",
+        "if(has_card_with(\"hand:1\", \"2\", \"clubs\"), set_lead_player(1))",
+        "if(has_card_with(\"hand:2\", \"2\", \"clubs\"), set_lead_player(2))",
+        "if(has_card_with(\"hand:3\", \"2\", \"clubs\"), set_lead_player(3))"
+      ]
+    },
+    {
+      "name": "play_trick",
+      "kind": "turn_based",
+      "actions": [
+        {
+          "name": "play_card",
+          "label": "Play Card",
+          "condition": "played_card_index == -1 || if(trick_card_count(\"trick\") == 0, if(get_var(\"tricks_played\") == 0, card_rank_name(current_player.hand, played_card_index) == \"2\" && card_suit(current_player.hand, played_card_index) == \"clubs\", card_suit(current_player.hand, played_card_index) != \"hearts\" || get_var(\"hearts_broken\") == 1 || count_cards_by_suit(current_player.hand, \"hearts\") == card_count(current_player.hand)), if(has_card_matching_suit(current_player.hand, led_card_suit(\"trick\")), card_suit(current_player.hand, played_card_index) == led_card_suit(\"trick\"), get_var(\"tricks_played\") > 0 || (card_suit(current_player.hand, played_card_index) != \"hearts\" && !(card_rank_name(current_player.hand, played_card_index) == \"Q\" && card_suit(current_player.hand, played_card_index) == \"spades\")) || count_cards_by_suit(current_player.hand, \"hearts\") + if(has_card_with(current_player.hand, \"Q\", \"spades\"), 1, 0) == card_count(current_player.hand)))",
+          "effect": [
+            "if(card_suit(current_player.trick, 0) == \"hearts\", set_var(\"hearts_broken\", 1))",
+            "end_turn()"
+          ]
+        }
+      ],
+      "transitions": [
+        { "to": "resolve_trick", "when": "trick_card_count(\"trick\") == player_count" }
+      ],
+      "turnOrder": "clockwise"
+    },
+    {
+      "name": "resolve_trick",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "scoring", "when": "get_var(\"tricks_played\") >= 13" },
+        { "to": "play_trick", "when": "true" }
+      ],
+      "onEnter": [
+        "collect_trick(\"trick\", concat(\"won:\", trick_winner(\"trick\")))",
+        "set_lead_player(trick_winner(\"trick\"))",
+        "inc_var(\"tricks_played\", 1)"
+      ]
+    },
+    {
+      "name": "scoring",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "game_over", "when": "max_cumulative_score() >= 100" },
+        { "to": "round_end", "when": "true" }
+      ],
+      "onEnter": ["calculate_scores()", "accumulate_scores()"]
+    },
+    {
+      "name": "round_end",
+      "kind": "all_players",
+      "actions": [
+        {
+          "name": "next_round",
+          "label": "Next Round",
+          "effect": ["collect_all_to(draw_pile)", "reset_round()"]
+        }
+      ],
+      "transitions": [{ "to": "setup", "when": "continue_game" }]
+    },
+    {
+      "name": "game_over",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [],
+      "onEnter": ["determine_winners()", "end_game()"]
+    }
+  ],
+  "scoring": {
+    "method": "if(count_cards_by_suit(current_player.won, \"hearts\") + if(has_card_with(current_player.won, \"Q\", \"spades\"), 13, 0) == 26, 0, if(count_cards_by_suit(\"won:0\", \"hearts\") + if(has_card_with(\"won:0\", \"Q\", \"spades\"), 13, 0) == 26 || count_cards_by_suit(\"won:1\", \"hearts\") + if(has_card_with(\"won:1\", \"Q\", \"spades\"), 13, 0) == 26 || count_cards_by_suit(\"won:2\", \"hearts\") + if(has_card_with(\"won:2\", \"Q\", \"spades\"), 13, 0) == 26 || count_cards_by_suit(\"won:3\", \"hearts\") + if(has_card_with(\"won:3\", \"Q\", \"spades\"), 13, 0) == 26, 26, count_cards_by_suit(current_player.won, \"hearts\") + if(has_card_with(current_player.won, \"Q\", \"spades\"), 13, 0)))",
+    "winCondition": "get_cumulative_score(current_player_index) == min_cumulative_score()",
+    "bustCondition": "false",
+    "tieCondition": "false"
+  },
+  "ui": {
+    "layout": "circle",
+    "tableColor": "felt_green"
+  }
+}
