@@ -28,9 +28,5 @@
     "typescript": "~7.0.2",
     "@biomejs/biome": "2.5.12",
     "@types/node": "^24.0.0"
-  },
-  "overrides": {
-    "react-native-nitro-http-server": "1.9.2",
-    "react-native-nitro-modules": "0.35.10"
   }
 }
