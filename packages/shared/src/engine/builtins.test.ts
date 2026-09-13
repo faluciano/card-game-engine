@@ -1065,6 +1065,33 @@ describe("builtins", () => {
       });
     });
 
+    describe("move_rank effect builtin", () => {
+      it("pushes a move_rank effect with correct params", () => {
+        const state = makeGameState({});
+        const ctx = makeMutableContext(state);
+        evaluateExpression('move_rank("hand:1", "hand:0", "7")', ctx);
+        expect(ctx.effects).toEqual([
+          { kind: "move_rank", params: { from: "hand:1", to: "hand:0", rank: "7" } },
+        ]);
+      });
+
+      it("requires a string rank", () => {
+        const state = makeGameState({});
+        const ctx = makeMutableContext(state);
+        expect(() => evaluateExpression('move_rank("hand:1", "hand:0", 7)', ctx)).toThrow(
+          "Expected string for 'rank', got number",
+        );
+      });
+
+      it("throws with the wrong number of arguments", () => {
+        const state = makeGameState({});
+        const ctx = makeMutableContext(state);
+        expect(() => evaluateExpression('move_rank("hand:1", "hand:0")', ctx)).toThrow(
+          "move_rank() requires exactly 3 argument(s), got 2",
+        );
+      });
+    });
+
     // ── Effect Handlers (integration via reducer) ──
 
     describe("effect handlers via reducer", () => {
@@ -1213,6 +1240,45 @@ describe("builtins", () => {
         expect(pileA).toHaveLength(2);
         expect(pileA[0]!.faceUp).toBe(true);
         expect(pileA[1]!.faceUp).toBe(true);
+      });
+
+      it("move_rank: moves every card of a rank, keeping the rest in place", () => {
+        // Unshuffled standard_52 starts A,2,3,...,K of hearts, then diamonds, ...
+        // so 14 cards from the top contain two Aces (hearts, diamonds).
+        const ruleset = makeEffectTestRuleset([
+          'deal("draw_pile", "pile_a", 14)',
+          'move_rank("pile_a", "pile_b", "A")',
+        ]);
+        const players = makePlayers(1);
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
+        const reducer = createReducer(ruleset, FIXED_SEED);
+
+        const result = reducer(state, { kind: "start_game" });
+
+        expect(result.zones.pile_b!.cards.map((c) => `${c.rank}${c.suit}`)).toEqual([
+          "Ahearts",
+          "Adiamonds",
+        ]);
+        expect(result.zones.pile_a!.cards).toHaveLength(12);
+        expect(result.zones.pile_a!.cards.some((c) => c.rank === "A")).toBe(false);
+        // Relative order of the remaining cards is preserved
+        expect(result.zones.pile_a!.cards[0]!.rank).toBe("2");
+        expect(result.zones.pile_a!.cards[11]!.rank).toBe("K");
+      });
+
+      it("move_rank: is a no-op when no card matches", () => {
+        const ruleset = makeEffectTestRuleset([
+          'deal("draw_pile", "pile_a", 3)',
+          'move_rank("pile_a", "pile_b", "K")',
+        ]);
+        const players = makePlayers(1);
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
+        const reducer = createReducer(ruleset, FIXED_SEED);
+
+        const result = reducer(state, { kind: "start_game" });
+
+        expect(result.zones.pile_a!.cards).toHaveLength(3);
+        expect(result.zones.pile_b!.cards).toHaveLength(0);
       });
 
       it("move_all: moves all cards from one zone to another", () => {

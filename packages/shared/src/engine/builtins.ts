@@ -705,6 +705,19 @@ const moveAllBuiltin: BuiltinFunction = (args, context) => {
   pushEffect(context, { kind: "move_all", params: { from, to } });
 };
 
+/**
+ * move_rank(from, to, rank) — Records a move_rank effect.
+ * Moves every card with the given rank string from one zone to another
+ * (e.g., handing over all your 7s in Go Fish, or laying down a book).
+ */
+const moveRankBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("move_rank", args, 3);
+  const from = resolveZoneName(args[0]!);
+  const to = resolveZoneName(args[1]!);
+  const rank = requireString(args[2]!, "rank");
+  pushEffect(context, { kind: "move_rank", params: { from, to, rank } });
+};
+
 // ─── Turn Manipulation Builtins ────────────────────────────────────
 
 /**
@@ -1421,6 +1434,7 @@ export function registerAllBuiltins(): void {
   registerBuiltin("move_top", moveTopBuiltin);
   registerBuiltin("flip_top", flipTopBuiltin);
   registerBuiltin("move_all", moveAllBuiltin);
+  registerBuiltin("move_rank", moveRankBuiltin);
   registerBuiltin("reverse_turn_order", reverseTurnOrderBuiltin);
   registerBuiltin("skip_next_player", skipNextPlayerBuiltin);
   registerBuiltin("set_next_player", setNextPlayerBuiltin);

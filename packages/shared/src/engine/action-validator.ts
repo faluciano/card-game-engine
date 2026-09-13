@@ -295,9 +295,14 @@ function validateDeclareAction(
     };
   }
 
-  // Evaluate the action's condition
+  // Evaluate the action's condition. Declare params are exposed so a
+  // condition can validate the player's choice via get_param().
   if (phaseAction.condition) {
-    const ctx: EvalContext = { state, playerIndex };
+    const ctx: EvalContext = {
+      state,
+      playerIndex,
+      ...(action.params ? { actionParams: action.params } : {}),
+    };
     try {
       const conditionMet = evaluateCondition(phaseAction.condition, ctx);
       if (!conditionMet) {

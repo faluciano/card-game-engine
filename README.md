@@ -27,7 +27,7 @@ The TV runs the authoritative game engine: it loads the ruleset, advances the FS
 
 - **Declarative JSON rulesets** — define game logic without writing code
 - **Safe expression language** — conditions and effects use a constrained (non-Turing-complete) evaluator with `if()` conditional branching and `while()` loops
-- **41 query builtins + 23 effect builtins** — covering common card game mechanics (draw, discard, shuffle, score, card matching, pattern matching, turn order, trick-taking, string variables, etc.)
+- **41 query builtins + 24 effect builtins** — covering common card game mechanics (draw, discard, shuffle, score, card matching, pattern matching, turn order, trick-taking, string variables, etc.)
 - **Phase-based FSM** — supports `automatic`, `turn_based`, and `all_players` (simultaneous) phase types
 - **Turn order mechanics** — clockwise/counterclockwise direction, reverse, skip, and set-next-player effects
 - **Seeded PRNG** — mulberry32 with `crypto.getRandomValues` seed hardening enables deterministic replay from an action log
@@ -149,6 +149,8 @@ The [`rulesets/`](rulesets/) directory contains example rulesets:
 
 - **`blackjack.cardgame.json`** — the reference implementation demonstrating dealer AI, hand value scoring, and partial visibility
 - **`crazy-eights.cardgame.json`** — a matching/shedding game demonstrating wild 8s (suit choosing), per-card play validation, string variables, draw pile reshuffle, and `if()` conditional branching
+- **`war.cardgame.json`** — a two-player comparing game demonstrating simultaneous `all_players` play, cross-zone rank comparison, tie → war → burn flows through a shared pot, and won-pile replenishment
+- **`go-fish.cardgame.json`** — a collecting game demonstrating `declare` actions with parameters (rank + target), param validation in action conditions, `move_rank`, draw-on-miss, and go-again turns
 
 Rulesets support optional catalog fields (`description`, `tags`, `license`) in their `meta` block. Run `bun run catalog` to generate a `catalog.json` index of all rulesets for browsing and discovery. Run `bun run validate` to validate all rulesets against the schema.
 

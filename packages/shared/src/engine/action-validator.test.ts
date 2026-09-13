@@ -627,6 +627,60 @@ describe("Action Validator", () => {
         }
       });
 
+      it("exposes declare params to the action condition via get_param()", () => {
+        const askPhase: PhaseDefinition = {
+          name: "player_turns",
+          kind: "turn_based",
+          actions: [
+            {
+              name: "ask",
+              label: "Ask",
+              condition: 'has_card_matching_rank("hand", get_param("rank"))',
+              effect: [],
+            },
+          ],
+          transitions: [],
+          turnOrder: "clockwise",
+        };
+        const askMachine = new PhaseMachine([askPhase]);
+        const state = makeGameState(makeDefaultZones(), {
+          ruleset: makeMinimalRuleset([askPhase]),
+        });
+
+        // hand holds a 10 and a 5
+        const held = validateAction(
+          state,
+          {
+            kind: "declare",
+            playerId: makePlayerId("p1"),
+            declaration: "ask",
+            params: { rank: "10" },
+          },
+          askMachine,
+        );
+        expect(held.valid).toBe(true);
+
+        const notHeld = validateAction(
+          state,
+          {
+            kind: "declare",
+            playerId: makePlayerId("p1"),
+            declaration: "ask",
+            params: { rank: "K" },
+          },
+          askMachine,
+        );
+        expect(notHeld.valid).toBe(false);
+
+        // Without params, get_param() yields 0 and the condition cannot evaluate
+        const missing = validateAction(
+          state,
+          { kind: "declare", playerId: makePlayerId("p1"), declaration: "ask" },
+          askMachine,
+        );
+        expect(missing.valid).toBe(false);
+      });
+
       it("allows declare in all_players phase regardless of turn", () => {
         const state = makeGameState(makeDefaultZones(), {
           currentPhase: "betting",
