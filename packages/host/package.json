@@ -22,7 +22,6 @@
     "expo-file-system": "~19.0.21",
     "expo-network": "~8.0.0",
     "react-native-nitro-modules": "^0.33.9",
-    "react-native-nitro-http-server": "1.6.1",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-svg": "^15.15.1",
     "@card-engine/host-core": "workspace:*"
