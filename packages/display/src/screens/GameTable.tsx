@@ -1,44 +1,31 @@
 // ─── Game Table Screen (web) ───────────────────────────────────────
-// Web port of packages/host/src/screens/GameTable.tsx. Renders the
-// public "god view" of the game: zones with cards, player info, phase
-// indicator, scores, and the end-of-round / game-over overlay. The RN
-// `Animated` deal-in and flip animations become CSS keyframes.
+// Thin DOM renderer over `useGameTableModel` from host-core, mirroring
+// packages/host/src/screens/GameTable.tsx: zones with cards, player
+// info, phase indicator, scores, and the end-of-round / game-over
+// overlay. The host's RN `Animated` deal-in and flip become CSS
+// keyframes driven by the shared timing constants.
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import type {
-  Card,
-  CardGameState,
-  HostAction,
-  HostGameState,
-  Player,
-  UIConfig,
-  ZoneState,
-} from "@card-engine/shared";
-import { colors, useGameOrchestrator } from "@card-engine/host-core";
+import React, { useState } from "react";
+import type { Card, HostAction, HostGameState } from "@card-engine/shared";
+import {
+  DEAL_DURATION_MS,
+  FLIP_DURATION_MS,
+  cardInkColor,
+  colors,
+  formatZoneName,
+  getCappedCardList,
+  suitSymbol,
+  useFlipOnReveal,
+  useGameTableModel,
+  useZoneModel,
+  type ActiveSuitModel,
+  type PlayerSectionModel,
+  type ResultsOverlayModel,
+  type ScoreRow,
+  type StatusBarModel,
+  type ZoneViewModel,
+} from "@card-engine/host-core";
 import { Button } from "../components/Button.js";
-
-// ─── Constants ─────────────────────────────────────────────────────
-
-const SUIT_SYMBOLS: Readonly<Record<string, string>> = {
-  hearts: "♥",
-  diamonds: "♦",
-  clubs: "♣",
-  spades: "♠",
-};
-
-const RED_SUITS = new Set(["hearts", "diamonds"]);
-
-/** Maximum face-up cards rendered before showing a "+N more" indicator. */
-const MAX_VISIBLE_CARDS = 12;
-
-/** Threshold above which an all-face-down zone collapses to a stacked icon. */
-const STACK_COLLAPSE_THRESHOLD = 6;
-
-const TABLE_COLORS: Readonly<Record<string, string>> = {
-  felt_green: colors.tableBg,
-  wood: colors.tableBg,
-  dark: colors.tableBg,
-};
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -49,43 +36,30 @@ export function GameTable({
   readonly state: HostGameState;
   readonly dispatch: (action: HostAction) => void;
 }): React.JSX.Element {
-  useGameOrchestrator(state, dispatch);
+  const model = useGameTableModel(state, dispatch);
 
   // Guard: must be on game_table with active engine state
-  if (state.screen.tag !== "game_table") {
+  if (model.kind !== "table") {
     return (
       <div style={styles.container}>
-        <div style={styles.errorText}>Invalid screen state</div>
+        <div style={styles.errorText}>{model.message}</div>
       </div>
     );
   }
-
-  if (state.engineState === null) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.errorText}>No game in progress</div>
-      </div>
-    );
-  }
-
-  const engineState = state.engineState;
-  const tableColor = resolveTableColor(engineState.ruleset.ui);
-  const isFinished = engineState.status.kind === "finished";
-  const isRoundEnd = engineState.currentPhase === "round_end";
 
   return (
-    <div style={{ ...styles.container, backgroundColor: tableColor }}>
-      <StatusBar engineState={engineState} />
+    <div style={{ ...styles.container, backgroundColor: model.tableColor }}>
+      <StatusBar model={model.statusBar} />
 
       <div style={styles.tableLayout}>
-        <SharedZones engineState={engineState} />
-        <PlayerZones engineState={engineState} />
-        <ScoreBoard engineState={engineState} />
+        {model.showSharedSection && (
+          <SharedZones zones={model.sharedZones} activeSuit={model.activeSuit} />
+        )}
+        <PlayerZones sections={model.playerSections} />
+        <ScoreBoard rows={model.scoreRows} />
       </div>
 
-      {(isFinished || isRoundEnd) && (
-        <ResultsOverlay engineState={engineState} dispatch={dispatch} />
-      )}
+      {model.overlay && <ResultsOverlay overlay={model.overlay} onBackToMenu={model.backToMenu} />}
     </div>
   );
 }
@@ -93,19 +67,18 @@ export function GameTable({
 // ─── Status Bar ────────────────────────────────────────────────────
 
 const StatusBar = React.memo(function StatusBar({
-  engineState,
+  model,
 }: {
-  readonly engineState: CardGameState;
+  readonly model: StatusBarModel;
 }): React.JSX.Element {
-  const currentPlayer = engineState.players[engineState.currentPlayerIndex] ?? null;
-  const statusLabel = formatStatusKind(engineState.status.kind);
-
   return (
     <div style={styles.statusBar}>
-      <span style={styles.phaseLabel}>Phase: {formatPhaseName(engineState.currentPhase)}</span>
-      <span style={styles.statusLabel}>{statusLabel}</span>
-      {currentPlayer && <span style={styles.turnIndicator}>Turn: {currentPlayer.name}</span>}
-      <span style={styles.turnNumber}>Round {engineState.turnNumber}</span>
+      <span style={styles.phaseLabel}>Phase: {model.phaseLabel}</span>
+      <span style={styles.statusLabel}>{model.statusLabel}</span>
+      {model.currentPlayerName !== null && (
+        <span style={styles.turnIndicator}>Turn: {model.currentPlayerName}</span>
+      )}
+      <span style={styles.turnNumber}>Round {model.turnNumber}</span>
     </div>
   );
 });
@@ -113,29 +86,20 @@ const StatusBar = React.memo(function StatusBar({
 // ─── Shared Zones ──────────────────────────────────────────────────
 
 const SharedZones = React.memo(function SharedZones({
-  engineState,
+  zones,
+  activeSuit,
 }: {
-  readonly engineState: CardGameState;
-}): React.JSX.Element | null {
-  const sharedZones = useMemo(() => getSharedZones(engineState), [engineState]);
-
-  const activeSuit = engineState.stringVariables?.active_suit ?? "";
-
-  if (sharedZones.length === 0 && !activeSuit) return null;
-
+  readonly zones: readonly ZoneViewModel[];
+  readonly activeSuit: ActiveSuitModel | null;
+}): React.JSX.Element {
   return (
     <div style={styles.section}>
       <div style={styles.sectionTitle}>TABLE</div>
       <div style={styles.zonesRow}>
-        {sharedZones.map(([name, zone]) => (
-          <ZoneDisplay
-            key={name}
-            name={name}
-            zone={zone}
-            revealed={isPublicOnTable(engineState, name)}
-          />
+        {zones.map((view) => (
+          <ZoneDisplay key={view.name} view={view} />
         ))}
-        {activeSuit !== "" && <ActiveSuitIndicator suit={activeSuit} />}
+        {activeSuit && <ActiveSuitIndicator model={activeSuit} />}
       </div>
     </div>
   );
@@ -144,76 +108,60 @@ const SharedZones = React.memo(function SharedZones({
 // ─── Player Zones ──────────────────────────────────────────────────
 
 const PlayerZones = React.memo(function PlayerZones({
-  engineState,
+  sections,
 }: {
-  readonly engineState: CardGameState;
+  readonly sections: readonly PlayerSectionModel[];
 }): React.JSX.Element | null {
-  const playerZoneGroups = useMemo(() => getPlayerZoneGroups(engineState), [engineState]);
-
-  if (playerZoneGroups.length === 0) return null;
+  if (sections.length === 0) return null;
 
   return (
     <div style={styles.section}>
       <div style={styles.sectionTitle}>PLAYERS</div>
-      {playerZoneGroups.map(({ player, index, zones, isCurrentTurn }) => {
-        const score = engineState.scores[`player_score:${index}`];
-        const initial = player.name.trim().charAt(0).toUpperCase() || "?";
-        return (
-          <div
-            key={player.id}
-            style={{
-              ...styles.playerSection,
-              ...(isCurrentTurn ? styles.playerSectionActive : null),
-            }}
-          >
-            <div style={styles.playerHeader}>
-              <div
-                style={{
-                  ...styles.avatar,
-                  ...(isCurrentTurn ? styles.avatarActive : null),
-                }}
-              >
-                <span
-                  style={{
-                    ...styles.avatarText,
-                    ...(isCurrentTurn ? styles.avatarTextActive : null),
-                  }}
-                >
-                  {initial}
-                </span>
-              </div>
+      {sections.map(({ player, zoneViews, isCurrentTurn, score, initial }) => (
+        <div
+          key={player.id}
+          style={{
+            ...styles.playerSection,
+            ...(isCurrentTurn ? styles.playerSectionActive : null),
+          }}
+        >
+          <div style={styles.playerHeader}>
+            <div style={{ ...styles.avatar, ...(isCurrentTurn ? styles.avatarActive : null) }}>
               <span
                 style={{
-                  ...styles.playerLabel,
-                  ...(isCurrentTurn ? styles.playerLabelActive : null),
+                  ...styles.avatarText,
+                  ...(isCurrentTurn ? styles.avatarTextActive : null),
                 }}
               >
-                {player.name}
+                {initial}
               </span>
-              {typeof score === "number" && (
-                <div style={styles.scoreChip}>
-                  <span style={styles.scoreChipText}>{score}</span>
-                </div>
-              )}
-              {isCurrentTurn && (
-                <div style={styles.turnBadge}>
-                  <span style={styles.turnBadgeText}>TURN</span>
-                </div>
-              )}
             </div>
-            <div style={styles.zonesRow}>
-              {zones.map(([name, zone]) => (
-                <ZoneDisplay
-                  key={name}
-                  name={name}
-                  zone={zone}
-                  revealed={isPublicOnTable(engineState, name)}
-                />
-              ))}
-            </div>
+            <span
+              style={{
+                ...styles.playerLabel,
+                ...(isCurrentTurn ? styles.playerLabelActive : null),
+              }}
+            >
+              {player.name}
+            </span>
+            {score !== null && (
+              <div style={styles.scoreChip}>
+                <span style={styles.scoreChipText}>{score}</span>
+              </div>
+            )}
+            {isCurrentTurn && (
+              <div style={styles.turnBadge}>
+                <span style={styles.turnBadgeText}>TURN</span>
+              </div>
+            )}
           </div>
-        );
-      })}
+          <div style={styles.zonesRow}>
+            {zoneViews.map((view) => (
+              <ZoneDisplay key={view.name} view={view} />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 });
@@ -221,67 +169,20 @@ const PlayerZones = React.memo(function PlayerZones({
 // ─── Zone Display ──────────────────────────────────────────────────
 
 const ZoneDisplay = React.memo(function ZoneDisplay({
-  name,
-  zone,
-  revealed = false,
+  view,
 }: {
-  readonly name: string;
-  readonly zone: ZoneState;
-  /**
-   * When true, every card in the zone is shown face-up and fully fanned
-   * (no stack/top-only collapse). Used for zones the whole table can see
-   * (public visibility) on the shared god-view — e.g. player hands.
-   */
-  readonly revealed?: boolean;
+  readonly view: ZoneViewModel;
 }): React.JSX.Element {
-  const [expanded, setExpanded] = useState(false);
-  const cards = useMemo(
-    () =>
-      revealed
-        ? zone.cards.map((card) => (card.faceUp ? card : { ...card, faceUp: true }))
-        : zone.cards,
-    [revealed, zone.cards],
+  const { cards, mode, newCardStartIndex, toggleExpanded } = useZoneModel(
+    view.name,
+    view.zone,
+    view.revealed,
   );
-  const isDiscard = name === "discard";
-
-  // Track previous card count to detect newly dealt cards
-  const prevCardCountRef = useRef(cards.length);
-  const newCardStartIndex = useRef(-1);
-
-  if (cards.length > prevCardCountRef.current) {
-    // Cards were added — mark the start index of new cards
-    newCardStartIndex.current = prevCardCountRef.current;
-  } else if (cards.length !== prevCardCountRef.current) {
-    // Cards were removed or count changed — reset
-    newCardStartIndex.current = -1;
-  }
-  prevCardCountRef.current = cards.length;
-
-  // Clear the "new" marker once the staggered deal has finished.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: cards.length is the deliberate trigger — the effect only reads a ref and must re-arm the timer whenever the card count changes
-  useEffect(() => {
-    if (newCardStartIndex.current >= 0) {
-      const timer = setTimeout(() => {
-        newCardStartIndex.current = -1;
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [cards.length]);
-
-  const allFaceDown = !revealed && cards.length > 0 && cards.every((card) => !card.faceUp);
-  const shouldCollapse = allFaceDown && cards.length > STACK_COLLAPSE_THRESHOLD;
-  const hasFaceUpCards = cards.some((c) => c.faceUp);
-  const shouldShowTopOnly =
-    !revealed &&
-    !allFaceDown &&
-    hasFaceUpCards &&
-    cards.length > STACK_COLLAPSE_THRESHOLD &&
-    !expanded;
 
   return (
     <button
       type="button"
-      onClick={() => setExpanded((prev) => !prev)}
+      onClick={toggleExpanded}
       style={{
         // Button reset; border, padding and cursor come from styles.zone.
         background: "none",
@@ -292,17 +193,17 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
         ...styles.zone,
       }}
     >
-      <div style={styles.zoneName}>{formatZoneName(name)}</div>
+      <div style={styles.zoneName}>{formatZoneName(view.name)}</div>
       <div style={styles.cardRow}>
-        {cards.length === 0 ? (
+        {mode === "empty" ? (
           <div style={styles.emptyZone}>
             <span style={styles.emptyZoneText}>Empty</span>
           </div>
-        ) : isDiscard ? (
+        ) : mode === "discard" ? (
           <DiscardPile topCard={cards[0]!} count={cards.length} />
-        ) : shouldCollapse ? (
+        ) : mode === "stack" ? (
           <StackedDeck />
-        ) : shouldShowTopOnly ? (
+        ) : mode === "top_only" ? (
           <>
             <FlippableCardView card={cards[0]!} />
             <div style={styles.moreIndicator}>
@@ -310,7 +211,7 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
             </div>
           </>
         ) : (
-          <CappedCardList cards={cards} newCardStartIndex={newCardStartIndex.current} />
+          <CappedCardList cards={cards} newCardStartIndex={newCardStartIndex} />
         )}
       </div>
     </button>
@@ -346,24 +247,10 @@ const DiscardPile = React.memo(function DiscardPile({
   return (
     <div style={styles.stackedDeck}>
       {count >= 3 && (
-        <div
-          style={{
-            ...styles.card,
-            ...styles.cardFace,
-            ...styles.stackShadow2,
-            opacity: 0.4,
-          }}
-        />
+        <div style={{ ...styles.card, ...styles.cardFace, ...styles.stackShadow2, opacity: 0.4 }} />
       )}
       {count >= 2 && (
-        <div
-          style={{
-            ...styles.card,
-            ...styles.cardFace,
-            ...styles.stackShadow1,
-            opacity: 0.7,
-          }}
-        />
+        <div style={{ ...styles.card, ...styles.cardFace, ...styles.stackShadow1, opacity: 0.7 }} />
       )}
       {/* Top card — face-up */}
       <div style={styles.stackTop}>
@@ -379,21 +266,15 @@ const DiscardPile = React.memo(function DiscardPile({
 // ─── Active Suit Indicator ─────────────────────────────────────────
 
 const ActiveSuitIndicator = React.memo(function ActiveSuitIndicator({
-  suit,
+  model,
 }: {
-  readonly suit: string;
+  readonly model: ActiveSuitModel;
 }): React.JSX.Element {
-  const symbol = SUIT_SYMBOLS[suit] ?? suit;
-  const isRed = RED_SUITS.has(suit);
-  const suitColor = isRed ? colors.suitRedBright : colors.text;
-
   return (
     <div style={styles.activeSuitContainer}>
       <div style={styles.activeSuitLabel}>ACTIVE SUIT</div>
-      <div style={{ ...styles.activeSuitSymbol, color: suitColor }}>{symbol}</div>
-      <div style={{ ...styles.activeSuitName, color: suitColor }}>
-        {suit.charAt(0).toUpperCase() + suit.slice(1)}
-      </div>
+      <div style={{ ...styles.activeSuitSymbol, color: model.color }}>{model.symbol}</div>
+      <div style={{ ...styles.activeSuitName, color: model.color }}>{model.name}</div>
     </div>
   );
 });
@@ -402,15 +283,12 @@ const ActiveSuitIndicator = React.memo(function ActiveSuitIndicator({
 
 function CappedCardList({
   cards,
-  newCardStartIndex = -1,
+  newCardStartIndex,
 }: {
   readonly cards: readonly Card[];
-  readonly newCardStartIndex?: number;
+  readonly newCardStartIndex: number;
 }): React.JSX.Element {
-  const hiddenCount = cards.length - MAX_VISIBLE_CARDS;
-  const visibleCards = hiddenCount > 0 ? cards.slice(-MAX_VISIBLE_CARDS) : cards;
-  // Adjust the start index for the visible slice
-  const visibleOffset = hiddenCount > 0 ? hiddenCount : 0;
+  const { hiddenCount, cards: visible } = getCappedCardList(cards, newCardStartIndex);
 
   return (
     <>
@@ -419,17 +297,13 @@ function CappedCardList({
           <span style={styles.moreIndicatorText}>+{hiddenCount} more</span>
         </div>
       )}
-      {visibleCards.map((card, i) => {
-        const globalIndex = visibleOffset + i;
-        const isNewCard = newCardStartIndex >= 0 && globalIndex >= newCardStartIndex;
-
-        if (isNewCard) {
-          const staggerDelay = (globalIndex - newCardStartIndex) * 80;
-          return <AnimatedCardView key={card.id} card={card} delay={staggerDelay} />;
-        }
-
-        return <FlippableCardView key={card.id} card={card} />;
-      })}
+      {visible.map(({ card, isNew, dealDelay }) =>
+        isNew ? (
+          <AnimatedCardView key={card.id} card={card} delay={dealDelay} />
+        ) : (
+          <FlippableCardView key={card.id} card={card} />
+        ),
+      )}
     </>
   );
 }
@@ -449,17 +323,16 @@ const CardView = React.memo(function CardView({
     );
   }
 
-  const suitSymbol = SUIT_SYMBOLS[card.suit] ?? card.suit;
-  const isRed = RED_SUITS.has(card.suit);
-  const inkColor = isRed ? colors.suitRed : colors.cardInk;
+  const symbol = suitSymbol(card.suit);
+  const inkColor = cardInkColor(card);
 
   return (
     <div style={{ ...styles.card, ...styles.cardFace }}>
       <div style={styles.cardCorner}>
         <div style={{ ...styles.cardRank, color: inkColor }}>{card.rank}</div>
-        <div style={{ ...styles.cardSuit, color: inkColor }}>{suitSymbol}</div>
+        <div style={{ ...styles.cardSuit, color: inkColor }}>{symbol}</div>
       </div>
-      <div style={{ ...styles.cardPip, color: inkColor }}>{suitSymbol}</div>
+      <div style={{ ...styles.cardPip, color: inkColor }}>{symbol}</div>
     </div>
   );
 });
@@ -478,7 +351,10 @@ const AnimatedCardView = React.memo(function AnimatedCardView({
   readonly delay: number;
 }): React.JSX.Element {
   return (
-    <div className="deal-in" style={{ animationDelay: `${delay}ms` }}>
+    <div
+      className="deal-in"
+      style={{ animationDelay: `${delay}ms`, animationDuration: `${DEAL_DURATION_MS}ms` }}
+    >
       <CardView card={card} />
     </div>
   );
@@ -495,21 +371,19 @@ const FlippableCardView = React.memo(function FlippableCardView({
 }: {
   readonly card: Card;
 }): React.JSX.Element {
-  const wasFaceUpRef = useRef(card.faceUp);
   const [flipping, setFlipping] = useState(false);
 
-  useEffect(() => {
-    if (card.faceUp && !wasFaceUpRef.current) {
-      setFlipping(true);
-      const timer = setTimeout(() => setFlipping(false), 400);
-      wasFaceUpRef.current = card.faceUp;
-      return () => clearTimeout(timer);
-    }
-    wasFaceUpRef.current = card.faceUp;
-  }, [card.faceUp]);
+  useFlipOnReveal(card.faceUp, () => {
+    setFlipping(true);
+    const timer = setTimeout(() => setFlipping(false), FLIP_DURATION_MS);
+    return () => clearTimeout(timer);
+  });
 
   return (
-    <div className={flipping ? "card-flip" : undefined}>
+    <div
+      className={flipping ? "card-flip" : undefined}
+      style={flipping ? { animationDuration: `${FLIP_DURATION_MS}ms` } : undefined}
+    >
       <CardView card={card} />
     </div>
   );
@@ -518,26 +392,22 @@ const FlippableCardView = React.memo(function FlippableCardView({
 // ─── Score Board ───────────────────────────────────────────────────
 
 const ScoreBoard = React.memo(function ScoreBoard({
-  engineState,
+  rows,
 }: {
-  readonly engineState: CardGameState;
+  readonly rows: readonly ScoreRow[];
 }): React.JSX.Element | null {
-  const scoreEntries = Object.entries(engineState.scores);
-  if (scoreEntries.length === 0) return null;
+  if (rows.length === 0) return null;
 
   return (
     <div style={styles.section}>
       <div style={styles.sectionTitle}>SCORES</div>
       <div style={styles.scoreBoard}>
-        {scoreEntries.map(([key, score]) => {
-          const displayName = resolveScoreLabel(key, engineState.players);
-          return (
-            <div key={key} style={styles.scoreRow}>
-              <span style={styles.scoreName}>{displayName}</span>
-              <span style={styles.scoreValue}>{score}</span>
-            </div>
-          );
-        })}
+        {rows.map(({ key, label, score }) => (
+          <div key={key} style={styles.scoreRow}>
+            <span style={styles.scoreName}>{label}</span>
+            <span style={styles.scoreValue}>{score}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -546,64 +416,45 @@ const ScoreBoard = React.memo(function ScoreBoard({
 // ─── Results Overlay ───────────────────────────────────────────────
 
 const ResultsOverlay = React.memo(function ResultsOverlay({
-  engineState,
-  dispatch,
+  overlay,
+  onBackToMenu,
 }: {
-  readonly engineState: CardGameState;
-  readonly dispatch: (action: HostAction) => void;
-}): React.JSX.Element | null {
-  const isRoundEnd = engineState.currentPhase === "round_end";
-  const isFinished = engineState.status.kind === "finished";
+  readonly overlay: ResultsOverlayModel;
+  readonly onBackToMenu: () => void;
+}): React.JSX.Element {
+  const backButton = (
+    <div style={styles.overlayButtons}>
+      <Button
+        label="Back to Menu"
+        variant="secondary"
+        onPress={onBackToMenu}
+        style={styles.overlayButton}
+        labelStyle={styles.overlayButtonText}
+      />
+    </div>
+  );
 
-  // Guard: only show for round_end or finished
-  if (!isRoundEnd && !isFinished) return null;
-
-  const backToMenu = (): void => dispatch({ type: "BACK_TO_PICKER" });
-
-  if (isRoundEnd) {
+  if (overlay.kind === "round_end") {
     // ── Round-end view: show per-player results ──
-    const npcScores = Object.entries(engineState.scores)
-      .filter(([key]) => key.endsWith("_score") && !key.startsWith("player_score:"))
-      .map(([key, value]) => ({
-        label: key
-          .replace(/_score$/, "")
-          .replace(/_/g, " ")
-          .replace(/\b\w/g, (c) => c.toUpperCase()),
-        score: value,
-      }));
-
     return (
       <div style={styles.overlay}>
         <div style={styles.overlayCard}>
           <div style={styles.overlayTitle}>ROUND COMPLETE</div>
 
-          {engineState.players.map((player, index) => {
-            const handValue = engineState.scores[`player_score:${index}`] ?? 0;
-            const result = engineState.scores[`result:${index}`] ?? 0;
-            const resultLabel = result > 0 ? "WIN" : result < 0 ? "LOSS" : "DRAW";
-            const resultColor =
-              result > 0 ? colors.success : result < 0 ? colors.redAlt : colors.amber;
-
-            return (
-              <div key={player.id} style={resultsStyles.playerRow}>
-                <span style={resultsStyles.playerName}>{player.name}</span>
-                <span style={resultsStyles.handValue}>{handValue}</span>
-                <div
-                  style={{
-                    ...resultsStyles.resultBadge,
-                    backgroundColor: resultColor,
-                  }}
-                >
-                  <span style={resultsStyles.resultBadgeText}>{resultLabel}</span>
-                </div>
+          {overlay.players.map((row) => (
+            <div key={row.playerId} style={resultsStyles.playerRow}>
+              <span style={resultsStyles.playerName}>{row.name}</span>
+              <span style={resultsStyles.handValue}>{row.handValue}</span>
+              <div style={{ ...resultsStyles.resultBadge, backgroundColor: row.resultColor }}>
+                <span style={resultsStyles.resultBadgeText}>{row.resultLabel}</span>
               </div>
-            );
-          })}
+            </div>
+          ))}
 
-          {npcScores.length > 0 && (
+          {overlay.npcScores.length > 0 && (
             <>
               <div style={resultsStyles.divider} />
-              {npcScores.map(({ label, score }) => (
+              {overlay.npcScores.map(({ label, score }) => (
                 <div key={label} style={resultsStyles.npcRow}>
                   <span style={resultsStyles.npcLabel}>{label}</span>
                   <span style={resultsStyles.npcScore}>{score}</span>
@@ -615,156 +466,26 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
           {/* Info text — phones trigger the new round, not the display */}
           <div style={resultsStyles.waitingText}>Waiting for players to start new round...</div>
 
-          <div style={styles.overlayButtons}>
-            <Button
-              label="Back to Menu"
-              variant="secondary"
-              onPress={backToMenu}
-              style={styles.overlayButton}
-              labelStyle={styles.overlayButtonText}
-            />
-          </div>
+          {backButton}
         </div>
       </div>
     );
   }
 
   // ── Finished view ──
-  const { winnerId } = engineState.status as {
-    readonly winnerId: string | null;
-  };
-  const winner = winnerId ? engineState.players.find((p) => p.id === winnerId) : null;
-
   return (
     <div style={styles.overlay}>
       <div style={styles.overlayCard}>
         <div style={styles.overlayTitle}>GAME OVER</div>
         <div style={styles.overlayWinner}>
-          {winner ? `🏆 ${winner.name} wins!` : "It's a draw!"}
+          {overlay.winnerName !== null ? `🏆 ${overlay.winnerName} wins!` : "It's a draw!"}
         </div>
 
-        <div style={styles.overlayButtons}>
-          <Button
-            label="Back to Menu"
-            variant="secondary"
-            onPress={backToMenu}
-            style={styles.overlayButton}
-            labelStyle={styles.overlayButtonText}
-          />
-        </div>
+        {backButton}
       </div>
     </div>
   );
 });
-
-// ─── Pure Helpers ──────────────────────────────────────────────────
-
-/** Returns shared (non-player-owned) zone entries. */
-function getSharedZones(engineState: CardGameState): readonly [string, ZoneState][] {
-  return Object.entries(engineState.zones).filter(([name]) => !isPlayerZone(name));
-}
-
-/** Checks if a zone name follows the per-player pattern (e.g., "hand:0"). */
-function isPlayerZone(name: string): boolean {
-  return /:\d+$/.test(name);
-}
-
-/**
- * Determines whether a zone should render face-up on the shared god-view.
- * A zone is "public on the table" when its effective visibility (honoring
- * phase overrides) is `public` — the whole table is meant to see it, so we
- * reveal it here even if individual cards were dealt face-down.
- */
-function isPublicOnTable(engineState: CardGameState, zoneName: string): boolean {
-  const baseName = zoneName.replace(/:\d+$/, "");
-  const def = engineState.ruleset.zones.find((z) => z.name === baseName);
-  if (!def) return false;
-  const override = def.phaseOverrides?.find((o) => o.phase === engineState.currentPhase);
-  const visibility = override?.visibility ?? def.visibility;
-  return visibility.kind === "public";
-}
-
-interface PlayerZoneGroup {
-  readonly player: Player;
-  readonly index: number;
-  readonly zones: readonly [string, ZoneState][];
-  readonly isCurrentTurn: boolean;
-}
-
-/** Groups per-player zones under their owning player. */
-function getPlayerZoneGroups(engineState: CardGameState): readonly PlayerZoneGroup[] {
-  const groups: PlayerZoneGroup[] = [];
-
-  for (let i = 0; i < engineState.players.length; i++) {
-    const player = engineState.players[i]!;
-    const playerSuffix = `:${i}`;
-    const zones = Object.entries(engineState.zones).filter(([name]) => name.endsWith(playerSuffix));
-
-    if (zones.length > 0) {
-      groups.push({
-        player,
-        index: i,
-        zones,
-        isCurrentTurn: i === engineState.currentPlayerIndex,
-      });
-    }
-  }
-
-  return groups;
-}
-
-/** Formats a phase name for display: "player_turns" → "Player Turns" */
-function formatPhaseName(phase: string): string {
-  return phase
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-/** Formats a zone name for display: "draw_pile" → "Draw Pile", "hand:0" → "Hand" */
-function formatZoneName(name: string): string {
-  const baseName = name.replace(/:\d+$/, "");
-  return formatPhaseName(baseName);
-}
-
-/** Resolves a score key like "player_score:0" or "result:1" to a label. */
-function resolveScoreLabel(key: string, players: readonly Player[]): string {
-  const playerMatch = key.match(/^player_score:(\d+)$/);
-  if (playerMatch) {
-    const player = players[Number(playerMatch[1])];
-    return player?.name ?? key;
-  }
-  const resultMatch = key.match(/^result:(\d+)$/);
-  if (resultMatch) {
-    const player = players[Number(resultMatch[1])];
-    return player ? `${player.name} (Result)` : key;
-  }
-  // Non-indexed keys like "dealer_score" — humanize
-  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/** Formats a status kind for display. */
-function formatStatusKind(kind: string): string {
-  switch (kind) {
-    case "waiting_for_players":
-      return "Waiting for Players";
-    case "in_progress":
-      return "In Progress";
-    case "paused":
-      return "Paused";
-    case "finished":
-      return "Finished";
-    default:
-      return kind;
-  }
-}
-
-/** Resolves the table background color from UI config. */
-function resolveTableColor(ui: UIConfig | undefined): string {
-  if (!ui) return TABLE_COLORS.felt_green!;
-  if (ui.tableColor === "custom" && ui.customColor) return ui.customColor;
-  return TABLE_COLORS[ui.tableColor] ?? TABLE_COLORS.felt_green!;
-}
 
 // ─── Styles ────────────────────────────────────────────────────────
 
