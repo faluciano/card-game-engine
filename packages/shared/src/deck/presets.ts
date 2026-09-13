@@ -12,16 +12,23 @@ export interface CardTemplate {
 }
 
 /** All four standard suits. */
-const STANDARD_SUITS: readonly StandardSuit[] = [
-  "hearts",
-  "diamonds",
-  "clubs",
-  "spades",
-];
+const STANDARD_SUITS: readonly StandardSuit[] = ["hearts", "diamonds", "clubs", "spades"];
 
 /** All thirteen standard ranks. */
 const STANDARD_RANKS: readonly StandardRank[] = [
-  "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K",
+  "A",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "J",
+  "Q",
+  "K",
 ];
 
 /**
@@ -42,20 +49,14 @@ export function standard52(): readonly CardTemplate[] {
  */
 export function standard54(): readonly CardTemplate[] {
   const base = standard52();
-  return [
-    ...base,
-    { suit: "joker", rank: "Joker" },
-    { suit: "joker", rank: "Joker" },
-  ];
+  return [...base, { suit: "joker", rank: "Joker" }, { suit: "joker", rank: "Joker" }];
 }
 
 /**
  * Looks up a preset by name and returns its card templates.
  * @throws {Error} for unknown preset names.
  */
-export function getPresetDeck(
-  preset: "standard_52" | "standard_54"
-): readonly CardTemplate[] {
+export function getPresetDeck(preset: "standard_52" | "standard_54"): readonly CardTemplate[] {
   switch (preset) {
     case "standard_52":
       return standard52();
@@ -75,7 +76,7 @@ export function createCardInstanceId(): CardInstanceId {
  */
 export function instantiateCards(
   templates: readonly CardTemplate[],
-  copies: number = 1
+  copies: number = 1,
 ): readonly Card[] {
   const cards: Card[] = [];
   for (let copy = 0; copy < copies; copy++) {

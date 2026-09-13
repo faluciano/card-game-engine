@@ -2,14 +2,15 @@
 
 ## Project Overview
 
-Bun monorepo (`bun@1.2.19`) with four packages. A customizable card game engine driven by declarative JSON rulesets, with multi-device gameplay over local WiFi.
+Bun monorepo (`bun@1.2.19`) with five packages. A customizable card game engine driven by declarative JSON rulesets, with multi-device gameplay over local WiFi.
 
 | Package | Purpose | Has Tests |
 |---------|---------|-----------|
-| `packages/schema` | Zod validation schemas and shared TypeScript types | Yes |
-| `packages/shared` | Pure TS game engine — expression evaluator, interpreter, builtins, PRNG | Yes |
+| `packages/shared` | Pure TS game engine — types, Zod schema, expression evaluator, interpreter, builtins, PRNG | Yes |
+| `packages/host-core` | Framework-light host logic shared by the TV host and the browser display — catalog fetching, ruleset import, install hooks, orchestrator, built-in rulesets, theme tokens (React as a peer) | Yes |
 | `packages/host` | Expo React Native TV app — CouchKit host + file storage | Yes |
-| `packages/client` | Vite + React 18 web app — phone controller UI via CouchKit client | No |
+| `packages/client` | Vite + React 19 web app — phone controller UI via CouchKit client | No |
+| `packages/display` | Vite + React 19 web app — browser display that owns the game via a Cloudflare Workers relay (CouchKit display) | No |
 
 ## Build & Test Commands
 
@@ -17,8 +18,10 @@ Bun monorepo (`bun@1.2.19`) with four packages. A customizable card game engine 
 # Install
 bun install
 
-# Type-check (shared + client)
+# Type-check: tsc -b packages/client packages/host-core (covers shared via
+# project references), then display and host
 bun run typecheck
+bun run typecheck:host     # host only
 
 # Build client
 bun run build:client
@@ -32,13 +35,13 @@ bun run catalog
 
 ### Running Tests
 
-Tests use **Vitest** (v3.2). Run from each package directory:
+Tests use **Vitest** (v5). Run from each package directory:
 
 ```bash
 # All tests in a package
-cd packages/shared && bunx vitest run
-cd packages/schema && bunx vitest run
-cd packages/host   && bunx vitest run
+cd packages/shared    && bunx vitest run
+cd packages/host-core && bunx vitest run
+cd packages/host      && bunx vitest run
 
 # Single test file
 cd packages/shared && bunx vitest run src/engine/prng.test.ts
@@ -54,12 +57,15 @@ cd packages/shared && bunx vitest
 
 CI runs on every push to `main` and every PR:
 1. `bun run typecheck` + `bun run build:client`
-2. `bunx vitest run` in shared, schema, host (parallel matrix)
+2. `bunx vitest run` in shared, host-core, host (parallel matrix)
 3. `bun run validate` (ruleset validation)
 
 ## Code Style
 
 ### Formatting
+
+Formatting and linting are enforced by [Biome](https://biomejs.dev) (`biome.json` at the root). Run `bun run lint` to check and `bun run format` to fix; CI runs the check on every PR. Use a `// biome-ignore <rule>: <reason>` comment for deliberate exceptions.
+
 
 - **2-space indentation** (spaces, not tabs)
 - **Double quotes** for strings

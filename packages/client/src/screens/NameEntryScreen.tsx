@@ -2,7 +2,8 @@
 // Prompts the player to enter their display name before connecting
 // to the TV host. Persists the chosen name in localStorage.
 
-import React, { useCallback, useState } from "react";
+import type React from "react";
+import { useCallback, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 
 const MAX_NAME_LENGTH = 20;
@@ -91,9 +92,7 @@ const buttonDisabledStyle: CSSProperties = {
 
 // ─── Component ─────────────────────────────────────────────────────
 
-export function NameEntryScreen({
-  onConfirm,
-}: NameEntryScreenProps): React.JSX.Element {
+export function NameEntryScreen({ onConfirm }: NameEntryScreenProps): React.JSX.Element {
   const [name, setName] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 

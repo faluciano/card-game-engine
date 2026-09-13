@@ -2,21 +2,16 @@
 // Shows the player's lobby status and lets them browse, install, and
 // select games while waiting for the host to start.
 
-import React, { useCallback, useState } from "react";
+import type React from "react";
+import { useCallback, useState } from "react";
 import type { CSSProperties } from "react";
-import type {
-  CatalogGame,
-  CardGameRuleset,
-  HostClientView,
-  HostAction,
-} from "@card-engine/shared";
+import type { CatalogGame, CardGameRuleset, HostClientView, HostAction } from "@card-engine/shared";
 import { safeParseRuleset } from "@card-engine/shared";
 import { useCatalog } from "../hooks/useCatalog.js";
 import { GameCard } from "../components/GameCard.js";
 import { CenteredState } from "../components/CenteredState.js";
 
-const CATALOG_BASE_URL =
-  "https://faluciano.github.io/card-game-engine/";
+const CATALOG_BASE_URL = "https://faluciano.github.io/card-game-engine/";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -109,26 +104,6 @@ const listStyle: CSSProperties = {
   gap: 12,
 };
 
-const centeredStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 24,
-  textAlign: "center",
-  gap: 12,
-};
-
-const mutedTextStyle: CSSProperties = {
-  fontSize: 14,
-  color: "var(--color-text-muted)",
-};
-
-const spinnerStyle: CSSProperties = {
-  fontSize: 24,
-  animation: "spin 1s linear infinite",
-};
-
 const errorBannerStyle: CSSProperties = {
   margin: "0 16px 12px",
   padding: "10px 14px",
@@ -166,10 +141,7 @@ export function LobbyScreen({
   const playerName = player?.name ?? "Player";
 
   // Currently selected game slug (from lobby screen state)
-  const selectedSlug =
-    state.screen.tag === "lobby"
-      ? state.screen.ruleset.slug
-      : null;
+  const selectedSlug = state.screen.tag === "lobby" ? state.screen.ruleset.slug : null;
 
   const handleInstall = useCallback(
     async (game: CatalogGame): Promise<void> => {
@@ -192,8 +164,7 @@ export function LobbyScreen({
           slug: game.slug,
         });
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Installation failed";
+        const message = err instanceof Error ? err.message : "Installation failed";
         setInstallError(`Could not install ${game.name}: ${message}`);
       }
     },
@@ -220,8 +191,7 @@ export function LobbyScreen({
           ruleset: result.data as CardGameRuleset,
         });
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Selection failed";
+        const message = err instanceof Error ? err.message : "Selection failed";
         setInstallError(`Could not select ${game.name}: ${message}`);
       }
     },
@@ -235,33 +205,23 @@ export function LobbyScreen({
         <p style={labelStyle}>You joined as</p>
         <p style={nameStyle}>{playerName}</p>
         {onChangeName != null && (
-          <button
-            type="button"
-            style={changeNameButtonStyle}
-            onClick={onChangeName}
-          >
+          <button type="button" style={changeNameButtonStyle} onClick={onChangeName}>
             Change name
           </button>
         )}
         <p style={waitingStyle}>Waiting for host to start the game...</p>
       </div>
 
-      {installError !== null && (
-        <div style={errorBannerStyle}>{installError}</div>
-      )}
+      {installError !== null && <div style={errorBannerStyle}>{installError}</div>}
 
       {/* ── Currently selected game ────────────────────────────── */}
       {selectedSlug !== null &&
         catalog.tag === "loaded" &&
         (() => {
-          const selectedGame = catalog.games.find(
-            (g) => g.slug === selectedSlug,
-          );
+          const selectedGame = catalog.games.find((g) => g.slug === selectedSlug);
           if (!selectedGame) return null;
 
-          const installed = state.installedSlugs.find(
-            (ig) => ig.slug === selectedGame.slug,
-          );
+          const installed = state.installedSlugs.find((ig) => ig.slug === selectedGame.slug);
 
           return (
             <div style={selectedGameStyle}>
@@ -284,9 +244,7 @@ export function LobbyScreen({
       <div style={catalogSectionStyle}>
         <h2 style={catalogHeaderStyle}>Browse Games</h2>
 
-        {catalog.tag === "loading" && (
-          <CenteredState message="Loading games..." spinner />
-        )}
+        {catalog.tag === "loading" && <CenteredState message="Loading games..." spinner />}
 
         {catalog.tag === "error" && (
           <CenteredState
@@ -302,12 +260,9 @@ export function LobbyScreen({
               <CenteredState message="No games available" />
             ) : (
               catalog.games.map((game) => {
-                const installed = state.installedSlugs.find(
-                  (ig) => ig.slug === game.slug,
-                );
+                const installed = state.installedSlugs.find((ig) => ig.slug === game.slug);
                 const isInstalled = installed !== undefined;
-                const isUpdateAvailable =
-                  isInstalled && installed.version !== game.version;
+                const isUpdateAvailable = isInstalled && installed.version !== game.version;
                 const isSelected = game.slug === selectedSlug;
 
                 return (
@@ -319,9 +274,7 @@ export function LobbyScreen({
                     isPending={state.pendingInstall?.slug === game.slug}
                     isUninstalling={state.pendingUninstall === game.slug}
                     onInstall={(g) => void handleInstall(g)}
-                    onUninstall={() =>
-                      sendAction({ type: "UNINSTALL_RULESET", slug: game.slug })
-                    }
+                    onUninstall={() => sendAction({ type: "UNINSTALL_RULESET", slug: game.slug })}
                     onSelect={() => void handleSelect(game)}
                     isSelected={isSelected}
                   />

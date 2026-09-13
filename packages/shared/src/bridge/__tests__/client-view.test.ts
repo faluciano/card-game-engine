@@ -60,14 +60,8 @@ function makeStartedGameState(): HostGameState {
   const engineState = state.engineState;
   if (!engineState) throw new Error("expected a started game");
 
-  const alicesHand = [
-    card("ALICE-CARD-1", "A", "spades"),
-    card("ALICE-CARD-2", "K", "hearts"),
-  ];
-  const bobsHand = [
-    card("BOB-SECRET-1", "Q", "clubs"),
-    card("BOB-SECRET-2", "J", "diamonds"),
-  ];
+  const alicesHand = [card("ALICE-CARD-1", "A", "spades"), card("ALICE-CARD-2", "K", "hearts")];
+  const bobsHand = [card("BOB-SECRET-1", "Q", "clubs"), card("BOB-SECRET-2", "J", "diamonds")];
 
   return {
     ...state,
@@ -122,10 +116,7 @@ describe("createHostClientView", () => {
 
   it("omits the engine state entirely", () => {
     const state = makeStartedGameState();
-    const view = createHostClientView(state, "p1") as unknown as Record<
-      string,
-      unknown
-    >;
+    const view = createHostClientView(state, "p1") as unknown as Record<string, unknown>;
 
     // The controller works from `playerView`; raw engine state is the thing
     // that leaked, so it must not survive projection under any key.

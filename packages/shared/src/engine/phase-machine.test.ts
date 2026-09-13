@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { PhaseMachine, type TransitionResult } from "./phase-machine";
+import { PhaseMachine } from "./phase-machine";
 import { registerAllBuiltins } from "./builtins";
 import {
   clearBuiltins,
@@ -14,7 +14,6 @@ import type {
   CardGameRuleset,
   CardValue,
   GameSessionId,
-  PhaseAction,
   PhaseDefinition,
   PlayerId,
   ZoneDefinition,
@@ -75,9 +74,7 @@ function makeZone(name: string, cards: Card[]): ZoneState {
   };
 }
 
-function makeMinimalRuleset(
-  phases: readonly PhaseDefinition[] = [],
-): CardGameRuleset {
+function makeMinimalRuleset(phases: readonly PhaseDefinition[] = []): CardGameRuleset {
   return {
     meta: {
       name: "Test Blackjack",
@@ -108,8 +105,7 @@ function makeMinimalRuleset(
     phases,
     scoring: {
       method: "hand_value(current_player.hand, 21)",
-      winCondition:
-        "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
+      winCondition: "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
       bustCondition: "my_score > 21",
       tieCondition: "my_score == dealer_score && my_score <= 21",
     },
@@ -194,11 +190,7 @@ const SCORING_PHASE: PhaseDefinition = {
   kind: "automatic",
   actions: [],
   transitions: [{ to: "round_end", when: "scores_calculated" }],
-  onEnter: [
-    'reveal_all("dealer_hand")',
-    "calculate_scores()",
-    "determine_winners()",
-  ],
+  onEnter: ['reveal_all("dealer_hand")', "calculate_scores()", "determine_winners()"],
 };
 
 const ROUND_END_PHASE: PhaseDefinition = {
@@ -209,12 +201,7 @@ const ROUND_END_PHASE: PhaseDefinition = {
   onEnter: ['collect_all_to("discard")', "reset_round()"],
 };
 
-const ALL_PHASES = [
-  DEAL_PHASE,
-  PLAYER_TURNS_PHASE,
-  SCORING_PHASE,
-  ROUND_END_PHASE,
-];
+const ALL_PHASES = [DEAL_PHASE, PLAYER_TURNS_PHASE, SCORING_PHASE, ROUND_END_PHASE];
 
 // ─── Tests ─────────────────────────────────────────────────────────
 
@@ -233,12 +220,7 @@ describe("PhaseMachine", () => {
   describe("constructor", () => {
     it("creates a machine from valid phase definitions", () => {
       const machine = new PhaseMachine(ALL_PHASES);
-      expect(machine.phaseNames).toEqual([
-        "deal",
-        "player_turns",
-        "scoring",
-        "round_end",
-      ]);
+      expect(machine.phaseNames).toEqual(["deal", "player_turns", "scoring", "round_end"]);
     });
 
     it("throws on duplicate phase names", () => {
@@ -266,9 +248,7 @@ describe("PhaseMachine", () => {
 
     it("throws for an unknown phase name", () => {
       const machine = new PhaseMachine(ALL_PHASES);
-      expect(() => machine.getPhase("nonexistent")).toThrow(
-        'Unknown phase: "nonexistent"',
-      );
+      expect(() => machine.getPhase("nonexistent")).toThrow('Unknown phase: "nonexistent"');
     });
   });
 
@@ -294,10 +274,7 @@ describe("PhaseMachine", () => {
       });
 
       // player_turns → scoring (requires all players done)
-      state = makeGameState(
-        {},
-        { currentPhase: "player_turns", turnsTakenThisPhase: 2 },
-      );
+      state = makeGameState({}, { currentPhase: "player_turns", turnsTakenThisPhase: 2 });
       expect(machine.evaluateTransitions(state)).toEqual({
         kind: "advance",
         nextPhase: "scoring",
@@ -402,9 +379,7 @@ describe("PhaseMachine", () => {
       const machine = new PhaseMachine(ALL_PHASES);
       const state = makeGameState({}, { currentPhase: "nonexistent" });
 
-      expect(() => machine.evaluateTransitions(state)).toThrow(
-        'Unknown phase: "nonexistent"',
-      );
+      expect(() => machine.evaluateTransitions(state)).toThrow('Unknown phase: "nonexistent"');
     });
 
     it("treats ExpressionError as condition-not-met and logs a warning", () => {
@@ -427,9 +402,7 @@ describe("PhaseMachine", () => {
 
       const result = machine.evaluateTransitions(state);
       expect(result).toEqual({ kind: "stay" });
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("failed to evaluate"),
-      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("failed to evaluate"));
 
       warnSpy.mockRestore();
     });
@@ -469,10 +442,7 @@ describe("PhaseMachine", () => {
       // Player doesn't bust
       const safeState = makeGameState(
         {
-          hand: makeZone("hand", [
-            makeCard("K", "spades"),
-            makeCard("5", "hearts"),
-          ]),
+          hand: makeZone("hand", [makeCard("K", "spades"), makeCard("5", "hearts")]),
         },
         { currentPhase: "check_hand" },
       );
@@ -537,9 +507,7 @@ describe("PhaseMachine", () => {
     it("still throws for truly unknown identifiers", () => {
       const state = makeGameState({});
       const ctx: EvalContext = { state };
-      expect(() => evaluateExpression("completely_unknown_xyz", ctx)).toThrow(
-        ExpressionError,
-      );
+      expect(() => evaluateExpression("completely_unknown_xyz", ctx)).toThrow(ExpressionError);
     });
 
     it("sentinel with parens still works as function call", () => {
@@ -603,9 +571,7 @@ describe("PhaseMachine", () => {
 
     it("throws for unknown phase name", () => {
       const machine = new PhaseMachine(ALL_PHASES);
-      expect(() => machine.isAutomaticPhase("nonexistent")).toThrow(
-        'Unknown phase: "nonexistent"',
-      );
+      expect(() => machine.isAutomaticPhase("nonexistent")).toThrow('Unknown phase: "nonexistent"');
     });
 
     it("distinguishes all_players kind from automatic", () => {
@@ -625,12 +591,7 @@ describe("PhaseMachine", () => {
   describe("phaseNames", () => {
     it("preserves definition order", () => {
       const machine = new PhaseMachine(ALL_PHASES);
-      expect(machine.phaseNames).toEqual([
-        "deal",
-        "player_turns",
-        "scoring",
-        "round_end",
-      ]);
+      expect(machine.phaseNames).toEqual(["deal", "player_turns", "scoring", "round_end"]);
     });
 
     it("returns empty for no phases", () => {
@@ -670,10 +631,7 @@ describe("PhaseMachine", () => {
       expect(actions.length).toBe(2);
 
       // After all players done, transition to scoring
-      const ptState = makeGameState(
-        {},
-        { currentPhase: "player_turns", turnsTakenThisPhase: 2 },
-      );
+      const ptState = makeGameState({}, { currentPhase: "player_turns", turnsTakenThisPhase: 2 });
       const afterPT = machine.evaluateTransitions(ptState);
       expect(afterPT).toEqual({ kind: "advance", nextPhase: "scoring" });
 
@@ -823,17 +781,13 @@ describe("PhaseMachine", () => {
           transitions: [],
         },
       ];
-      const globalTransitions = [
-        { to: "fallback", when: "totally_unknown_identifier_abc" },
-      ];
+      const globalTransitions = [{ to: "fallback", when: "totally_unknown_identifier_abc" }];
       const machine = new PhaseMachine(phases, globalTransitions);
       const state = makeGameState({}, { currentPhase: "playing" });
 
       const result = machine.evaluateTransitions(state);
       expect(result).toEqual({ kind: "stay" });
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Global transition condition"),
-      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Global transition condition"));
 
       warnSpy.mockRestore();
     });

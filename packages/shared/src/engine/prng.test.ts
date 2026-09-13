@@ -301,7 +301,7 @@ describe("prng", () => {
     it("returns an unsigned 32-bit integer", () => {
       const seed = generateSeed();
       expect(seed).toBeGreaterThanOrEqual(0);
-      expect(seed).toBeLessThanOrEqual(0xFFFFFFFF);
+      expect(seed).toBeLessThanOrEqual(0xffffffff);
       expect(Number.isInteger(seed)).toBe(true);
     });
 

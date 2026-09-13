@@ -2,21 +2,16 @@
 // Browse and install games from the remote catalog.
 // Replaces the WaitingScreen when status === "ruleset_picker".
 
-import React, { useCallback, useMemo, useState } from "react";
+import type React from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import type {
-  CatalogGame,
-  CardGameRuleset,
-  HostClientView,
-  HostAction,
-} from "@card-engine/shared";
+import type { CatalogGame, CardGameRuleset, HostClientView, HostAction } from "@card-engine/shared";
 import { safeParseRuleset } from "@card-engine/shared";
 import { useCatalog } from "../hooks/useCatalog.js";
 import { GameCard } from "../components/GameCard.js";
 import { CenteredState } from "../components/CenteredState.js";
 
-const CATALOG_BASE_URL =
-  "https://faluciano.github.io/card-game-engine/";
+const CATALOG_BASE_URL = "https://faluciano.github.io/card-game-engine/";
 
 // ─── Categories ────────────────────────────────────────────────────
 
@@ -41,9 +36,7 @@ function matchesSearch(game: CatalogGame, query: string): boolean {
   if (query === "") return true;
   const q = query.toLowerCase();
   const nameMatch = game.name.toLowerCase().includes(q);
-  const descMatch =
-    game.description !== undefined &&
-    game.description.toLowerCase().includes(q);
+  const descMatch = game.description?.toLowerCase().includes(q) ?? false;
   return nameMatch || descMatch;
 }
 
@@ -58,10 +51,7 @@ function matchesPlayerCount(game: CatalogGame, playerCount: number | null): bool
   return game.players.min <= playerCount && game.players.max >= playerCount;
 }
 
-function matchesCategory(
-  game: CatalogGame,
-  categoryTags: readonly string[] | null,
-): boolean {
+function matchesCategory(game: CatalogGame, categoryTags: readonly string[] | null): boolean {
   if (categoryTags === null) return true;
   const gameTags = game.tags ?? [];
   return categoryTags.some((ct) => gameTags.includes(ct));
@@ -271,10 +261,7 @@ const PLAYER_COUNTS: readonly { readonly label: string; readonly value: number }
 
 // ─── Component ─────────────────────────────────────────────────────
 
-export function CatalogScreen({
-  state,
-  sendAction,
-}: CatalogScreenProps): React.JSX.Element {
+export function CatalogScreen({ state, sendAction }: CatalogScreenProps): React.JSX.Element {
   const { catalog, refetch } = useCatalog();
   const [installError, setInstallError] = useState<string | null>(null);
 
@@ -306,8 +293,7 @@ export function CatalogScreen({
           slug: game.slug,
         });
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Installation failed";
+        const message = err instanceof Error ? err.message : "Installation failed";
         setInstallError(`Could not install ${game.name}: ${message}`);
       }
     },
@@ -377,9 +363,7 @@ export function CatalogScreen({
       onCategoryChange={setCategoryIndex}
       onClearFilters={clearAllFilters}
       onInstall={(g) => void handleInstall(g)}
-      onUninstall={(slug) =>
-        sendAction({ type: "UNINSTALL_RULESET", slug })
-      }
+      onUninstall={(slug) => sendAction({ type: "UNINSTALL_RULESET", slug })}
     />
   );
 }
@@ -426,8 +410,7 @@ function CatalogLoaded({
 }: CatalogLoadedProps): React.JSX.Element {
   const allTags = useMemo(() => extractUniqueTags(games), [games]);
 
-  const hasManualFilters =
-    searchQuery !== "" || activeTags.size > 0 || playerCount !== null;
+  const hasManualFilters = searchQuery !== "" || activeTags.size > 0 || playerCount !== null;
 
   const filteredGames = useMemo(() => {
     // When manual filters are active, category is ignored
@@ -449,13 +432,9 @@ function CatalogLoaded({
     <div style={containerStyle}>
       <h1 style={headerStyle}>Browse Games</h1>
 
-      {stale && (
-        <div style={staleBannerStyle}>Showing cached results</div>
-      )}
+      {stale && <div style={staleBannerStyle}>Showing cached results</div>}
 
-      {installError !== null && (
-        <div style={errorBannerStyle}>{installError}</div>
-      )}
+      {installError !== null && <div style={errorBannerStyle}>{installError}</div>}
 
       {/* ── Filter controls ──────────────────────────────────────── */}
       <div style={controlsStyle}>
@@ -471,11 +450,7 @@ function CatalogLoaded({
         {/* Tag chips */}
         {allTags.length > 0 && (
           <div style={chipRowStyle}>
-            <button
-              type="button"
-              style={chipStyle(activeTags.size === 0)}
-              onClick={onClearTags}
-            >
+            <button type="button" style={chipStyle(activeTags.size === 0)} onClick={onClearTags}>
               All
             </button>
             {allTags.map((tag) => (
@@ -526,9 +501,7 @@ function CatalogLoaded({
         <div style={sectionDividerStyle} />
 
         {/* Active filter label */}
-        {hasManualFilters && (
-          <span style={filteredLabelStyle}>Filtered Results</span>
-        )}
+        {hasManualFilters && <span style={filteredLabelStyle}>Filtered Results</span>}
       </div>
 
       {/* ── Game list ────────────────────────────────────────────── */}
@@ -536,22 +509,15 @@ function CatalogLoaded({
         {filteredGames.length === 0 ? (
           <div style={emptyStateStyle}>
             <p style={mutedTextStyle}>No games match your filters</p>
-            <button
-              type="button"
-              style={clearFiltersButtonStyle}
-              onClick={onClearFilters}
-            >
+            <button type="button" style={clearFiltersButtonStyle} onClick={onClearFilters}>
               Clear filters
             </button>
           </div>
         ) : (
           filteredGames.map((game) => {
-            const installed = state.installedSlugs.find(
-              (ig) => ig.slug === game.slug,
-            );
+            const installed = state.installedSlugs.find((ig) => ig.slug === game.slug);
             const isInstalled = installed !== undefined;
-            const isUpdateAvailable =
-              isInstalled && installed.version !== game.version;
+            const isUpdateAvailable = isInstalled && installed.version !== game.version;
 
             return (
               <GameCard

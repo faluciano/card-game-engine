@@ -26,17 +26,21 @@ Run the engine test suite to verify everything works:
 cd packages/shared && bunx vitest run
 ```
 
-This is a monorepo with three packages:
+This is a monorepo with five packages:
 
 | Package | Purpose |
 |---------|---------|
-| `packages/shared` | Pure TypeScript game engine. Zero framework dependencies. All game logic lives here. |
-| `packages/host` | Expo React Native TV app. Wires the engine to CouchKit and persists state in SQLite. |
+| `packages/shared` | Pure TypeScript game engine. Zero framework dependencies. All game logic, Zod validation, and shared types live here. |
+| `packages/host-core` | Framework-light host logic shared by the TV host and the browser display — catalog fetching, ruleset import, install hooks, orchestrator, built-in rulesets, theme tokens (React as a peer). |
+| `packages/host` | Expo React Native TV app. Wires the engine to CouchKit and persists state with expo-file-system. |
 | `packages/client` | Vite + React web app. Thin UI shell that renders `PlayerView` and sends actions. |
+| `packages/display` | Vite + React web app. Browser display that owns the game and reaches phones through a Cloudflare Workers relay. |
 
 Example rulesets live in `rulesets/` as `.cardgame.json` files.
 
 ## Code Style -- The 5 Laws of Elegant Defense
+
+Formatting and linting are enforced by Biome: `bun run lint` checks, `bun run format` fixes. CI fails on violations.
 
 This project follows five specific coding principles. All contributions must adhere to them.
 
@@ -148,11 +152,13 @@ card-game-engine/
     shared/         Pure TS engine, zero framework deps
       src/
         types/        Branded types, discriminated unions, state interfaces
-        schema/       Zod validation — the parse boundary
+        schema/       Zod validation — the parse boundary — and the JSON Schema
         deck/         Deck presets and card instantiation
         engine/       Reducer, interpreter, expression evaluator, builtins, PRNG
-    host/           Expo React Native TV app (CouchKit + SQLite)
+    host-core/      Framework-light host logic shared by host and display
+    host/           Expo React Native TV app (CouchKit + expo-file-system)
     client/         Vite + React web app (renders PlayerView, sends actions)
+    display/        Vite + React browser display (owns the game via a relay)
   rulesets/         Example .cardgame.json files
 ```
 
@@ -257,7 +263,7 @@ Keep messages concise. Focus on **why** the change was made, not a line-by-line 
     cd packages/shared && bunx vitest run
     ```
 
-4. Ensure types check:
+4. Ensure types check (`tsc -b packages/client packages/host-core` covers shared via project references, then display and host):
 
     ```bash
     bun run typecheck

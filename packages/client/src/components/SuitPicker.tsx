@@ -3,7 +3,8 @@
 // Shown during the choose_suit phase in Crazy Eights and similar games.
 // Falls back to regular ActionBar buttons for non-suit actions.
 
-import React, { useCallback } from "react";
+import type React from "react";
+import { useCallback } from "react";
 import type { CSSProperties } from "react";
 import type { HostAction, PlayerId } from "@card-engine/shared";
 import type { ValidAction } from "@card-engine/shared";
@@ -109,9 +110,7 @@ export function SuitPicker({
   );
 
   // Build a lookup for enabled state from validActions
-  const actionMap = new Map(
-    validActions.map((a) => [a.actionName, a]),
-  );
+  const actionMap = new Map(validActions.map((a) => [a.actionName, a]));
 
   return (
     <div style={gridStyle}>

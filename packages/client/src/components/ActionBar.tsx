@@ -4,10 +4,11 @@
 // Tapping a button sends a GAME_ACTION to the host.
 // For play_card actions, requires a selected card from the hand.
 
-import React, { useCallback } from "react";
+import type React from "react";
+import { useCallback } from "react";
 import type { CSSProperties } from "react";
 import type { HostAction, PlayerView, PlayerId, CardInstanceId } from "@card-engine/shared";
-import { type ValidAction } from "@card-engine/shared";
+import type { ValidAction } from "@card-engine/shared";
 import { SuitPicker } from "./SuitPicker.js";
 
 /** Tracks which card the player has tapped for a play_card action. */
@@ -101,10 +102,7 @@ const SUIT_ACTION_NAMES = new Set([
 
 /** Returns true when every action is a suit-choice declaration. */
 function isSuitPickerPhase(actions: readonly ValidAction[]): boolean {
-  return (
-    actions.length > 0 &&
-    actions.every((a) => SUIT_ACTION_NAMES.has(a.actionName))
-  );
+  return actions.length > 0 && actions.every((a) => SUIT_ACTION_NAMES.has(a.actionName));
 }
 
 export function ActionBar({
@@ -163,11 +161,7 @@ export function ActionBar({
   if (isSuitPickerPhase(validActions)) {
     return (
       <div style={containerStyle}>
-        <SuitPicker
-          validActions={validActions}
-          playerId={playerId}
-          sendAction={sendAction}
-        />
+        <SuitPicker validActions={validActions} playerId={playerId} sendAction={sendAction} />
       </div>
     );
   }
@@ -186,9 +180,7 @@ export function ActionBar({
 
           const style = isDisabled ? disabledButtonStyle : enabledButtonStyle;
 
-          const label = isPlayCard && needsSelection
-            ? "Select a card"
-            : action.label;
+          const label = isPlayCard && needsSelection ? "Select a card" : action.label;
 
           return (
             <button
@@ -206,9 +198,7 @@ export function ActionBar({
           );
         })}
       </div>
-      {needsCardHint && (
-        <p style={hintStyle}>Tap a card in your hand to select it</p>
-      )}
+      {needsCardHint && <p style={hintStyle}>Tap a card in your hand to select it</p>}
     </div>
   );
 }

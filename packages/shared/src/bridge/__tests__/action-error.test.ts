@@ -275,7 +275,7 @@ describe("action error feedback (host reducer)", () => {
     });
 
     it("sets actionError to null (not undefined) on success", () => {
-      let state = makeStartedGameState();
+      const state = makeStartedGameState();
       const currentPlayerIndex = state.engineState!.currentPlayerIndex;
       const correctPlayerId = state.engineState!.players[currentPlayerIndex]!.id;
 

@@ -86,7 +86,10 @@ export function createRng(seed: number): SeededRng {
  * falls back to Date.now() XOR'd with Math.random() for Hermes.
  */
 export function generateSeed(): number {
-  if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.getRandomValues === "function") {
+  if (
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.getRandomValues === "function"
+  ) {
     const buf = new Uint32Array(1);
     globalThis.crypto.getRandomValues(buf);
     return buf[0]!;

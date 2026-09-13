@@ -21,14 +21,11 @@ import { getValidActions } from "./action-validator";
  * phase-based overrides defined on the zone definition.
  */
 function getEffectiveVisibility(
-  zoneName: string,
   zoneDefinition: ZoneDefinition,
-  currentPhase: string
+  currentPhase: string,
 ): ZoneVisibility {
   if (zoneDefinition.phaseOverrides) {
-    const override = zoneDefinition.phaseOverrides.find(
-      (o) => o.phase === currentPhase
-    );
+    const override = zoneDefinition.phaseOverrides.find((o) => o.phase === currentPhase);
     if (override) return override.visibility;
   }
   return zoneDefinition.visibility;
@@ -36,9 +33,7 @@ function getEffectiveVisibility(
 
 /** Determines if a player can act in the current phase. */
 function isPlayerActive(state: CardGameState, playerIndex: number): boolean {
-  const phase = state.ruleset.phases.find(
-    (p) => p.name === state.currentPhase
-  );
+  const phase = state.ruleset.phases.find((p) => p.name === state.currentPhase);
   if (phase?.kind === "all_players") return true;
   return state.currentPlayerIndex === playerIndex;
 }
@@ -51,7 +46,7 @@ function isPlayerActive(state: CardGameState, playerIndex: number): boolean {
  * and only those with `public: true` are exposed.
  */
 function getPublicVarNames(
-  manifest: Readonly<Record<string, VariableDefinition>> | undefined
+  manifest: Readonly<Record<string, VariableDefinition>> | undefined,
 ): string[] | undefined {
   if (!manifest) return undefined;
   const entries = Object.entries(manifest);
@@ -71,7 +66,7 @@ function getPublicVarNames(
  */
 function filterVariables(
   variables: Readonly<Record<string, number>>,
-  publicVariables: readonly string[] | undefined
+  publicVariables: readonly string[] | undefined,
 ): Readonly<Record<string, number>> {
   if (!publicVariables) return variables;
   const filtered: Record<string, number> = {};
@@ -89,7 +84,7 @@ function filterVariables(
  */
 function filterStringVariables(
   variables: Readonly<Record<string, string>>,
-  publicVariables: readonly string[] | undefined
+  publicVariables: readonly string[] | undefined,
 ): Readonly<Record<string, string>> {
   if (!publicVariables) return variables;
   const filtered: Record<string, string> = {};
@@ -106,10 +101,7 @@ function filterStringVariables(
  * Applies visibility rules from the ruleset to filter zone contents.
  * Hidden cards are replaced with null placeholders.
  */
-export function createPlayerView(
-  state: CardGameState,
-  playerId: PlayerId
-): PlayerView {
+export function createPlayerView(state: CardGameState, playerId: PlayerId): PlayerView {
   const playerIndex = state.players.findIndex((p) => p.id === playerId);
   if (playerIndex === -1) {
     throw new Error(`Player not found: ${playerId}`);
@@ -119,11 +111,7 @@ export function createPlayerView(
   const filteredZones: Record<string, FilteredZoneState> = {};
 
   for (const [zoneName, zoneState] of Object.entries(state.zones)) {
-    const effectiveVisibility = getEffectiveVisibility(
-      zoneName,
-      zoneState.definition,
-      state.currentPhase
-    );
+    const effectiveVisibility = getEffectiveVisibility(zoneState.definition, state.currentPhase);
 
     filteredZones[zoneName] = filterZone(
       zoneName,
@@ -131,7 +119,7 @@ export function createPlayerView(
       effectiveVisibility,
       player.role,
       playerIndex,
-      zoneState.definition.owners
+      zoneState.definition.owners,
     );
   }
 
@@ -189,7 +177,7 @@ function filterZone(
   visibility: ZoneVisibility,
   playerRole: string,
   playerIndex: number,
-  zoneOwners: readonly string[]
+  zoneOwners: readonly string[],
 ): FilteredZoneState {
   const perPlayerMatch = name.match(/:(\d+)$/);
   const isOwner = perPlayerMatch
@@ -222,10 +210,7 @@ function filterZone(
  * Returns cards with hidden positions replaced by null.
  * Unknown rules default to fully hidden (conservative).
  */
-function applyPartialRule(
-  cards: readonly Card[],
-  rule: string
-): readonly (Card | null)[] {
+function applyPartialRule(cards: readonly Card[], rule: string): readonly (Card | null)[] {
   switch (rule) {
     case "first_card_only":
       return cards.map((card, i) => (i === 0 ? card : null));

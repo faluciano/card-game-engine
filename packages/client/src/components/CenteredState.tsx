@@ -2,7 +2,7 @@
 // Shared full-area centered display for loading / empty / error states.
 // Optional spinner and a single action button.
 
-import React from "react";
+import type React from "react";
 import type { CSSProperties } from "react";
 
 interface CenteredStateProps {
@@ -49,8 +49,7 @@ export function CenteredState({
   tone = "muted",
   action,
 }: CenteredStateProps): React.JSX.Element {
-  const color =
-    tone === "danger" ? "var(--color-danger)" : "var(--color-text-muted)";
+  const color = tone === "danger" ? "var(--color-danger)" : "var(--color-text-muted)";
 
   return (
     <div style={containerStyle}>

@@ -1,7 +1,7 @@
 // ─── Result Screen ─────────────────────────────────────────────────
 // Game over screen showing winner status and final scores.
 
-import React from "react";
+import type React from "react";
 import type { CSSProperties } from "react";
 import type { PlayerView } from "@card-engine/shared";
 
@@ -71,15 +71,11 @@ const waitingStyle: CSSProperties = {
   marginTop: 8,
 };
 
-export function ResultScreen({
-  playerView,
-}: ResultScreenProps): React.JSX.Element {
+export function ResultScreen({ playerView }: ResultScreenProps): React.JSX.Element {
   const { status, players, scores, myPlayerId } = playerView;
   const winnerId = status.kind === "finished" ? status.winnerId : null;
   const isWinner = winnerId === myPlayerId;
-  const winnerName = winnerId
-    ? (players.find((p) => p.id === winnerId)?.name ?? "Unknown")
-    : null;
+  const winnerName = winnerId ? (players.find((p) => p.id === winnerId)?.name ?? "Unknown") : null;
 
   const resultColor = isWinner
     ? "var(--color-success)"
@@ -87,11 +83,7 @@ export function ResultScreen({
       ? "var(--color-danger)"
       : "var(--color-text-muted)";
 
-  const resultText = isWinner
-    ? "You Win!"
-    : winnerName
-      ? `${winnerName} Wins`
-      : "Draw";
+  const resultText = isWinner ? "You Win!" : winnerName ? `${winnerName} Wins` : "Draw";
 
   const hasScores = Object.keys(scores).length > 0;
 
@@ -120,9 +112,7 @@ export function ResultScreen({
                   {player.name}
                   {player.id === myPlayerId ? " (you)" : ""}
                 </span>
-                <span style={scoreValueStyle}>
-                  {scores[player.id] ?? 0}
-                </span>
+                <span style={scoreValueStyle}>{scores[player.id] ?? 0}</span>
               </div>
             ))}
           </div>

@@ -14,11 +14,7 @@ const isDebug = process.argv.includes("--debug");
 const variant = isDebug ? "Debug" : "Release";
 const variantLower = variant.toLowerCase();
 
-async function run(
-  label: string,
-  cmd: string[],
-  cwd: string,
-): Promise<void> {
+async function run(label: string, cmd: string[], cwd: string): Promise<void> {
   console.log(`\n> ${label}`);
   console.log(`  $ ${cmd.join(" ")}\n`);
 
@@ -41,9 +37,7 @@ async function main(): Promise<void> {
 
   // 1. Verify android/ project exists
   if (!existsSync(ANDROID_DIR)) {
-    console.error(
-      "  android/ directory not found. Run `bun run prebuild` in packages/host first.",
-    );
+    console.error("  android/ directory not found. Run `bun run prebuild` in packages/host first.");
     process.exit(1);
   }
 
@@ -71,21 +65,10 @@ async function main(): Promise<void> {
     console.log("  Removed app/build\n");
   }
 
-  await run(
-    `Gradle assemble${variant}`,
-    ["./gradlew", `assemble${variant}`],
-    ANDROID_DIR,
-  );
+  await run(`Gradle assemble${variant}`, ["./gradlew", `assemble${variant}`], ANDROID_DIR);
 
   // 4. Report output
-  const apkDir = join(
-    ANDROID_DIR,
-    "app",
-    "build",
-    "outputs",
-    "apk",
-    variantLower,
-  );
+  const apkDir = join(ANDROID_DIR, "app", "build", "outputs", "apk", variantLower);
   const apkName = `app-${variantLower}.apk`;
   const apkPath = join(apkDir, apkName);
 

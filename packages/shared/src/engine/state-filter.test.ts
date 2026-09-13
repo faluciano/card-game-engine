@@ -23,12 +23,7 @@ function makeCardId(id: string): CardInstanceId {
   return id as CardInstanceId;
 }
 
-function makeCard(
-  id: string,
-  rank: string,
-  suit: string,
-  faceUp = false
-): Card {
+function makeCard(id: string, rank: string, suit: string, faceUp = false): Card {
   return {
     id: makeCardId(id),
     rank,
@@ -43,9 +38,7 @@ const QUEEN_DIAMONDS = makeCard("c3", "Q", "diamonds", false);
 const JACK_CLUBS = makeCard("c4", "J", "clubs", true);
 const TEN_SPADES = makeCard("c5", "10", "spades", false);
 
-function createMockState(
-  overrides?: Partial<CardGameState>
-): CardGameState {
+function createMockState(overrides?: Partial<CardGameState>): CardGameState {
   return {
     sessionId: makeSessionId("test-session"),
     ruleset: {
@@ -115,7 +108,7 @@ function stateWithZone(
   cards: readonly Card[],
   visibility: ZoneVisibility,
   owners: readonly string[] = [],
-  overrides?: Partial<CardGameState>
+  overrides?: Partial<CardGameState>,
 ): CardGameState {
   return createMockState({
     zones: {
@@ -138,17 +131,13 @@ describe("state-filter", () => {
   describe("createPlayerView", () => {
     it("throws for unknown player", () => {
       const state = createMockState();
-      expect(() =>
-        createPlayerView(state, makePlayerId("unknown"))
-      ).toThrow("Player not found: unknown");
+      expect(() => createPlayerView(state, makePlayerId("unknown"))).toThrow(
+        "Player not found: unknown",
+      );
     });
 
     it("returns correct player metadata", () => {
-      const state = stateWithZone(
-        "table",
-        [],
-        { kind: "public" }
-      );
+      const state = stateWithZone("table", [], { kind: "public" });
       const view = createPlayerView(state, makePlayerId("p1"));
 
       expect(view.sessionId).toBe("test-session");
@@ -161,15 +150,15 @@ describe("state-filter", () => {
       const state = createMockState({
         scores: {
           "player_score:0": 18,
-          "dealer_score": 20,
+          dealer_score: 20,
           "result:0": -1,
         },
       });
       const view = createPlayerView(state, makePlayerId("p1"));
       // player_score:0 → remapped to player's ID
-      expect(view.scores["p1"]).toBe(18);
+      expect(view.scores.p1).toBe(18);
       // dealer_score passes through unchanged
-      expect(view.scores["dealer_score"]).toBe(20);
+      expect(view.scores.dealer_score).toBe(20);
       // result:0 → remapped to result:playerId
       expect(view.scores["result:p1"]).toBe(-1);
     });
@@ -185,8 +174,8 @@ describe("state-filter", () => {
       const state = stateWithZone("table", cards, { kind: "public" });
       const view = createPlayerView(state, makePlayerId("p1"));
 
-      expect(view.zones["table"]!.cards).toEqual(cards);
-      expect(view.zones["table"]!.cardCount).toBe(2);
+      expect(view.zones.table!.cards).toEqual(cards);
+      expect(view.zones.table!.cardCount).toBe(2);
     });
   });
 
@@ -197,23 +186,33 @@ describe("state-filter", () => {
   describe("owner_only visibility", () => {
     it("shows cards to the owner", () => {
       const cards = [ACE_SPADES, KING_HEARTS];
-      const state = stateWithZone("hand", cards, {
-        kind: "owner_only",
-      }, ["player"]);
+      const state = stateWithZone(
+        "hand",
+        cards,
+        {
+          kind: "owner_only",
+        },
+        ["player"],
+      );
       const view = createPlayerView(state, makePlayerId("p1"));
 
-      expect(view.zones["hand"]!.cards).toEqual(cards);
+      expect(view.zones.hand!.cards).toEqual(cards);
     });
 
     it("hides cards from non-owners", () => {
       const cards = [ACE_SPADES, KING_HEARTS];
-      const state = stateWithZone("hand", cards, {
-        kind: "owner_only",
-      }, ["player"]);
+      const state = stateWithZone(
+        "hand",
+        cards,
+        {
+          kind: "owner_only",
+        },
+        ["player"],
+      );
       const view = createPlayerView(state, makePlayerId("dealer"));
 
-      expect(view.zones["hand"]!.cards).toEqual([null, null]);
-      expect(view.zones["hand"]!.cardCount).toBe(2);
+      expect(view.zones.hand!.cards).toEqual([null, null]);
+      expect(view.zones.hand!.cardCount).toBe(2);
     });
   });
 
@@ -227,8 +226,8 @@ describe("state-filter", () => {
       const state = stateWithZone("draw_pile", cards, { kind: "hidden" });
       const view = createPlayerView(state, makePlayerId("p1"));
 
-      expect(view.zones["draw_pile"]!.cards).toEqual([null, null, null]);
-      expect(view.zones["draw_pile"]!.cardCount).toBe(3);
+      expect(view.zones.draw_pile!.cards).toEqual([null, null, null]);
+      expect(view.zones.draw_pile!.cardCount).toBe(3);
     });
   });
 
@@ -240,40 +239,51 @@ describe("state-filter", () => {
     describe("first_card_only", () => {
       it("shows only the first card", () => {
         const cards = [ACE_SPADES, KING_HEARTS, QUEEN_DIAMONDS];
-        const state = stateWithZone("dealer_hand", cards, {
-          kind: "partial",
-          rule: "first_card_only",
-        }, ["dealer"]);
+        const state = stateWithZone(
+          "dealer_hand",
+          cards,
+          {
+            kind: "partial",
+            rule: "first_card_only",
+          },
+          ["dealer"],
+        );
         const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones["dealer_hand"]!.cards).toEqual([
-          ACE_SPADES,
-          null,
-          null,
-        ]);
-        expect(view.zones["dealer_hand"]!.cardCount).toBe(3);
+        expect(view.zones.dealer_hand!.cards).toEqual([ACE_SPADES, null, null]);
+        expect(view.zones.dealer_hand!.cardCount).toBe(3);
       });
 
       it("shows the single card when zone has one card", () => {
         const cards = [ACE_SPADES];
-        const state = stateWithZone("dealer_hand", cards, {
-          kind: "partial",
-          rule: "first_card_only",
-        }, ["dealer"]);
+        const state = stateWithZone(
+          "dealer_hand",
+          cards,
+          {
+            kind: "partial",
+            rule: "first_card_only",
+          },
+          ["dealer"],
+        );
         const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones["dealer_hand"]!.cards).toEqual([ACE_SPADES]);
+        expect(view.zones.dealer_hand!.cards).toEqual([ACE_SPADES]);
       });
 
       it("returns empty array for empty zone", () => {
-        const state = stateWithZone("dealer_hand", [], {
-          kind: "partial",
-          rule: "first_card_only",
-        }, ["dealer"]);
+        const state = stateWithZone(
+          "dealer_hand",
+          [],
+          {
+            kind: "partial",
+            rule: "first_card_only",
+          },
+          ["dealer"],
+        );
         const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones["dealer_hand"]!.cards).toEqual([]);
-        expect(view.zones["dealer_hand"]!.cardCount).toBe(0);
+        expect(view.zones.dealer_hand!.cards).toEqual([]);
+        expect(view.zones.dealer_hand!.cardCount).toBe(0);
       });
     });
 
@@ -286,12 +296,8 @@ describe("state-filter", () => {
         });
         const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones["discard"]!.cards).toEqual([
-          null,
-          null,
-          QUEEN_DIAMONDS,
-        ]);
-        expect(view.zones["discard"]!.cardCount).toBe(3);
+        expect(view.zones.discard!.cards).toEqual([null, null, QUEEN_DIAMONDS]);
+        expect(view.zones.discard!.cardCount).toBe(3);
       });
 
       it("shows the single card when zone has one card", () => {
@@ -302,7 +308,7 @@ describe("state-filter", () => {
         });
         const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones["discard"]!.cards).toEqual([ACE_SPADES]);
+        expect(view.zones.discard!.cards).toEqual([ACE_SPADES]);
       });
 
       it("returns empty array for empty zone", () => {
@@ -312,8 +318,8 @@ describe("state-filter", () => {
         });
         const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones["discard"]!.cards).toEqual([]);
-        expect(view.zones["discard"]!.cardCount).toBe(0);
+        expect(view.zones.discard!.cards).toEqual([]);
+        expect(view.zones.discard!.cardCount).toBe(0);
       });
     });
 
@@ -327,13 +333,8 @@ describe("state-filter", () => {
         });
         const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones["table"]!.cards).toEqual([
-          ACE_SPADES,
-          null,
-          null,
-          JACK_CLUBS,
-        ]);
-        expect(view.zones["table"]!.cardCount).toBe(4);
+        expect(view.zones.table!.cards).toEqual([ACE_SPADES, null, null, JACK_CLUBS]);
+        expect(view.zones.table!.cardCount).toBe(4);
       });
 
       it("hides all cards when none are face up", () => {
@@ -344,7 +345,7 @@ describe("state-filter", () => {
         });
         const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones["table"]!.cards).toEqual([null, null, null]);
+        expect(view.zones.table!.cards).toEqual([null, null, null]);
       });
 
       it("shows all cards when all are face up", () => {
@@ -355,7 +356,7 @@ describe("state-filter", () => {
         });
         const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones["table"]!.cards).toEqual([ACE_SPADES, JACK_CLUBS]);
+        expect(view.zones.table!.cards).toEqual([ACE_SPADES, JACK_CLUBS]);
       });
 
       it("returns empty array for empty zone", () => {
@@ -365,7 +366,7 @@ describe("state-filter", () => {
         });
         const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones["table"]!.cards).toEqual([]);
+        expect(view.zones.table!.cards).toEqual([]);
       });
     });
 
@@ -378,8 +379,8 @@ describe("state-filter", () => {
         });
         const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones["mystery"]!.cards).toEqual([null, null]);
-        expect(view.zones["mystery"]!.cardCount).toBe(2);
+        expect(view.zones.mystery!.cards).toEqual([null, null]);
+        expect(view.zones.mystery!.cardCount).toBe(2);
       });
     });
   });
@@ -399,9 +400,7 @@ describe("state-filter", () => {
               name: "dealer_hand",
               visibility: { kind: "partial", rule: "first_card_only" },
               owners: ["dealer"],
-              phaseOverrides: [
-                { phase: "dealer_turn", visibility: { kind: "public" } },
-              ],
+              phaseOverrides: [{ phase: "dealer_turn", visibility: { kind: "public" } }],
             },
             cards,
           },
@@ -411,11 +410,7 @@ describe("state-filter", () => {
       const view = createPlayerView(state, makePlayerId("p1"));
 
       // During player_turns, partial rule applies → only first card visible
-      expect(view.zones["dealer_hand"]!.cards).toEqual([
-        ACE_SPADES,
-        null,
-        null,
-      ]);
+      expect(view.zones.dealer_hand!.cards).toEqual([ACE_SPADES, null, null]);
     });
 
     it("uses override visibility when phase matches", () => {
@@ -428,9 +423,7 @@ describe("state-filter", () => {
               name: "dealer_hand",
               visibility: { kind: "partial", rule: "first_card_only" },
               owners: ["dealer"],
-              phaseOverrides: [
-                { phase: "dealer_turn", visibility: { kind: "public" } },
-              ],
+              phaseOverrides: [{ phase: "dealer_turn", visibility: { kind: "public" } }],
             },
             cards,
           },
@@ -440,11 +433,7 @@ describe("state-filter", () => {
       const view = createPlayerView(state, makePlayerId("p1"));
 
       // During dealer_turn, override makes it public → all cards visible
-      expect(view.zones["dealer_hand"]!.cards).toEqual([
-        ACE_SPADES,
-        KING_HEARTS,
-        QUEEN_DIAMONDS,
-      ]);
+      expect(view.zones.dealer_hand!.cards).toEqual([ACE_SPADES, KING_HEARTS, QUEEN_DIAMONDS]);
     });
 
     it("does not override zones without phaseOverrides", () => {
@@ -457,9 +446,7 @@ describe("state-filter", () => {
               name: "dealer_hand",
               visibility: { kind: "partial", rule: "first_card_only" },
               owners: ["dealer"],
-              phaseOverrides: [
-                { phase: "dealer_turn", visibility: { kind: "public" } },
-              ],
+              phaseOverrides: [{ phase: "dealer_turn", visibility: { kind: "public" } }],
             },
             cards,
           },
@@ -477,14 +464,11 @@ describe("state-filter", () => {
       const view = createPlayerView(state, makePlayerId("p1"));
 
       // dealer_hand override applies → public
-      expect(view.zones["dealer_hand"]!.cards).toEqual([
-        ACE_SPADES,
-        KING_HEARTS,
-      ]);
+      expect(view.zones.dealer_hand!.cards).toEqual([ACE_SPADES, KING_HEARTS]);
 
       // player_hand has no phaseOverrides → uses default owner_only
       // p1 is "player" role, which is an owner
-      expect(view.zones["player_hand"]!.cards).toEqual([QUEEN_DIAMONDS]);
+      expect(view.zones.player_hand!.cards).toEqual([QUEEN_DIAMONDS]);
     });
 
     it("uses default when zone has no phaseOverrides", () => {
@@ -507,10 +491,7 @@ describe("state-filter", () => {
       const view = createPlayerView(state, makePlayerId("p1"));
 
       // No phaseOverrides → uses default partial rule
-      expect(view.zones["dealer_hand"]!.cards).toEqual([
-        ACE_SPADES,
-        null,
-      ]);
+      expect(view.zones.dealer_hand!.cards).toEqual([ACE_SPADES, null]);
     });
 
     it("can override partial to hidden", () => {
@@ -523,9 +504,7 @@ describe("state-filter", () => {
               name: "dealer_hand",
               visibility: { kind: "public" },
               owners: ["dealer"],
-              phaseOverrides: [
-                { phase: "shuffle_phase", visibility: { kind: "hidden" } },
-              ],
+              phaseOverrides: [{ phase: "shuffle_phase", visibility: { kind: "hidden" } }],
             },
             cards,
           },
@@ -535,7 +514,7 @@ describe("state-filter", () => {
       const view = createPlayerView(state, makePlayerId("p1"));
 
       // During shuffle_phase, override hides everything
-      expect(view.zones["dealer_hand"]!.cards).toEqual([null, null]);
+      expect(view.zones.dealer_hand!.cards).toEqual([null, null]);
     });
   });
 
@@ -545,9 +524,7 @@ describe("state-filter", () => {
 
   describe("per-player zone ownership by index", () => {
     /** Two players with per-player hand zones (hand:0, hand:1). */
-    function twoPlayerHandState(
-      overrides?: Partial<CardGameState>
-    ): CardGameState {
+    function twoPlayerHandState(overrides?: Partial<CardGameState>): CardGameState {
       return createMockState({
         players: [
           {
@@ -605,10 +582,7 @@ describe("state-filter", () => {
       const state = twoPlayerHandState();
       const view = createPlayerView(state, makePlayerId("bob"));
 
-      expect(view.zones["hand:1"]!.cards).toEqual([
-        QUEEN_DIAMONDS,
-        JACK_CLUBS,
-      ]);
+      expect(view.zones["hand:1"]!.cards).toEqual([QUEEN_DIAMONDS, JACK_CLUBS]);
       expect(view.zones["hand:1"]!.cardCount).toBe(2);
     });
 
@@ -695,29 +669,18 @@ describe("state-filter", () => {
 
       // Both players share the "player" role → both are owners
       const aliceView = createPlayerView(state, makePlayerId("alice"));
-      expect(aliceView.zones["draw_pile"]!.cards).toEqual([
-        ACE_SPADES,
-        KING_HEARTS,
-      ]);
+      expect(aliceView.zones.draw_pile!.cards).toEqual([ACE_SPADES, KING_HEARTS]);
 
       const bobView = createPlayerView(state, makePlayerId("bob"));
-      expect(bobView.zones["draw_pile"]!.cards).toEqual([
-        ACE_SPADES,
-        KING_HEARTS,
-      ]);
+      expect(bobView.zones.draw_pile!.cards).toEqual([ACE_SPADES, KING_HEARTS]);
 
       // Dealer is not a "player" role → not an owner → hidden
       const dealerView = createPlayerView(state, makePlayerId("dealer"));
-      expect(dealerView.zones["draw_pile"]!.cards).toEqual([null, null]);
+      expect(dealerView.zones.draw_pile!.cards).toEqual([null, null]);
     });
 
     it("zone named with colon but non-numeric suffix uses role-based matching", () => {
-      const state = stateWithZone(
-        "hand:abc",
-        [ACE_SPADES],
-        { kind: "owner_only" },
-        ["player"]
-      );
+      const state = stateWithZone("hand:abc", [ACE_SPADES], { kind: "owner_only" }, ["player"]);
       const view = createPlayerView(state, makePlayerId("p1"));
 
       // "hand:abc" doesn't match /:(\d+)$/ → falls through to role-based
@@ -754,9 +717,7 @@ describe("state-filter", () => {
               name: "hand:0",
               visibility: { kind: "owner_only" },
               owners: ["player"],
-              phaseOverrides: [
-                { phase: "reveal", visibility: { kind: "public" } },
-              ],
+              phaseOverrides: [{ phase: "reveal", visibility: { kind: "public" } }],
             },
             cards: [ACE_SPADES, KING_HEARTS],
           },
@@ -765,9 +726,7 @@ describe("state-filter", () => {
               name: "hand:1",
               visibility: { kind: "owner_only" },
               owners: ["player"],
-              phaseOverrides: [
-                { phase: "reveal", visibility: { kind: "public" } },
-              ],
+              phaseOverrides: [{ phase: "reveal", visibility: { kind: "public" } }],
             },
             cards: [QUEEN_DIAMONDS],
           },
@@ -778,10 +737,7 @@ describe("state-filter", () => {
       const bobView = createPlayerView(state, makePlayerId("bob"));
 
       // Bob can see Alice's hand:0 even though he's not the owner
-      expect(bobView.zones["hand:0"]!.cards).toEqual([
-        ACE_SPADES,
-        KING_HEARTS,
-      ]);
+      expect(bobView.zones["hand:0"]!.cards).toEqual([ACE_SPADES, KING_HEARTS]);
       // Bob can see his own hand:1 too (public overrides owner_only)
       expect(bobView.zones["hand:1"]!.cards).toEqual([QUEEN_DIAMONDS]);
     });
@@ -809,9 +765,7 @@ describe("state-filter", () => {
               name: "hand:1",
               visibility: { kind: "owner_only" },
               owners: ["player"],
-              phaseOverrides: [
-                { phase: "reveal", visibility: { kind: "public" } },
-              ],
+              phaseOverrides: [{ phase: "reveal", visibility: { kind: "public" } }],
             },
             cards: [QUEEN_DIAMONDS, JACK_CLUBS],
           },
@@ -820,10 +774,7 @@ describe("state-filter", () => {
 
       // Alice (index 0) sees Bob's hand:1 because phase override → public
       const aliceView = createPlayerView(state, makePlayerId("alice"));
-      expect(aliceView.zones["hand:1"]!.cards).toEqual([
-        QUEEN_DIAMONDS,
-        JACK_CLUBS,
-      ]);
+      expect(aliceView.zones["hand:1"]!.cards).toEqual([QUEEN_DIAMONDS, JACK_CLUBS]);
     });
 
     it("phaseOverrides does NOT activate when phase doesn't match", () => {
@@ -849,9 +800,7 @@ describe("state-filter", () => {
               name: "hand:0",
               visibility: { kind: "owner_only" },
               owners: ["player"],
-              phaseOverrides: [
-                { phase: "reveal", visibility: { kind: "public" } },
-              ],
+              phaseOverrides: [{ phase: "reveal", visibility: { kind: "public" } }],
             },
             cards: [ACE_SPADES],
           },
@@ -893,9 +842,7 @@ describe("state-filter", () => {
               visibility: { kind: "owner_only" },
               owners: ["player"],
               // Specific override: stays hidden during reveal
-              phaseOverrides: [
-                { phase: "reveal", visibility: { kind: "hidden" } },
-              ],
+              phaseOverrides: [{ phase: "reveal", visibility: { kind: "hidden" } }],
             },
             cards: [ACE_SPADES, KING_HEARTS],
           },
@@ -905,9 +852,7 @@ describe("state-filter", () => {
               visibility: { kind: "owner_only" },
               owners: ["player"],
               // Different override: becomes public during reveal
-              phaseOverrides: [
-                { phase: "reveal", visibility: { kind: "public" } },
-              ],
+              phaseOverrides: [{ phase: "reveal", visibility: { kind: "public" } }],
             },
             cards: [QUEEN_DIAMONDS],
           },
@@ -946,9 +891,7 @@ describe("state-filter", () => {
               name: "hand:0",
               visibility: { kind: "owner_only" },
               owners: ["player"],
-              phaseOverrides: [
-                { phase: "reveal", visibility: { kind: "hidden" } },
-              ],
+              phaseOverrides: [{ phase: "reveal", visibility: { kind: "hidden" } }],
             },
             cards: [ACE_SPADES],
           },

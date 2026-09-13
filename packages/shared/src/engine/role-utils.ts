@@ -8,7 +8,7 @@
  */
 export function isHumanPlayer(
   player: { readonly role: string },
-  roles: readonly { readonly name: string; readonly isHuman: boolean }[]
+  roles: readonly { readonly name: string; readonly isHuman: boolean }[],
 ): boolean {
   const role = roles.find((r) => r.name === player.role);
   return role?.isHuman ?? true;

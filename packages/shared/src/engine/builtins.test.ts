@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  registerAllBuiltins,
-  computeHandValue,
-  type EffectDescription,
-  type MutableEvalContext,
-} from "./builtins";
+import { registerAllBuiltins, computeHandValue, type MutableEvalContext } from "./builtins";
 import {
   evaluateExpression,
   evaluateCondition,
@@ -12,7 +7,6 @@ import {
   getRegisteredBuiltins,
   ExpressionError,
   type EvalContext,
-  type EvalResult,
 } from "./expression-evaluator";
 import { createInitialState, createReducer } from "./interpreter";
 import type {
@@ -113,8 +107,7 @@ function makeMinimalRuleset(): CardGameRuleset {
     phases: [],
     scoring: {
       method: "hand_value(current_player.hand, 21)",
-      winCondition:
-        "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
+      winCondition: "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
       bustCondition: "my_score > 21",
       tieCondition: "my_score == dealer_score && my_score <= 21",
     },
@@ -237,11 +230,7 @@ describe("builtins", () => {
     });
 
     it("downgrades ace when high value would bust", () => {
-      const cards = [
-        makeCard("A", "spades"),
-        makeCard("9", "hearts"),
-        makeCard("5", "clubs"),
-      ];
+      const cards = [makeCard("A", "spades"), makeCard("9", "hearts"), makeCard("5", "clubs")];
       // A(11) + 9 + 5 = 25 > 21 → A(1) + 9 + 5 = 15
       expect(computeHandValue(cards, BLACKJACK_CARD_VALUES, 21)).toBe(15);
     });
@@ -277,11 +266,7 @@ describe("builtins", () => {
     });
 
     it("handles bust with no aces", () => {
-      const cards = [
-        makeCard("K", "spades"),
-        makeCard("Q", "hearts"),
-        makeCard("5", "clubs"),
-      ];
+      const cards = [makeCard("K", "spades"), makeCard("Q", "hearts"), makeCard("5", "clubs")];
       // 10 + 10 + 5 = 25
       expect(computeHandValue(cards, BLACKJACK_CARD_VALUES, 21)).toBe(25);
     });
@@ -305,8 +290,8 @@ describe("builtins", () => {
 
     it("downgrades largest-delta dual cards first", () => {
       const mixedCardValues: Readonly<Record<string, CardValue>> = {
-        A: { kind: "dual", low: 1, high: 11 },   // delta = 10
-        B: { kind: "dual", low: 3, high: 8 },     // delta = 5
+        A: { kind: "dual", low: 1, high: 11 }, // delta = 10
+        B: { kind: "dual", low: 3, high: 8 }, // delta = 5
       };
       const cards = [makeCard("A", "spades"), makeCard("B", "spades")];
       // High total = 11 + 8 = 19. Target = 15. Downgrade A (delta=10) → 9. Result = 9.
@@ -331,10 +316,7 @@ describe("builtins", () => {
   describe("hand_value builtin", () => {
     it("evaluates hand_value for a zone with cards", () => {
       const state = makeGameState({
-        hand: makeZone("hand", [
-          makeCard("K", "spades"),
-          makeCard("7", "hearts"),
-        ]),
+        hand: makeZone("hand", [makeCard("K", "spades"), makeCard("7", "hearts")]),
       });
       const ctx = makeEvalContext(state);
       const result = evaluateExpression('hand_value("hand")', ctx);
@@ -343,10 +325,7 @@ describe("builtins", () => {
 
     it("computes correct value with ace", () => {
       const state = makeGameState({
-        hand: makeZone("hand", [
-          makeCard("A", "spades"),
-          makeCard("6", "hearts"),
-        ]),
+        hand: makeZone("hand", [makeCard("A", "spades"), makeCard("6", "hearts")]),
       });
       const ctx = makeEvalContext(state);
       const result = evaluateExpression('hand_value("hand")', ctx);
@@ -356,17 +335,12 @@ describe("builtins", () => {
     it("throws on missing zone", () => {
       const state = makeGameState({});
       const ctx = makeEvalContext(state);
-      expect(() =>
-        evaluateExpression('hand_value("nonexistent")', ctx),
-      ).toThrow(ExpressionError);
+      expect(() => evaluateExpression('hand_value("nonexistent")', ctx)).toThrow(ExpressionError);
     });
 
     it("accepts explicit target=21 (identical to 1-arg form)", () => {
       const state = makeGameState({
-        hand: makeZone("hand", [
-          makeCard("A", "spades"),
-          makeCard("6", "hearts"),
-        ]),
+        hand: makeZone("hand", [makeCard("A", "spades"), makeCard("6", "hearts")]),
       });
       const ctx = makeEvalContext(state);
       // A(11) + 6 = 17, same as 1-arg form
@@ -403,11 +377,7 @@ describe("builtins", () => {
     });
 
     it("computeHandValue never downgrades with Infinity target", () => {
-      const cards = [
-        makeCard("A", "spades"),
-        makeCard("A", "hearts"),
-        makeCard("9", "clubs"),
-      ];
+      const cards = [makeCard("A", "spades"), makeCard("A", "hearts"), makeCard("9", "clubs")];
       // A(11) + A(11) + 9 = 31, no downgrading since 31 <= Infinity
       expect(computeHandValue(cards, BLACKJACK_CARD_VALUES, Infinity)).toBe(31);
     });
@@ -427,9 +397,9 @@ describe("builtins", () => {
         hand: makeZone("hand", []),
       });
       const ctx = makeEvalContext(state);
-      expect(() =>
-        evaluateExpression('hand_value("hand", 21, 42)', ctx),
-      ).toThrow("requires 1-2 arguments, got 3");
+      expect(() => evaluateExpression('hand_value("hand", 21, 42)', ctx)).toThrow(
+        "requires 1-2 arguments, got 3",
+      );
     });
   });
 
@@ -500,9 +470,9 @@ describe("builtins", () => {
     it("sentinel builtins reject arguments", () => {
       const state = makeGameState({});
       const ctx = makeEvalContext(state);
-      expect(() =>
-        evaluateExpression('all_players_done("extra")', ctx),
-      ).toThrow("takes no arguments");
+      expect(() => evaluateExpression('all_players_done("extra")', ctx)).toThrow(
+        "takes no arguments",
+      );
     });
   });
 
@@ -511,16 +481,10 @@ describe("builtins", () => {
   describe("sum_card_values and prefer_high_under", () => {
     it("computes hand value with strategy", () => {
       const state = makeGameState({
-        hand: makeZone("hand", [
-          makeCard("A", "spades"),
-          makeCard("K", "hearts"),
-        ]),
+        hand: makeZone("hand", [makeCard("A", "spades"), makeCard("K", "hearts")]),
       });
       const ctx = makeEvalContext(state);
-      const result = evaluateExpression(
-        'sum_card_values("hand", prefer_high_under(21))',
-        ctx,
-      );
+      const result = evaluateExpression('sum_card_values("hand", prefer_high_under(21))', ctx);
       expect(result).toEqual({ kind: "number", value: 21 });
     });
 
@@ -533,17 +497,11 @@ describe("builtins", () => {
 
     it("sum_card_values respects custom target", () => {
       const state = makeGameState({
-        hand: makeZone("hand", [
-          makeCard("A", "spades"),
-          makeCard("5", "hearts"),
-        ]),
+        hand: makeZone("hand", [makeCard("A", "spades"), makeCard("5", "hearts")]),
       });
       const ctx = makeEvalContext(state);
       // A(11) + 5 = 16 > 10 → A(1) + 5 = 6
-      const result = evaluateExpression(
-        'sum_card_values("hand", prefer_high_under(10))',
-        ctx,
-      );
+      const result = evaluateExpression('sum_card_values("hand", prefer_high_under(10))', ctx);
       expect(result).toEqual({ kind: "number", value: 6 });
     });
   });
@@ -557,9 +515,7 @@ describe("builtins", () => {
       });
       const ctx = makeMutableContext(state);
       evaluateExpression('shuffle("draw_pile")', ctx);
-      expect(ctx.effects).toEqual([
-        { kind: "shuffle", params: { zone: "draw_pile" } },
-      ]);
+      expect(ctx.effects).toEqual([{ kind: "shuffle", params: { zone: "draw_pile" } }]);
     });
 
     it("deal pushes a deal effect", () => {
@@ -596,9 +552,7 @@ describe("builtins", () => {
       const state = makeGameState({});
       const ctx = makeMutableContext(state);
       evaluateExpression('reveal_all("dealer_hand")', ctx);
-      expect(ctx.effects).toEqual([
-        { kind: "reveal_all", params: { zone: "dealer_hand" } },
-      ]);
+      expect(ctx.effects).toEqual([{ kind: "reveal_all", params: { zone: "dealer_hand" } }]);
     });
 
     it("end_turn pushes an end_turn effect", () => {
@@ -626,9 +580,7 @@ describe("builtins", () => {
       const state = makeGameState({});
       const ctx = makeMutableContext(state);
       evaluateExpression('collect_all_to("discard")', ctx);
-      expect(ctx.effects).toEqual([
-        { kind: "collect_all_to", params: { zone: "discard" } },
-      ]);
+      expect(ctx.effects).toEqual([{ kind: "collect_all_to", params: { zone: "discard" } }]);
     });
 
     it("reset_round pushes a reset_round effect", () => {
@@ -665,20 +617,6 @@ describe("builtins", () => {
 
   describe("while special form", () => {
     it("executes body while condition is true", () => {
-      // Set up: hand starts with low value, draw pile has cards
-      const drawPileCards = [
-        makeCard("5", "spades"),
-        makeCard("5", "hearts"),
-        makeCard("5", "clubs"),
-        makeCard("5", "diamonds"),
-      ];
-      const dealerCards = [makeCard("2", "spades"), makeCard("3", "hearts")];
-      const state = makeGameState({
-        draw_pile: makeZone("draw_pile", drawPileCards),
-        dealer_hand: makeZone("dealer_hand", dealerCards),
-      });
-      const ctx = makeMutableContext(state);
-
       // The while loop evaluates against the SAME state each time (since effects
       // are deferred). So for testing the special form, we just verify:
       // 1. The condition is checked
@@ -692,10 +630,7 @@ describe("builtins", () => {
 
       // Actually, let's test with a condition that's immediately false
       const state2 = makeGameState({
-        dealer_hand: makeZone("dealer_hand", [
-          makeCard("K", "spades"),
-          makeCard("8", "hearts"),
-        ]),
+        dealer_hand: makeZone("dealer_hand", [makeCard("K", "spades"), makeCard("8", "hearts")]),
       });
       const ctx2 = makeMutableContext(state2);
       // hand_value = 18 >= 17, so condition < 17 is false immediately
@@ -710,10 +645,7 @@ describe("builtins", () => {
 
     it("condition false on first check means zero iterations", () => {
       const state = makeGameState({
-        dealer_hand: makeZone("dealer_hand", [
-          makeCard("K", "spades"),
-          makeCard("Q", "hearts"),
-        ]),
+        dealer_hand: makeZone("dealer_hand", [makeCard("K", "spades"), makeCard("Q", "hearts")]),
       });
       const ctx = makeMutableContext(state);
       evaluateExpression(
@@ -728,17 +660,15 @@ describe("builtins", () => {
         hand: makeZone("hand", []),
       });
       const ctx = makeMutableContext(state);
-      expect(() =>
-        evaluateExpression('while(hand_value("hand"), end_turn())', ctx),
-      ).toThrow("condition must be boolean");
+      expect(() => evaluateExpression('while(hand_value("hand"), end_turn())', ctx)).toThrow(
+        "condition must be boolean",
+      );
     });
 
     it("throws on wrong number of arguments", () => {
       const state = makeGameState({});
       const ctx = makeMutableContext(state);
-      expect(() => evaluateExpression("while(true)", ctx)).toThrow(
-        "requires exactly 2 arguments",
-      );
+      expect(() => evaluateExpression("while(true)", ctx)).toThrow("requires exactly 2 arguments");
     });
 
     it("enforces maximum iteration limit", () => {
@@ -748,10 +678,7 @@ describe("builtins", () => {
       });
       const ctx = makeMutableContext(state);
       expect(() =>
-        evaluateExpression(
-          'while(hand_value("dealer_hand") < 17, end_turn())',
-          ctx,
-        ),
+        evaluateExpression('while(hand_value("dealer_hand") < 17, end_turn())', ctx),
       ).toThrow("exceeded maximum iterations");
       // Should have accumulated 100 end_turn effects before throwing
       expect(ctx.effects).toHaveLength(100);
@@ -763,10 +690,7 @@ describe("builtins", () => {
   describe("blackjack expression integration", () => {
     it("evaluates hand_value comparison from blackjack ruleset", () => {
       const state = makeGameState({
-        dealer_hand: makeZone("dealer_hand", [
-          makeCard("K", "spades"),
-          makeCard("9", "hearts"),
-        ]),
+        dealer_hand: makeZone("dealer_hand", [makeCard("K", "spades"), makeCard("9", "hearts")]),
       });
       const ctx = makeEvalContext(state);
       // hand_value(dealer_hand) >= 17 → 19 >= 17 → true
@@ -776,10 +700,7 @@ describe("builtins", () => {
 
     it("evaluates card_count comparison", () => {
       const state = makeGameState({
-        hand: makeZone("hand", [
-          makeCard("A", "spades"),
-          makeCard("K", "hearts"),
-        ]),
+        hand: makeZone("hand", [makeCard("A", "spades"), makeCard("K", "hearts")]),
       });
       const ctx = makeEvalContext(state);
       // card_count(hand) == 2 → true (double down condition)
@@ -803,10 +724,7 @@ describe("builtins", () => {
 
     it("evaluates non-bust condition", () => {
       const state = makeGameState({
-        hand: makeZone("hand", [
-          makeCard("A", "spades"),
-          makeCard("K", "hearts"),
-        ]),
+        hand: makeZone("hand", [makeCard("A", "spades"), makeCard("K", "hearts")]),
       });
       const ctx = makeEvalContext(state);
       // hand_value = 21, not > 21
@@ -816,10 +734,7 @@ describe("builtins", () => {
 
     it("evaluates hit condition (hand_value < 21)", () => {
       const state = makeGameState({
-        hand: makeZone("hand", [
-          makeCard("8", "spades"),
-          makeCard("5", "hearts"),
-        ]),
+        hand: makeZone("hand", [makeCard("8", "spades"), makeCard("5", "hearts")]),
       });
       const ctx = makeEvalContext(state);
       const result = evaluateCondition('hand_value("hand") < 21', ctx);
@@ -878,10 +793,7 @@ describe("builtins", () => {
     describe("card_rank", () => {
       it("returns numeric rank for a fixed-value card", () => {
         const state = makeGameState({
-          hand: makeZone("hand", [
-            makeCard("K", "spades"),
-            makeCard("7", "hearts"),
-          ]),
+          hand: makeZone("hand", [makeCard("K", "spades"), makeCard("7", "hearts")]),
         });
         const ctx = makeEvalContext(state);
         const result = evaluateExpression('card_rank("hand", 0)', ctx);
@@ -890,10 +802,7 @@ describe("builtins", () => {
 
       it("returns high value for a dual-value card (Ace)", () => {
         const state = makeGameState({
-          hand: makeZone("hand", [
-            makeCard("A", "spades"),
-            makeCard("5", "hearts"),
-          ]),
+          hand: makeZone("hand", [makeCard("A", "spades"), makeCard("5", "hearts")]),
         });
         const ctx = makeEvalContext(state);
         const result = evaluateExpression('card_rank("hand", 0)', ctx);
@@ -902,10 +811,7 @@ describe("builtins", () => {
 
       it("returns rank for card at non-zero index", () => {
         const state = makeGameState({
-          hand: makeZone("hand", [
-            makeCard("K", "spades"),
-            makeCard("7", "hearts"),
-          ]),
+          hand: makeZone("hand", [makeCard("K", "spades"), makeCard("7", "hearts")]),
         });
         const ctx = makeEvalContext(state);
         const result = evaluateExpression('card_rank("hand", 1)', ctx);
@@ -925,19 +831,16 @@ describe("builtins", () => {
       it("throws on unknown zone", () => {
         const state = makeGameState({});
         const ctx = makeEvalContext(state);
-        expect(() =>
-          evaluateExpression('card_rank("nonexistent", 0)', ctx),
-        ).toThrow("Unknown zone");
+        expect(() => evaluateExpression('card_rank("nonexistent", 0)', ctx)).toThrow(
+          "Unknown zone",
+        );
       });
     });
 
     describe("card_suit", () => {
       it("returns suit string of a card", () => {
         const state = makeGameState({
-          hand: makeZone("hand", [
-            makeCard("K", "spades"),
-            makeCard("7", "hearts"),
-          ]),
+          hand: makeZone("hand", [makeCard("K", "spades"), makeCard("7", "hearts")]),
         });
         const ctx = makeEvalContext(state);
         const result = evaluateExpression('card_suit("hand", 0)', ctx);
@@ -946,10 +849,7 @@ describe("builtins", () => {
 
       it("returns suit for second card", () => {
         const state = makeGameState({
-          hand: makeZone("hand", [
-            makeCard("K", "spades"),
-            makeCard("7", "hearts"),
-          ]),
+          hand: makeZone("hand", [makeCard("K", "spades"), makeCard("7", "hearts")]),
         });
         const ctx = makeEvalContext(state);
         const result = evaluateExpression('card_suit("hand", 1)', ctx);
@@ -1000,9 +900,9 @@ describe("builtins", () => {
           hand: makeZone("hand", []),
         });
         const ctx = makeEvalContext(state);
-        expect(() =>
-          evaluateExpression('card_rank_name("hand", 0)', ctx),
-        ).toThrow("index 0 out of bounds");
+        expect(() => evaluateExpression('card_rank_name("hand", 0)', ctx)).toThrow(
+          "index 0 out of bounds",
+        );
       });
     });
 
@@ -1023,10 +923,7 @@ describe("builtins", () => {
 
       it("returns 0 for no matches", () => {
         const state = makeGameState({
-          hand: makeZone("hand", [
-            makeCard("K", "spades"),
-            makeCard("Q", "hearts"),
-          ]),
+          hand: makeZone("hand", [makeCard("K", "spades"), makeCard("Q", "hearts")]),
         });
         const ctx = makeEvalContext(state);
         const result = evaluateExpression('count_rank("hand", "A")', ctx);
@@ -1046,10 +943,7 @@ describe("builtins", () => {
     describe("top_card_rank", () => {
       it("returns numeric rank of first card", () => {
         const state = makeGameState({
-          hand: makeZone("hand", [
-            makeCard("Q", "spades"),
-            makeCard("3", "hearts"),
-          ]),
+          hand: makeZone("hand", [makeCard("Q", "spades"), makeCard("3", "hearts")]),
         });
         const ctx = makeEvalContext(state);
         const result = evaluateExpression('top_card_rank("hand")', ctx);
@@ -1156,9 +1050,7 @@ describe("builtins", () => {
         const state = makeGameState({});
         const ctx = makeMutableContext(state);
         evaluateExpression('flip_top("hand", 2)', ctx);
-        expect(ctx.effects).toEqual([
-          { kind: "flip_top", params: { zone: "hand", count: 2 } },
-        ]);
+        expect(ctx.effects).toEqual([{ kind: "flip_top", params: { zone: "hand", count: 2 } }]);
       });
     });
 
@@ -1195,9 +1087,7 @@ describe("builtins", () => {
         return players;
       }
 
-      function makeEffectTestRuleset(
-        onEnter: string[],
-      ): CardGameRuleset {
+      function makeEffectTestRuleset(onEnter: string[]): CardGameRuleset {
         return {
           meta: {
             name: "Effect Test",
@@ -1255,20 +1145,15 @@ describe("builtins", () => {
           'move_top("pile_a", "pile_b", 2)',
         ]);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
         const reducer = createReducer(ruleset, FIXED_SEED);
 
         const result = reducer(state, { kind: "start_game" });
 
         // pile_a should have 3 cards (5 dealt - 2 moved)
-        expect(result.zones["pile_a"]!.cards).toHaveLength(3);
+        expect(result.zones.pile_a!.cards).toHaveLength(3);
         // pile_b should have 2 cards
-        expect(result.zones["pile_b"]!.cards).toHaveLength(2);
+        expect(result.zones.pile_b!.cards).toHaveLength(2);
       });
 
       it("move_top: moves all available if fewer cards than count", () => {
@@ -1278,20 +1163,15 @@ describe("builtins", () => {
           'move_top("pile_a", "pile_b", 10)',
         ]);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
         const reducer = createReducer(ruleset, FIXED_SEED);
 
         const result = reducer(state, { kind: "start_game" });
 
         // pile_a should be empty (only had 2, requested 10)
-        expect(result.zones["pile_a"]!.cards).toHaveLength(0);
+        expect(result.zones.pile_a!.cards).toHaveLength(0);
         // pile_b should have 2 cards
-        expect(result.zones["pile_b"]!.cards).toHaveLength(2);
+        expect(result.zones.pile_b!.cards).toHaveLength(2);
       });
 
       it("flip_top: flips top N cards face-up", () => {
@@ -1302,17 +1182,12 @@ describe("builtins", () => {
           'flip_top("pile_a", 2)',
         ]);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
         const reducer = createReducer(ruleset, FIXED_SEED);
 
         const result = reducer(state, { kind: "start_game" });
 
-        const pileA = result.zones["pile_a"]!.cards;
+        const pileA = result.zones.pile_a!.cards;
         expect(pileA).toHaveLength(4);
         // First 2 should be face-up
         expect(pileA[0]!.faceUp).toBe(true);
@@ -1329,17 +1204,12 @@ describe("builtins", () => {
           'flip_top("pile_a", 10)',
         ]);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
         const reducer = createReducer(ruleset, FIXED_SEED);
 
         const result = reducer(state, { kind: "start_game" });
 
-        const pileA = result.zones["pile_a"]!.cards;
+        const pileA = result.zones.pile_a!.cards;
         expect(pileA).toHaveLength(2);
         expect(pileA[0]!.faceUp).toBe(true);
         expect(pileA[1]!.faceUp).toBe(true);
@@ -1352,20 +1222,15 @@ describe("builtins", () => {
           'move_all("pile_a", "pile_b")',
         ]);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
         const reducer = createReducer(ruleset, FIXED_SEED);
 
         const result = reducer(state, { kind: "start_game" });
 
         // pile_a should be empty
-        expect(result.zones["pile_a"]!.cards).toHaveLength(0);
+        expect(result.zones.pile_a!.cards).toHaveLength(0);
         // pile_b should have all 5 cards
-        expect(result.zones["pile_b"]!.cards).toHaveLength(5);
+        expect(result.zones.pile_b!.cards).toHaveLength(5);
       });
 
       it("move_all: preserves faceUp state of moved cards", () => {
@@ -1377,17 +1242,12 @@ describe("builtins", () => {
           'move_all("pile_a", "pile_b")',
         ]);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
         const reducer = createReducer(ruleset, FIXED_SEED);
 
         const result = reducer(state, { kind: "start_game" });
 
-        const pileB = result.zones["pile_b"]!.cards;
+        const pileB = result.zones.pile_b!.cards;
         expect(pileB).toHaveLength(3);
         // First card was flipped face-up, should retain that state
         expect(pileB[0]!.faceUp).toBe(true);
@@ -1403,19 +1263,14 @@ describe("builtins", () => {
           'move_all("pile_a", "pile_b")',
         ]);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
         const reducer = createReducer(ruleset, FIXED_SEED);
 
         const result = reducer(state, { kind: "start_game" });
 
         // pile_a was empty, so pile_b should still have only its original 3 cards
-        expect(result.zones["pile_a"]!.cards).toHaveLength(0);
-        expect(result.zones["pile_b"]!.cards).toHaveLength(3);
+        expect(result.zones.pile_a!.cards).toHaveLength(0);
+        expect(result.zones.pile_b!.cards).toHaveLength(3);
       });
     });
   });
@@ -1436,10 +1291,7 @@ describe("builtins", () => {
     describe("top_card_suit", () => {
       it("returns suit of first card in zone", () => {
         const state = makeGameState({
-          discard: makeZone("discard", [
-            makeCard("7", "hearts"),
-            makeCard("K", "spades"),
-          ]),
+          discard: makeZone("discard", [makeCard("7", "hearts"), makeCard("K", "spades")]),
         });
         const ctx = makeEvalContext(state);
         const result = evaluateExpression('top_card_suit("discard")', ctx);
@@ -1451,19 +1303,16 @@ describe("builtins", () => {
           discard: makeZone("discard", []),
         });
         const ctx = makeEvalContext(state);
-        expect(() =>
-          evaluateExpression('top_card_suit("discard")', ctx),
-        ).toThrow("zone 'discard' is empty");
+        expect(() => evaluateExpression('top_card_suit("discard")', ctx)).toThrow(
+          "zone 'discard' is empty",
+        );
       });
     });
 
     describe("top_card_rank_name", () => {
       it("returns rank string of first card in zone", () => {
         const state = makeGameState({
-          discard: makeZone("discard", [
-            makeCard("Q", "diamonds"),
-            makeCard("3", "clubs"),
-          ]),
+          discard: makeZone("discard", [makeCard("Q", "diamonds"), makeCard("3", "clubs")]),
         });
         const ctx = makeEvalContext(state);
         const result = evaluateExpression('top_card_rank_name("discard")', ctx);
@@ -1475,9 +1324,9 @@ describe("builtins", () => {
           discard: makeZone("discard", []),
         });
         const ctx = makeEvalContext(state);
-        expect(() =>
-          evaluateExpression('top_card_rank_name("discard")', ctx),
-        ).toThrow("zone 'discard' is empty");
+        expect(() => evaluateExpression('top_card_rank_name("discard")', ctx)).toThrow(
+          "zone 'discard' is empty",
+        );
       });
     });
 
@@ -1491,25 +1340,16 @@ describe("builtins", () => {
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'has_card_matching_suit("hand", "hearts")',
-          ctx,
-        );
+        const result = evaluateExpression('has_card_matching_suit("hand", "hearts")', ctx);
         expect(result).toEqual({ kind: "boolean", value: true });
       });
 
       it("returns false when no card matches suit", () => {
         const state = makeGameState({
-          hand: makeZone("hand", [
-            makeCard("K", "spades"),
-            makeCard("7", "spades"),
-          ]),
+          hand: makeZone("hand", [makeCard("K", "spades"), makeCard("7", "spades")]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'has_card_matching_suit("hand", "clubs")',
-          ctx,
-        );
+        const result = evaluateExpression('has_card_matching_suit("hand", "clubs")', ctx);
         expect(result).toEqual({ kind: "boolean", value: false });
       });
     });
@@ -1524,25 +1364,16 @@ describe("builtins", () => {
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'has_card_matching_rank("hand", "7")',
-          ctx,
-        );
+        const result = evaluateExpression('has_card_matching_rank("hand", "7")', ctx);
         expect(result).toEqual({ kind: "boolean", value: true });
       });
 
       it("returns false when no card matches rank", () => {
         const state = makeGameState({
-          hand: makeZone("hand", [
-            makeCard("K", "spades"),
-            makeCard("7", "hearts"),
-          ]),
+          hand: makeZone("hand", [makeCard("K", "spades"), makeCard("7", "hearts")]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'has_card_matching_rank("hand", "A")',
-          ctx,
-        );
+        const result = evaluateExpression('has_card_matching_rank("hand", "A")', ctx);
         expect(result).toEqual({ kind: "boolean", value: false });
       });
     });
@@ -1558,10 +1389,7 @@ describe("builtins", () => {
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'card_matches_top("hand", 0, "discard")',
-          ctx,
-        );
+        const result = evaluateExpression('card_matches_top("hand", 0, "discard")', ctx);
         expect(result).toEqual({ kind: "boolean", value: true });
       });
 
@@ -1575,10 +1403,7 @@ describe("builtins", () => {
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'card_matches_top("hand", 0, "discard")',
-          ctx,
-        );
+        const result = evaluateExpression('card_matches_top("hand", 0, "discard")', ctx);
         expect(result).toEqual({ kind: "boolean", value: true });
       });
 
@@ -1592,10 +1417,7 @@ describe("builtins", () => {
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'card_matches_top("hand", 0, "discard")',
-          ctx,
-        );
+        const result = evaluateExpression('card_matches_top("hand", 0, "discard")', ctx);
         expect(result).toEqual({ kind: "boolean", value: false });
       });
 
@@ -1605,9 +1427,9 @@ describe("builtins", () => {
           discard: makeZone("discard", [makeCard("7", "hearts")]),
         });
         const ctx = makeEvalContext(state);
-        expect(() =>
-          evaluateExpression('card_matches_top("hand", 5, "discard")', ctx),
-        ).toThrow("index 5 out of bounds");
+        expect(() => evaluateExpression('card_matches_top("hand", 5, "discard")', ctx)).toThrow(
+          "index 5 out of bounds",
+        );
       });
 
       it("throws on empty target zone", () => {
@@ -1616,9 +1438,9 @@ describe("builtins", () => {
           discard: makeZone("discard", []),
         });
         const ctx = makeEvalContext(state);
-        expect(() =>
-          evaluateExpression('card_matches_top("hand", 0, "discard")', ctx),
-        ).toThrow("target zone 'discard' is empty");
+        expect(() => evaluateExpression('card_matches_top("hand", 0, "discard")', ctx)).toThrow(
+          "target zone 'discard' is empty",
+        );
       });
     });
 
@@ -1634,10 +1456,7 @@ describe("builtins", () => {
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'has_playable_card("hand", "discard")',
-          ctx,
-        );
+        const result = evaluateExpression('has_playable_card("hand", "discard")', ctx);
         expect(result).toEqual({ kind: "boolean", value: true });
       });
 
@@ -1652,28 +1471,19 @@ describe("builtins", () => {
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'has_playable_card("hand", "discard")',
-          ctx,
-        );
+        const result = evaluateExpression('has_playable_card("hand", "discard")', ctx);
         expect(result).toEqual({ kind: "boolean", value: true });
       });
 
       it("returns false when no playable card exists", () => {
         const state = makeGameState({
-          hand: makeZone("hand", [
-            makeCard("K", "spades"),
-            makeCard("3", "clubs"),
-          ]),
+          hand: makeZone("hand", [makeCard("K", "spades"), makeCard("3", "clubs")]),
           discard: makeZone("discard", [
             makeCard("7", "hearts"), // top card: no match in hand
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'has_playable_card("hand", "discard")',
-          ctx,
-        );
+        const result = evaluateExpression('has_playable_card("hand", "discard")', ctx);
         expect(result).toEqual({ kind: "boolean", value: false });
       });
 
@@ -1683,10 +1493,7 @@ describe("builtins", () => {
           discard: makeZone("discard", []),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'has_playable_card("hand", "discard")',
-          ctx,
-        );
+        const result = evaluateExpression('has_playable_card("hand", "discard")', ctx);
         expect(result).toEqual({ kind: "boolean", value: false });
       });
     });
@@ -1705,10 +1512,7 @@ describe("builtins", () => {
         playerIndex: 0,
         bindings: { played_card_index: { kind: "number", value: -1 } },
       };
-      const result = evaluateExpression(
-        "played_card_matches_top(discard)",
-        ctx,
-      );
+      const result = evaluateExpression("played_card_matches_top(discard)", ctx);
       expect(result).toEqual({ kind: "boolean", value: true });
     });
 
@@ -1724,10 +1528,7 @@ describe("builtins", () => {
         playerIndex: 0,
         bindings: { played_card_index: { kind: "number", value: 0 } },
       };
-      const result = evaluateExpression(
-        "played_card_matches_top(discard)",
-        ctx,
-      );
+      const result = evaluateExpression("played_card_matches_top(discard)", ctx);
       expect(result).toEqual({ kind: "boolean", value: true });
     });
 
@@ -1743,10 +1544,7 @@ describe("builtins", () => {
         playerIndex: 0,
         bindings: { played_card_index: { kind: "number", value: 0 } },
       };
-      const result = evaluateExpression(
-        "played_card_matches_top(discard)",
-        ctx,
-      );
+      const result = evaluateExpression("played_card_matches_top(discard)", ctx);
       expect(result).toEqual({ kind: "boolean", value: true });
     });
 
@@ -1762,10 +1560,7 @@ describe("builtins", () => {
         playerIndex: 0,
         bindings: { played_card_index: { kind: "number", value: 0 } },
       };
-      const result = evaluateExpression(
-        "played_card_matches_top(discard)",
-        ctx,
-      );
+      const result = evaluateExpression("played_card_matches_top(discard)", ctx);
       expect(result).toEqual({ kind: "boolean", value: false });
     });
 
@@ -1775,9 +1570,9 @@ describe("builtins", () => {
         discard: makeZone("discard", [makeCard("7", "hearts")]),
       });
       const ctx: EvalContext = { state, playerIndex: 0 };
-      expect(() =>
-        evaluateExpression("played_card_matches_top(discard)", ctx),
-      ).toThrow("'played_card_index' binding not found");
+      expect(() => evaluateExpression("played_card_matches_top(discard)", ctx)).toThrow(
+        "'played_card_index' binding not found",
+      );
     });
 
     it("throws when index is out of bounds", () => {
@@ -1790,9 +1585,9 @@ describe("builtins", () => {
         playerIndex: 0,
         bindings: { played_card_index: { kind: "number", value: 5 } },
       };
-      expect(() =>
-        evaluateExpression("played_card_matches_top(discard)", ctx),
-      ).toThrow("index 5 out of bounds");
+      expect(() => evaluateExpression("played_card_matches_top(discard)", ctx)).toThrow(
+        "index 5 out of bounds",
+      );
     });
 
     it("throws when target zone is empty", () => {
@@ -1805,9 +1600,9 @@ describe("builtins", () => {
         playerIndex: 0,
         bindings: { played_card_index: { kind: "number", value: 0 } },
       };
-      expect(() =>
-        evaluateExpression("played_card_matches_top(discard)", ctx),
-      ).toThrow("target zone 'discard' is empty");
+      expect(() => evaluateExpression("played_card_matches_top(discard)", ctx)).toThrow(
+        "target zone 'discard' is empty",
+      );
     });
   });
 
@@ -1815,10 +1610,7 @@ describe("builtins", () => {
 
   describe("get_str_var", () => {
     it("returns value of existing string variable", () => {
-      const state = makeGameState(
-        {},
-        { stringVariables: { active_suit: "Hearts" } },
-      );
+      const state = makeGameState({}, { stringVariables: { active_suit: "Hearts" } });
       const ctx = makeEvalContext(state);
       const result = evaluateExpression('get_str_var("active_suit")', ctx);
       expect(result).toEqual({ kind: "string", value: "Hearts" });
@@ -1842,9 +1634,7 @@ describe("builtins", () => {
     it("throws with wrong arg count", () => {
       const state = makeGameState({});
       const ctx = makeEvalContext(state);
-      expect(() => evaluateExpression("get_str_var()", ctx)).toThrow(
-        "requires exactly 1 argument",
-      );
+      expect(() => evaluateExpression("get_str_var()", ctx)).toThrow("requires exactly 1 argument");
     });
   });
 
@@ -1879,9 +1669,9 @@ describe("builtins", () => {
     it("throws without MutableEvalContext", () => {
       const state = makeGameState({});
       const ctx = makeEvalContext(state);
-      expect(() =>
-        evaluateExpression('set_str_var("active_suit", "Hearts")', ctx),
-      ).toThrow("requires a MutableEvalContext");
+      expect(() => evaluateExpression('set_str_var("active_suit", "Hearts")', ctx)).toThrow(
+        "requires a MutableEvalContext",
+      );
     });
   });
 
@@ -1920,33 +1710,25 @@ describe("builtins", () => {
       const state = makeGameState({});
       const ctx = makeMutableContext(state);
       evaluateExpression("set_next_player(2)", ctx);
-      expect(ctx.effects).toEqual([
-        { kind: "set_next_player", params: { playerIndex: 2 } },
-      ]);
+      expect(ctx.effects).toEqual([{ kind: "set_next_player", params: { playerIndex: 2 } }]);
     });
 
     it("reverse_turn_order() throws with arguments", () => {
       const state = makeGameState({});
       const ctx = makeMutableContext(state);
-      expect(() => evaluateExpression("reverse_turn_order(1)", ctx)).toThrow(
-        "takes no arguments",
-      );
+      expect(() => evaluateExpression("reverse_turn_order(1)", ctx)).toThrow("takes no arguments");
     });
 
     it("skip_next_player() throws with arguments", () => {
       const state = makeGameState({});
       const ctx = makeMutableContext(state);
-      expect(() => evaluateExpression("skip_next_player(1)", ctx)).toThrow(
-        "takes no arguments",
-      );
+      expect(() => evaluateExpression("skip_next_player(1)", ctx)).toThrow("takes no arguments");
     });
 
     it("turn_direction() throws with arguments", () => {
       const state = makeGameState({});
       const ctx = makeEvalContext(state);
-      expect(() => evaluateExpression("turn_direction(1)", ctx)).toThrow(
-        "takes no arguments",
-      );
+      expect(() => evaluateExpression("turn_direction(1)", ctx)).toThrow("takes no arguments");
     });
 
     it("turn manipulation effect builtins throw without MutableEvalContext", () => {
@@ -1977,9 +1759,7 @@ describe("builtins", () => {
     it('get_var("missing") throws ExpressionError', () => {
       const state = makeGameState({}, { variables: {} });
       const ctx = makeEvalContext(state);
-      expect(() => evaluateExpression('get_var("missing")', ctx)).toThrow(
-        ExpressionError,
-      );
+      expect(() => evaluateExpression('get_var("missing")', ctx)).toThrow(ExpressionError);
       expect(() => evaluateExpression('get_var("missing")', ctx)).toThrow(
         "variable 'missing' not found",
       );
@@ -1988,9 +1768,7 @@ describe("builtins", () => {
     it("get_var() with wrong arg count throws", () => {
       const state = makeGameState({});
       const ctx = makeEvalContext(state);
-      expect(() => evaluateExpression("get_var()", ctx)).toThrow(
-        "requires exactly 1 argument",
-      );
+      expect(() => evaluateExpression("get_var()", ctx)).toThrow("requires exactly 1 argument");
     });
 
     it('set_var("x", 5) pushes a set_var effect', () => {
@@ -2007,9 +1785,7 @@ describe("builtins", () => {
     it("set_var() with wrong arg count throws", () => {
       const state = makeGameState({});
       const ctx = makeMutableContext(state);
-      expect(() => evaluateExpression('set_var("x")', ctx)).toThrow(
-        "requires exactly 2 argument",
-      );
+      expect(() => evaluateExpression('set_var("x")', ctx)).toThrow("requires exactly 2 argument");
     });
 
     it('inc_var("x", 3) pushes an inc_var effect', () => {
@@ -2026,9 +1802,7 @@ describe("builtins", () => {
     it("inc_var() with wrong arg count throws", () => {
       const state = makeGameState({});
       const ctx = makeMutableContext(state);
-      expect(() => evaluateExpression('inc_var("x")', ctx)).toThrow(
-        "requires exactly 2 argument",
-      );
+      expect(() => evaluateExpression('inc_var("x")', ctx)).toThrow("requires exactly 2 argument");
     });
   });
 
@@ -2083,9 +1857,7 @@ describe("builtins", () => {
     it("throws with wrong arg count", () => {
       const state = makeGameState({});
       const ctx = makeEvalContext(state);
-      expect(() => evaluateExpression("get_param()", ctx)).toThrow(
-        "requires exactly 1 argument",
-      );
+      expect(() => evaluateExpression("get_param()", ctx)).toThrow("requires exactly 1 argument");
     });
 
     it("throws with non-string argument", () => {
@@ -2244,9 +2016,9 @@ describe("builtins", () => {
       it("throws on unknown zone", () => {
         const state = makePokerGameState({});
         const ctx = makeEvalContext(state);
-        expect(() =>
-          evaluateExpression('count_sets("nonexistent", 2)', ctx),
-        ).toThrow("Unknown zone");
+        expect(() => evaluateExpression('count_sets("nonexistent", 2)', ctx)).toThrow(
+          "Unknown zone",
+        );
       });
     });
 
@@ -2322,9 +2094,9 @@ describe("builtins", () => {
           hand: makeZone("hand", []),
         });
         const ctx = makeEvalContext(state);
-        expect(() =>
-          evaluateExpression('max_set_size("hand", 2)', ctx),
-        ).toThrow("requires exactly 1 argument");
+        expect(() => evaluateExpression('max_set_size("hand", 2)', ctx)).toThrow(
+          "requires exactly 1 argument",
+        );
       });
     });
 
@@ -2639,9 +2411,9 @@ describe("builtins", () => {
           hand: makeZone("hand", []),
         });
         const ctx = makeEvalContext(state);
-        expect(() =>
-          evaluateExpression('max_run_length("hand", 2)', ctx),
-        ).toThrow("requires exactly 1 argument");
+        expect(() => evaluateExpression('max_run_length("hand", 2)', ctx)).toThrow(
+          "requires exactly 1 argument",
+        );
       });
     });
   });
@@ -2693,8 +2465,7 @@ describe("builtins", () => {
         roles: [{ name: "player", isHuman: true, count: "per_player" }],
         phases: [],
         scoring: {
-          method:
-            'count_cards_by_suit(concat("won:", current_player_index), "hearts")',
+          method: 'count_cards_by_suit(concat("won:", current_player_index), "hearts")',
           winCondition: "my_score == 0",
         },
         ui: { layout: "circle", tableColor: "felt_green" },
@@ -2955,10 +2726,7 @@ describe("builtins", () => {
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'count_cards_by_suit("won:0", "hearts")',
-          ctx,
-        );
+        const result = evaluateExpression('count_cards_by_suit("won:0", "hearts")', ctx);
         expect(result).toEqual({ kind: "number", value: 3 });
       });
 
@@ -2971,10 +2739,7 @@ describe("builtins", () => {
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'count_cards_by_suit("won:0", "hearts")',
-          ctx,
-        );
+        const result = evaluateExpression('count_cards_by_suit("won:0", "hearts")', ctx);
         expect(result).toEqual({ kind: "number", value: 0 });
       });
 
@@ -2983,10 +2748,7 @@ describe("builtins", () => {
           "won:0": makeZone("won:0", []),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'count_cards_by_suit("won:0", "hearts")',
-          ctx,
-        );
+        const result = evaluateExpression('count_cards_by_suit("won:0", "hearts")', ctx);
         expect(result).toEqual({ kind: "number", value: 0 });
       });
     });
@@ -3003,10 +2765,7 @@ describe("builtins", () => {
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'has_card_with("won:0", "Q", "spades")',
-          ctx,
-        );
+        const result = evaluateExpression('has_card_with("won:0", "Q", "spades")', ctx);
         expect(result).toEqual({ kind: "boolean", value: true });
       });
 
@@ -3019,10 +2778,7 @@ describe("builtins", () => {
           ]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'has_card_with("won:0", "Q", "spades")',
-          ctx,
-        );
+        const result = evaluateExpression('has_card_with("won:0", "Q", "spades")', ctx);
         expect(result).toEqual({ kind: "boolean", value: false });
       });
 
@@ -3031,10 +2787,7 @@ describe("builtins", () => {
           "won:0": makeZone("won:0", []),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'has_card_with("won:0", "Q", "spades")',
-          ctx,
-        );
+        const result = evaluateExpression('has_card_with("won:0", "Q", "spades")', ctx);
         expect(result).toEqual({ kind: "boolean", value: false });
       });
     });
@@ -3052,25 +2805,16 @@ describe("builtins", () => {
         });
         const ctx = makeEvalContext(state);
         // 2 + 5 + 14 = 21
-        const result = evaluateExpression(
-          'sum_zone_values_by_suit("won:0", "hearts")',
-          ctx,
-        );
+        const result = evaluateExpression('sum_zone_values_by_suit("won:0", "hearts")', ctx);
         expect(result).toEqual({ kind: "number", value: 21 });
       });
 
       it("returns 0 when no cards of the suit exist", () => {
         const state = makeHeartsGameState({
-          "won:0": makeZone("won:0", [
-            makeCard("K", "spades"),
-            makeCard("Q", "clubs"),
-          ]),
+          "won:0": makeZone("won:0", [makeCard("K", "spades"), makeCard("Q", "clubs")]),
         });
         const ctx = makeEvalContext(state);
-        const result = evaluateExpression(
-          'sum_zone_values_by_suit("won:0", "hearts")',
-          ctx,
-        );
+        const result = evaluateExpression('sum_zone_values_by_suit("won:0", "hearts")', ctx);
         expect(result).toEqual({ kind: "number", value: 0 });
       });
 
@@ -3085,10 +2829,7 @@ describe("builtins", () => {
         });
         const ctx = makeEvalContext(state);
         // Only hearts: 3 + 7 = 10
-        const result = evaluateExpression(
-          'sum_zone_values_by_suit("won:0", "hearts")',
-          ctx,
-        );
+        const result = evaluateExpression('sum_zone_values_by_suit("won:0", "hearts")', ctx);
         expect(result).toEqual({ kind: "number", value: 10 });
       });
     });
@@ -3152,9 +2893,7 @@ describe("builtins", () => {
           "trick:0": makeZone("trick:0", []),
         });
         const ctx = makeMutableContext(state);
-        expect(() => evaluateExpression("end_game(1)", ctx)).toThrow(
-          "takes no arguments",
-        );
+        expect(() => evaluateExpression("end_game(1)", ctx)).toThrow("takes no arguments");
       });
     });
   });
@@ -3216,8 +2955,7 @@ describe("builtins", () => {
         scoring: {
           method:
             'count_cards_by_suit(concat("won:", current_player_index), "hearts") + if(has_card_with(concat("won:", current_player_index), "Q", "spades"), 13, 0)',
-          winCondition:
-            "get_cumulative_score(current_player_index) == min_cumulative_score()",
+          winCondition: "get_cumulative_score(current_player_index) == min_cumulative_score()",
         },
         ui: { layout: "circle", tableColor: "felt_green" },
       };
@@ -3403,9 +3141,9 @@ describe("builtins", () => {
           "won:0": makeZone("won:0", []),
         });
         const ctx = makeEvalContext(state);
-        expect(() =>
-          evaluateExpression("max_cumulative_score(1)", ctx),
-        ).toThrow("takes no arguments");
+        expect(() => evaluateExpression("max_cumulative_score(1)", ctx)).toThrow(
+          "takes no arguments",
+        );
       });
     });
 
@@ -3466,9 +3204,9 @@ describe("builtins", () => {
           "won:0": makeZone("won:0", []),
         });
         const ctx = makeEvalContext(state);
-        expect(() =>
-          evaluateExpression("min_cumulative_score(1)", ctx),
-        ).toThrow("takes no arguments");
+        expect(() => evaluateExpression("min_cumulative_score(1)", ctx)).toThrow(
+          "takes no arguments",
+        );
       });
     });
 
@@ -3493,9 +3231,7 @@ describe("builtins", () => {
           "won:0": makeZone("won:0", []),
         });
         const ctx = makeMutableContext(state);
-        expect(() => evaluateExpression("accumulate_scores(1)", ctx)).toThrow(
-          "takes no arguments",
-        );
+        expect(() => evaluateExpression("accumulate_scores(1)", ctx)).toThrow("takes no arguments");
       });
     });
 

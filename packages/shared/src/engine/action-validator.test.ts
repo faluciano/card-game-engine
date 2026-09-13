@@ -4,8 +4,6 @@ import {
   getPlayableCardIndices,
   validateAction,
   executePhaseAction,
-  type ValidAction,
-  type ActionValidationResult,
 } from "./action-validator";
 import { PhaseMachine } from "./phase-machine";
 import { registerAllBuiltins } from "./builtins";
@@ -18,7 +16,6 @@ import type {
   CardGameRuleset,
   CardValue,
   GameSessionId,
-  PhaseAction,
   PhaseDefinition,
   PlayerId,
   ZoneDefinition,
@@ -134,16 +131,9 @@ const SCORING_PHASE: PhaseDefinition = {
   onEnter: ["calculate_scores()", "determine_winners()"],
 };
 
-const ALL_PHASES = [
-  DEAL_PHASE,
-  PLAYER_TURNS_PHASE,
-  ALL_PLAYERS_PHASE,
-  SCORING_PHASE,
-];
+const ALL_PHASES = [DEAL_PHASE, PLAYER_TURNS_PHASE, ALL_PLAYERS_PHASE, SCORING_PHASE];
 
-function makeMinimalRuleset(
-  phases: readonly PhaseDefinition[] = ALL_PHASES,
-): CardGameRuleset {
+function makeMinimalRuleset(phases: readonly PhaseDefinition[] = ALL_PHASES): CardGameRuleset {
   return {
     meta: {
       name: "Test Blackjack",
@@ -174,8 +164,7 @@ function makeMinimalRuleset(
     phases,
     scoring: {
       method: "hand_value(current_player.hand, 21)",
-      winCondition:
-        "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
+      winCondition: "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
       bustCondition: "my_score > 21",
       tieCondition: "my_score == dealer_score && my_score <= 21",
     },
@@ -228,10 +217,7 @@ function makeDefaultZones(): Record<string, ZoneState> {
       makeCard("7", "diamonds"),
     ]),
     hand: makeZone("hand", [makeCard("10", "hearts"), makeCard("5", "spades")]),
-    dealer_hand: makeZone("dealer_hand", [
-      makeCard("K", "clubs"),
-      makeCard("8", "hearts"),
-    ]),
+    dealer_hand: makeZone("dealer_hand", [makeCard("K", "clubs"), makeCard("8", "hearts")]),
     discard: makeZone("discard", []),
   };
 }
@@ -244,10 +230,7 @@ function makeBustedZones(): Record<string, ZoneState> {
       makeCard("J", "spades"),
       makeCard("5", "diamonds"),
     ]),
-    dealer_hand: makeZone("dealer_hand", [
-      makeCard("K", "clubs"),
-      makeCard("8", "hearts"),
-    ]),
+    dealer_hand: makeZone("dealer_hand", [makeCard("K", "clubs"), makeCard("8", "hearts")]),
     discard: makeZone("discard", []),
   };
 }
@@ -620,9 +603,7 @@ describe("Action Validator", () => {
 
         expect(result.valid).toBe(false);
         if (!result.valid) {
-          expect(result.reason).toBe(
-            "Action 'split' not available in phase 'player_turns'",
-          );
+          expect(result.reason).toBe("Action 'split' not available in phase 'player_turns'");
         }
       });
 
@@ -697,11 +678,7 @@ describe("Action Validator", () => {
       it("allows advance_phase during in_progress", () => {
         const state = makeGameState(makeDefaultZones());
 
-        const result = validateAction(
-          state,
-          { kind: "advance_phase" },
-          machine,
-        );
+        const result = validateAction(state, { kind: "advance_phase" }, machine);
 
         expect(result.valid).toBe(true);
       });
@@ -1183,7 +1160,7 @@ describe("Action Validator", () => {
     it("validatePlayCard rejects when play_card condition is false", () => {
       const pcMachine = new PhaseMachine([PLAY_CARD_PHASE_COND_FALSE]);
       const zones = makeDefaultZones();
-      const card = zones["hand"]!.cards[0]!;
+      const card = zones.hand!.cards[0]!;
       const state = makeGameState(zones, {
         currentPhase: "play_turn",
         variables: { cards_played: 0 },
@@ -1204,7 +1181,7 @@ describe("Action Validator", () => {
     it("validatePlayCard passes when play_card action has no condition", () => {
       const pcMachine = new PhaseMachine([PLAY_CARD_PHASE_NO_COND]);
       const zones = makeDefaultZones();
-      const card = zones["hand"]!.cards[0]!;
+      const card = zones.hand!.cards[0]!;
       const state = makeGameState(zones, {
         currentPhase: "play_turn",
         variables: { cards_played: 0 },
@@ -1225,7 +1202,7 @@ describe("Action Validator", () => {
     it("validatePlayCard passes when play_card condition is true", () => {
       const pcMachine = new PhaseMachine([PLAY_CARD_PHASE_COND_TRUE]);
       const zones = makeDefaultZones();
-      const card = zones["hand"]!.cards[0]!;
+      const card = zones.hand!.cards[0]!;
       const state = makeGameState(zones, {
         currentPhase: "play_turn",
         variables: { cards_played: 0 },
@@ -1268,11 +1245,7 @@ describe("Action Validator", () => {
       // player_turns phase has "hit" and "stand", but no "play_card"
       const state = makeGameState(makeDefaultZones());
 
-      const indices = getPlayableCardIndices(
-        state,
-        state.ruleset,
-        0,
-      );
+      const indices = getPlayableCardIndices(state, state.ruleset, 0);
 
       expect(indices).toEqual([]);
     });
@@ -1282,11 +1255,7 @@ describe("Action Validator", () => {
         currentPhase: "nonexistent_phase",
       });
 
-      const indices = getPlayableCardIndices(
-        state,
-        state.ruleset,
-        0,
-      );
+      const indices = getPlayableCardIndices(state, state.ruleset, 0);
 
       expect(indices).toEqual([]);
     });
@@ -1322,11 +1291,7 @@ describe("Action Validator", () => {
         ruleset: makeMinimalRuleset([PLAY_NO_COND_PHASE]),
       });
 
-      const indices = getPlayableCardIndices(
-        state,
-        state.ruleset,
-        0,
-      );
+      const indices = getPlayableCardIndices(state, state.ruleset, 0);
 
       expect(indices).toEqual([0, 1, 2]);
     });
@@ -1339,8 +1304,7 @@ describe("Action Validator", () => {
           {
             name: "play_card",
             label: "Play Card",
-            condition:
-              'card_suit(current_player.hand, played_card_index) == "Hearts"',
+            condition: 'card_suit(current_player.hand, played_card_index) == "Hearts"',
             effect: [],
           },
         ],
@@ -1365,11 +1329,7 @@ describe("Action Validator", () => {
         ruleset: makeMinimalRuleset([PLAY_SUIT_COND_PHASE]),
       });
 
-      const indices = getPlayableCardIndices(
-        state,
-        state.ruleset,
-        0,
-      );
+      const indices = getPlayableCardIndices(state, state.ruleset, 0);
 
       // Only indices 0 (A of Hearts) and 2 (5 of Hearts) match
       expect(indices).toEqual([0, 2]);
@@ -1383,8 +1343,7 @@ describe("Action Validator", () => {
           {
             name: "play_card",
             label: "Play Card",
-            condition:
-              'card_suit(current_player.hand, played_card_index) == "Clubs"',
+            condition: 'card_suit(current_player.hand, played_card_index) == "Clubs"',
             effect: [],
           },
         ],
@@ -1408,11 +1367,7 @@ describe("Action Validator", () => {
         ruleset: makeMinimalRuleset([PLAY_SUIT_COND_PHASE]),
       });
 
-      const indices = getPlayableCardIndices(
-        state,
-        state.ruleset,
-        0,
-      );
+      const indices = getPlayableCardIndices(state, state.ruleset, 0);
 
       expect(indices).toEqual([]);
     });
@@ -1442,11 +1397,7 @@ describe("Action Validator", () => {
         ruleset: makeMinimalRuleset([PLAY_NO_COND_PHASE]),
       });
 
-      const indices = getPlayableCardIndices(
-        state,
-        state.ruleset,
-        0,
-      );
+      const indices = getPlayableCardIndices(state, state.ruleset, 0);
 
       expect(indices).toEqual([]);
     });
@@ -1475,11 +1426,7 @@ describe("Action Validator", () => {
         ruleset: makeMinimalRuleset([PLAY_NO_COND_PHASE]),
       });
 
-      const indices = getPlayableCardIndices(
-        state,
-        state.ruleset,
-        0,
-      );
+      const indices = getPlayableCardIndices(state, state.ruleset, 0);
 
       expect(indices).toEqual([]);
     });
@@ -1527,11 +1474,7 @@ describe("Action Validator", () => {
         ruleset: makeMinimalRuleset([CRAZY_EIGHTS_PLAY_PHASE]),
       });
 
-      const indices = getPlayableCardIndices(
-        state,
-        state.ruleset,
-        0,
-      );
+      const indices = getPlayableCardIndices(state, state.ruleset, 0);
 
       // Index 0: 8 of Spades — rank is "8", matches
       // Index 1: Q of Hearts — same suit as top card (Hearts), matches
@@ -1557,10 +1500,7 @@ describe("Action Validator", () => {
 
       const zones: Record<string, ZoneState> = {
         "hand:0": makeZone("hand:0", [makeCard("A", "Hearts")]),
-        "hand:1": makeZone("hand:1", [
-          makeCard("K", "Spades"),
-          makeCard("Q", "Diamonds"),
-        ]),
+        "hand:1": makeZone("hand:1", [makeCard("K", "Spades"), makeCard("Q", "Diamonds")]),
         discard: makeZone("discard", []),
       };
 
@@ -1570,11 +1510,7 @@ describe("Action Validator", () => {
       });
 
       // Player 1's hand has 2 cards
-      const indices = getPlayableCardIndices(
-        state,
-        state.ruleset,
-        1,
-      );
+      const indices = getPlayableCardIndices(state, state.ruleset, 1);
 
       expect(indices).toEqual([0, 1]);
     });

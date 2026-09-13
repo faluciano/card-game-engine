@@ -1,14 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { createHostInitialState, hostReducer } from "../host-reducer";
 import type { HostAction, HostGameState, InstalledGame } from "../host-state";
-import type { CardGameRuleset, CardGameState } from "../../types/index";
+import type { CardGameAction, CardGameRuleset, CardGameState } from "../../types/index";
 
 // ─── Fixtures ──────────────────────────────────────────────────────
 
 /** Minimal valid CardGameRuleset that satisfies the full schema. */
-function makeTestRuleset(
-  overrides?: Partial<CardGameRuleset["meta"]>,
-): CardGameRuleset {
+function makeTestRuleset(overrides?: Partial<CardGameRuleset["meta"]>): CardGameRuleset {
   return {
     meta: {
       name: "Test Game",
@@ -34,9 +32,7 @@ function makeTestRuleset(
       {
         name: "play",
         kind: "turn_based",
-        actions: [
-          { name: "end_turn", label: "End Turn", effect: ["end_turn()"] },
-        ],
+        actions: [{ name: "end_turn", label: "End Turn", effect: ["end_turn()"] }],
         transitions: [],
       },
     ],
@@ -257,9 +253,7 @@ describe("catalog actions (host reducer)", () => {
         type: "SET_INSTALLED_SLUGS",
         slugs: [{ slug: "test-game", version: "1.0.0" }],
       });
-      expect(state.installedSlugs).toEqual([
-        { slug: "test-game", version: "1.0.0" },
-      ]);
+      expect(state.installedSlugs).toEqual([{ slug: "test-game", version: "1.0.0" }]);
       expect(state.pendingInstall).toBeNull();
     });
   });
@@ -407,9 +401,7 @@ describe("catalog actions (host reducer)", () => {
         slug: "test-game",
       });
       expect(state.pendingUninstall).toBe("test-game");
-      expect(state.installedSlugs).toEqual([
-        { slug: "test-game", version: "1.0.0" },
-      ]);
+      expect(state.installedSlugs).toEqual([{ slug: "test-game", version: "1.0.0" }]);
 
       // Step 2: dispatch SET_INSTALLED_SLUGS (host hook completed I/O)
       state = hostReducer(state, {
@@ -425,12 +417,17 @@ describe("catalog actions (host reducer)", () => {
   // ── Security: blocks internal actions from GAME_ACTION ───────────
   // ══════════════════════════════════════════════════════════════════
 
+  /** Builds an action shape the type system would normally reject — the point is to prove the reducer guards at runtime. */
+  function internalAction(kind: string): CardGameAction {
+    return { kind } as unknown as CardGameAction;
+  }
+
   describe("Security: blocks internal actions from GAME_ACTION", () => {
     it("blocks advance_phase sent via GAME_ACTION", () => {
       const state = makeGameTableState();
       const action: HostAction = {
         type: "GAME_ACTION",
-        action: { kind: "advance_phase" } as any,
+        action: internalAction("advance_phase"),
       };
       const next = hostReducer(state, action);
       expect(next).toBe(state);
@@ -440,7 +437,7 @@ describe("catalog actions (host reducer)", () => {
       const state = makeGameTableState();
       const action: HostAction = {
         type: "GAME_ACTION",
-        action: { kind: "reset_round" } as any,
+        action: internalAction("reset_round"),
       };
       const next = hostReducer(state, action);
       expect(next).toBe(state);
@@ -450,7 +447,7 @@ describe("catalog actions (host reducer)", () => {
       const state = makeGameTableState();
       const action: HostAction = {
         type: "GAME_ACTION",
-        action: { kind: "step_phase" } as any,
+        action: internalAction("step_phase"),
       };
       const next = hostReducer(state, action);
       expect(next).toBe(state);
@@ -460,7 +457,7 @@ describe("catalog actions (host reducer)", () => {
       const state = makeGameTableState();
       const action: HostAction = {
         type: "GAME_ACTION",
-        action: { kind: "end_turn" } as any,
+        action: internalAction("end_turn"),
       };
       // end_turn is not blocked by the guard — it reaches the engine reducer
       // The stub engine state may cause an error, but the guard itself should not block it

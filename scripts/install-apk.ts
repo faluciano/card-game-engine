@@ -136,11 +136,7 @@ async function main(): Promise<void> {
       console.log(`> Launching on ${device}...`);
 
       const launchProc = Bun.spawn(
-        [
-          adb, "-s", device,
-          "shell", "am", "start",
-          "-n", `${PACKAGE_NAME}/.MainActivity`,
-        ],
+        [adb, "-s", device, "shell", "am", "start", "-n", `${PACKAGE_NAME}/.MainActivity`],
         { stdio: ["inherit", "inherit", "inherit"] },
       );
 

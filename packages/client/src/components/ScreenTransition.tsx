@@ -2,7 +2,7 @@
 // Wraps screen content with a fade-in + slide-up animation on mount.
 // Parent must change `key` to trigger re-mount on screen change.
 
-import React from "react";
+import type React from "react";
 
 const transitionStyle: React.CSSProperties = {
   animation: "screenFadeIn 250ms ease-out both",

@@ -7,8 +7,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { CatalogGame } from "@card-engine/shared";
 
-const CATALOG_URL =
-  "https://faluciano.github.io/card-game-engine/catalog.json";
+const CATALOG_URL = "https://faluciano.github.io/card-game-engine/catalog.json";
 
 const CACHE_KEY = "card-engine-catalog-cache";
 
@@ -94,6 +93,7 @@ export function useCatalog(): UseCatalogResult {
     setFetchCount((n) => n + 1);
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchCount is the manual refetch trigger
   useEffect(() => {
     let cancelled = false;
 

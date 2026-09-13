@@ -97,10 +97,7 @@ function projectScreen(screen: HostGameState["screen"]): ClientScreen {
 }
 
 /** Playable ids from the player's own hand, or empty when not applicable. */
-function playableCards(
-  engineState: CardGameState,
-  playerId: PlayerId,
-): readonly string[] {
+function playableCards(engineState: CardGameState, playerId: PlayerId): readonly string[] {
   const playerIndex = engineState.players.findIndex((p) => p.id === playerId);
   if (playerIndex === -1) return [];
 
@@ -108,11 +105,7 @@ function playableCards(
   if (!handZone) return [];
 
   const ids: string[] = [];
-  for (const index of getPlayableCardIndices(
-    engineState,
-    engineState.ruleset,
-    playerIndex,
-  )) {
+  for (const index of getPlayableCardIndices(engineState, engineState.ruleset, playerIndex)) {
     const card = handZone.cards[index];
     if (card) ids.push(card.id);
   }
@@ -125,18 +118,13 @@ function playableCards(
  * Everything derived from hidden information is computed here, on the host,
  * where the full state legitimately exists.
  */
-export function createHostClientView(
-  state: HostGameState,
-  playerId: string,
-): HostClientView {
+export function createHostClientView(state: HostGameState, playerId: string): HostClientView {
   const base = {
     status: state.status,
     players: state.players,
     screen: projectScreen(state.screen),
     installedSlugs: state.installedSlugs,
-    pendingInstall: state.pendingInstall
-      ? { slug: state.pendingInstall.slug }
-      : null,
+    pendingInstall: state.pendingInstall ? { slug: state.pendingInstall.slug } : null,
     pendingUninstall: state.pendingUninstall,
     actionError: state.actionError ?? null,
   };

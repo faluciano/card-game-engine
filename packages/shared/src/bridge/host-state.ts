@@ -5,11 +5,7 @@
 // host app's navigation and game lifecycle.
 
 import type { IGameState, IPlayer } from "@couch-kit/core";
-import type {
-  CardGameAction,
-  CardGameRuleset,
-  CardGameState,
-} from "../types/index";
+import type { CardGameAction, CardGameRuleset, CardGameState } from "../types/index";
 
 // ─── Installed Game ────────────────────────────────────────────────
 

@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  loadRuleset,
-  createInitialState,
-  createReducer,
-  RulesetParseError,
-} from "./interpreter";
+import { loadRuleset, createInitialState, createReducer, RulesetParseError } from "./interpreter";
 import { clearBuiltins } from "./expression-evaluator";
 import { registerAllBuiltins } from "./builtins";
 import type {
@@ -12,7 +7,6 @@ import type {
   CardInstanceId,
   CardGameRuleset,
   CardGameState,
-  CardGameAction,
   GameSessionId,
   Player,
   PlayerId,
@@ -157,8 +151,7 @@ function makeBlackjackRuleset(): CardGameRuleset {
     ],
     scoring: {
       method: "hand_value(current_player.hand, 21)",
-      winCondition:
-        "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
+      winCondition: "my_score <= 21 && (dealer_score > 21 || my_score > dealer_score)",
       bustCondition: "my_score > 21",
       tieCondition: "my_score == dealer_score && my_score <= 21",
     },
@@ -247,12 +240,7 @@ describe("Ruleset Interpreter", () => {
     it("creates a valid initial state", () => {
       const ruleset = makeBlackjackRuleset();
       const players = makePlayers(2);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
       expect(state.sessionId).toBe("s1");
       expect(state.status.kind).toBe("waiting_for_players");
@@ -268,70 +256,45 @@ describe("Ruleset Interpreter", () => {
     it("creates per-player zones for each player", () => {
       const ruleset = makeBlackjackRuleset();
       const players = makePlayers(3);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
       // Should have hand:0, hand:1, hand:2 (per-player)
       expect(state.zones["hand:0"]).toBeDefined();
       expect(state.zones["hand:1"]).toBeDefined();
       expect(state.zones["hand:2"]).toBeDefined();
       // Should NOT have a shared "hand" zone
-      expect(state.zones["hand"]).toBeUndefined();
+      expect(state.zones.hand).toBeUndefined();
     });
 
     it("creates shared zones for non-per-player roles", () => {
       const ruleset = makeBlackjackRuleset();
       const players = makePlayers(2);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
-      expect(state.zones["draw_pile"]).toBeDefined();
-      expect(state.zones["dealer_hand"]).toBeDefined();
-      expect(state.zones["discard"]).toBeDefined();
+      expect(state.zones.draw_pile).toBeDefined();
+      expect(state.zones.dealer_hand).toBeDefined();
+      expect(state.zones.discard).toBeDefined();
     });
 
     it("puts all cards in the draw pile", () => {
       const ruleset = makeBlackjackRuleset();
       const players = makePlayers(2);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
       // standard_52 × 1 copy = 52 cards
-      expect(state.zones["draw_pile"]!.cards).toHaveLength(52);
+      expect(state.zones.draw_pile!.cards).toHaveLength(52);
     });
 
     it("creates deterministic card IDs from seed", () => {
       const ruleset = makeBlackjackRuleset();
       const players = makePlayers(1);
 
-      const state1 = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
-      const state2 = createInitialState(
-        ruleset,
-        makeSessionId("s2"),
-        players,
-        FIXED_SEED,
-      );
+      const state1 = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
+      const state2 = createInitialState(ruleset, makeSessionId("s2"), players, FIXED_SEED);
 
       // Same seed → same card IDs
-      const ids1 = state1.zones["draw_pile"]!.cards.map((c) => c.id);
-      const ids2 = state2.zones["draw_pile"]!.cards.map((c) => c.id);
+      const ids1 = state1.zones.draw_pile!.cards.map((c) => c.id);
+      const ids2 = state2.zones.draw_pile!.cards.map((c) => c.id);
       expect(ids1).toEqual(ids2);
     });
 
@@ -339,66 +302,44 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makeBlackjackRuleset();
       const players = makePlayers(1);
 
-      const state1 = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        42,
-      );
-      const state2 = createInitialState(
-        ruleset,
-        makeSessionId("s2"),
-        players,
-        999,
-      );
+      const state1 = createInitialState(ruleset, makeSessionId("s1"), players, 42);
+      const state2 = createInitialState(ruleset, makeSessionId("s2"), players, 999);
 
-      const ids1 = state1.zones["draw_pile"]!.cards.map((c) => c.id);
-      const ids2 = state2.zones["draw_pile"]!.cards.map((c) => c.id);
+      const ids1 = state1.zones.draw_pile!.cards.map((c) => c.id);
+      const ids2 = state2.zones.draw_pile!.cards.map((c) => c.id);
       expect(ids1).not.toEqual(ids2);
     });
 
     it("all cards start face down", () => {
       const ruleset = makeBlackjackRuleset();
       const players = makePlayers(1);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
-      const allFaceDown = state.zones["draw_pile"]!.cards.every(
-        (c) => !c.faceUp,
-      );
+      const allFaceDown = state.zones.draw_pile!.cards.every((c) => !c.faceUp);
       expect(allFaceDown).toBe(true);
     });
 
     it("throws RangeError for too few players", () => {
       const ruleset = makeBlackjackRuleset();
 
-      expect(() =>
-        createInitialState(ruleset, makeSessionId("s1"), [], FIXED_SEED),
-      ).toThrow(RangeError);
+      expect(() => createInitialState(ruleset, makeSessionId("s1"), [], FIXED_SEED)).toThrow(
+        RangeError,
+      );
     });
 
     it("throws RangeError for too many players", () => {
       const ruleset = makeBlackjackRuleset();
       const players = makePlayers(10);
 
-      expect(() =>
-        createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED),
-      ).toThrow(RangeError);
+      expect(() => createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED)).toThrow(
+        RangeError,
+      );
     });
 
     it("preserves the ruleset reference in state", () => {
       const ruleset = makeBlackjackRuleset();
       const players = makePlayers(1);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
       expect(state.ruleset).toBe(ruleset);
     });
@@ -409,26 +350,16 @@ describe("Ruleset Interpreter", () => {
         deck: { ...makeBlackjackRuleset().deck, copies: 2 },
       };
       const players = makePlayers(1);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
       // 52 × 2 = 104 cards
-      expect(state.zones["draw_pile"]!.cards).toHaveLength(104);
+      expect(state.zones.draw_pile!.cards).toHaveLength(104);
     });
 
     it("per-player zone cards are initially empty", () => {
       const ruleset = makeBlackjackRuleset();
       const players = makePlayers(2);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
       expect(state.zones["hand:0"]!.cards).toHaveLength(0);
       expect(state.zones["hand:1"]!.cards).toHaveLength(0);
@@ -454,12 +385,7 @@ describe("Ruleset Interpreter", () => {
           },
         };
         const players = makePlayers(1);
-        const state = createInitialState(
-          customRuleset,
-          makeSessionId("custom-test"),
-          players,
-          42,
-        );
+        const state = createInitialState(customRuleset, makeSessionId("custom-test"), players, 42);
 
         // Count total cards across all zones
         const totalCards = Object.values(state.zones).reduce(
@@ -486,12 +412,7 @@ describe("Ruleset Interpreter", () => {
           },
         };
         const players = makePlayers(1);
-        const state = createInitialState(
-          customRuleset,
-          makeSessionId("copies-test"),
-          players,
-          42,
-        );
+        const state = createInitialState(customRuleset, makeSessionId("copies-test"), players, 42);
 
         const totalCards = Object.values(state.zones).reduce(
           (sum, zone) => sum + zone.cards.length,
@@ -524,9 +445,7 @@ describe("Ruleset Interpreter", () => {
           42,
         );
 
-        const allCards = Object.values(state.zones).flatMap(
-          (zone) => zone.cards,
-        );
+        const allCards = Object.values(state.zones).flatMap((zone) => zone.cards);
         expect(allCards).toHaveLength(2);
 
         const suits = allCards.map((c) => c.suit).sort();
@@ -550,25 +469,11 @@ describe("Ruleset Interpreter", () => {
         };
         const players = makePlayers(1);
 
-        const state1 = createInitialState(
-          customRuleset,
-          makeSessionId("det1"),
-          players,
-          42,
-        );
-        const state2 = createInitialState(
-          customRuleset,
-          makeSessionId("det2"),
-          players,
-          42,
-        );
+        const state1 = createInitialState(customRuleset, makeSessionId("det1"), players, 42);
+        const state2 = createInitialState(customRuleset, makeSessionId("det2"), players, 42);
 
-        const ids1 = Object.values(state1.zones).flatMap((z) =>
-          z.cards.map((c) => c.id),
-        );
-        const ids2 = Object.values(state2.zones).flatMap((z) =>
-          z.cards.map((c) => c.id),
-        );
+        const ids1 = Object.values(state1.zones).flatMap((z) => z.cards.map((c) => c.id));
+        const ids2 = Object.values(state2.zones).flatMap((z) => z.cards.map((c) => c.id));
         expect(ids1).toEqual(ids2);
       });
     });
@@ -589,12 +494,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const newState = reducer(state, {
           kind: "join",
@@ -612,12 +512,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         // First disconnect
         const disconnected = reducer(state, {
@@ -642,12 +537,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(2);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const newState = reducer(state, {
           kind: "leave",
@@ -663,12 +553,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const newState = reducer(state, {
           kind: "leave",
@@ -684,12 +569,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(2);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         expect(state.status.kind).toBe("waiting_for_players");
 
@@ -701,22 +581,17 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(2);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const started = reducer(state, { kind: "start_game" });
 
         // After deal: each player gets 2 cards, dealer gets 2
         expect(started.zones["hand:0"]!.cards).toHaveLength(2);
         expect(started.zones["hand:1"]!.cards).toHaveLength(2);
-        expect(started.zones["dealer_hand"]!.cards).toHaveLength(2);
+        expect(started.zones.dealer_hand!.cards).toHaveLength(2);
 
         // Draw pile should be reduced: 52 - 2*2 - 2 = 46
-        expect(started.zones["draw_pile"]!.cards).toHaveLength(46);
+        expect(started.zones.draw_pile!.cards).toHaveLength(46);
 
         // Should advance to player_turns (non-automatic)
         expect(started.currentPhase).toBe("player_turns");
@@ -726,15 +601,10 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const started = reducer(state, { kind: "start_game" });
-        const dealerCards = started.zones["dealer_hand"]!.cards;
+        const dealerCards = started.zones.dealer_hand!.cards;
 
         expect(dealerCards[0]!.faceUp).toBe(true);
         // Second card stays face down
@@ -745,12 +615,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const started = reducer(state, { kind: "start_game" });
 
@@ -769,13 +634,13 @@ describe("Ruleset Interpreter", () => {
         };
 
         // Verify at least some cards are faceUp
-        const dealerCards = rigged.zones["dealer_hand"]!.cards;
+        const dealerCards = rigged.zones.dealer_hand!.cards;
         expect(dealerCards.every((c) => c.faceUp)).toBe(true);
 
         // Force round_end with collect_all_to via standing (which triggers
         // the full auto-chain: dealer_turn → scoring → round_end → deal → player_turns)
         // The inline ruleset has automatic round_end, so it chains all the way.
-        let current = reducer(rigged, {
+        const current = reducer(rigged, {
           kind: "declare",
           playerId: makePlayerId("p0"),
           declaration: "stand",
@@ -789,13 +654,13 @@ describe("Ruleset Interpreter", () => {
         //
         // The key invariant: cards collected from hands/dealer back to draw_pile
         // are reset to faceUp: false.
-        const drawPileCards = current.zones["draw_pile"]!.cards;
+        const drawPileCards = current.zones.draw_pile!.cards;
         const collectedCards = drawPileCards.filter((c) => !c.faceUp);
         // At least some cards in the draw pile should have been reset (the collected ones)
         expect(collectedCards.length).toBeGreaterThan(0);
 
         // After a full round, we should be back in player_turns with fresh hands
-        const newDealerCards = current.zones["dealer_hand"]!.cards;
+        const newDealerCards = current.zones.dealer_hand!.cards;
         expect(newDealerCards).toHaveLength(2);
         // First card was flipped by set_face_up(dealer_hand, 0, true)
         expect(newDealerCards[0]!.faceUp).toBe(true);
@@ -805,12 +670,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(2);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         // Start once
         const started = reducer(state, { kind: "start_game" });
@@ -825,30 +685,16 @@ describe("Ruleset Interpreter", () => {
         const players = makePlayers(2);
 
         const reducer1 = createReducer(ruleset, FIXED_SEED);
-        const state1 = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state1 = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
         const started1 = reducer1(state1, { kind: "start_game" });
 
         const reducer2 = createReducer(ruleset, FIXED_SEED);
-        const state2 = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state2 = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
         const started2 = reducer2(state2, { kind: "start_game" });
 
         // Same cards dealt
-        const hand1 = started1.zones["hand:0"]!.cards.map(
-          (c) => `${c.rank}${c.suit}`,
-        );
-        const hand2 = started2.zones["hand:0"]!.cards.map(
-          (c) => `${c.rank}${c.suit}`,
-        );
+        const hand1 = started1.zones["hand:0"]!.cards.map((c) => `${c.rank}${c.suit}`);
+        const hand2 = started2.zones["hand:0"]!.cards.map((c) => `${c.rank}${c.suit}`);
         expect(hand1).toEqual(hand2);
       });
     });
@@ -861,12 +707,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(2);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const started = reducer(state, { kind: "start_game" });
         return { state: started, reducer };
@@ -953,22 +794,14 @@ describe("Ruleset Interpreter", () => {
        * Sets up a 2-player started game where player 0's hand is rigged
        * to be close to (or over) 21, and the draw pile's top card is known.
        */
-      function riggedBustState(options: {
-        playerHandCards: Card[];
-        drawPileTopCard: Card;
-      }): {
+      function riggedBustState(options: { playerHandCards: Card[]; drawPileTopCard: Card }): {
         state: CardGameState;
         reducer: ReturnType<typeof createReducer>;
       } {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(2);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const started = reducer(state, { kind: "start_game" });
 
@@ -982,11 +815,8 @@ describe("Ruleset Interpreter", () => {
               cards: options.playerHandCards,
             },
             draw_pile: {
-              ...started.zones["draw_pile"]!,
-              cards: [
-                options.drawPileTopCard,
-                ...started.zones["draw_pile"]!.cards,
-              ],
+              ...started.zones.draw_pile!,
+              cards: [options.drawPileTopCard, ...started.zones.draw_pile!.cards],
             },
           },
         };
@@ -1022,12 +852,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(2);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const started = reducer(state, { kind: "start_game" });
 
@@ -1042,11 +867,8 @@ describe("Ruleset Interpreter", () => {
               cards: [makeCard("A", "spades"), makeCard("5", "hearts")],
             },
             draw_pile: {
-              ...started.zones["draw_pile"]!,
-              cards: [
-                makeCard("5", "diamonds"),
-                ...started.zones["draw_pile"]!.cards,
-              ],
+              ...started.zones.draw_pile!,
+              cards: [makeCard("5", "diamonds"), ...started.zones.draw_pile!.cards],
             },
           },
         };
@@ -1097,12 +919,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(2);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const started = reducer(state, { kind: "start_game" });
         expect(started.currentPlayerIndex).toBe(0);
@@ -1125,12 +942,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(2);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const started = reducer(state, { kind: "start_game" });
 
@@ -1149,11 +961,11 @@ describe("Ruleset Interpreter", () => {
               cards: [makeCard("K", "diamonds"), makeCard("Q", "clubs")],
             },
             draw_pile: {
-              ...started.zones["draw_pile"]!,
+              ...started.zones.draw_pile!,
               cards: [
                 makeCard("10", "spades"),
                 makeCard("10", "hearts"),
-                ...started.zones["draw_pile"]!.cards,
+                ...started.zones.draw_pile!.cards,
               ],
             },
           },
@@ -1192,12 +1004,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(2);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const started = reducer(state, { kind: "start_game" });
         expect(started.currentPlayerIndex).toBe(0);
@@ -1215,12 +1022,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(2);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         const started = reducer(state, { kind: "start_game" });
         expect(started.turnsTakenThisPhase).toBe(0);
@@ -1241,12 +1043,7 @@ describe("Ruleset Interpreter", () => {
         const ruleset = makeBlackjackRuleset();
         const reducer = createReducer(ruleset, FIXED_SEED);
         const players = makePlayers(1);
-        const state = createInitialState(
-          ruleset,
-          makeSessionId("s1"),
-          players,
-          FIXED_SEED,
-        );
+        const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
         expect(state.version).toBe(0);
 
@@ -1265,30 +1062,16 @@ describe("Ruleset Interpreter", () => {
 
       // Two identical runs with same seed
       const reducer1 = createReducer(ruleset, 123);
-      const state1 = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        123,
-      );
+      const state1 = createInitialState(ruleset, makeSessionId("s1"), players, 123);
       const started1 = reducer1(state1, { kind: "start_game" });
 
       const reducer2 = createReducer(ruleset, 123);
-      const state2 = createInitialState(
-        ruleset,
-        makeSessionId("s2"),
-        players,
-        123,
-      );
+      const state2 = createInitialState(ruleset, makeSessionId("s2"), players, 123);
       const started2 = reducer2(state2, { kind: "start_game" });
 
       // Cards in hand should be identical
-      const handCards1 = started1.zones["hand:0"]!.cards.map(
-        (c) => `${c.rank}_${c.suit}`,
-      );
-      const handCards2 = started2.zones["hand:0"]!.cards.map(
-        (c) => `${c.rank}_${c.suit}`,
-      );
+      const handCards1 = started1.zones["hand:0"]!.cards.map((c) => `${c.rank}_${c.suit}`);
+      const handCards2 = started2.zones["hand:0"]!.cards.map((c) => `${c.rank}_${c.suit}`);
       expect(handCards1).toEqual(handCards2);
     });
 
@@ -1297,29 +1080,15 @@ describe("Ruleset Interpreter", () => {
       const players = makePlayers(1);
 
       const reducer1 = createReducer(ruleset, 42);
-      const state1 = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        42,
-      );
+      const state1 = createInitialState(ruleset, makeSessionId("s1"), players, 42);
       const started1 = reducer1(state1, { kind: "start_game" });
 
       const reducer2 = createReducer(ruleset, 999);
-      const state2 = createInitialState(
-        ruleset,
-        makeSessionId("s2"),
-        players,
-        999,
-      );
+      const state2 = createInitialState(ruleset, makeSessionId("s2"), players, 999);
       const started2 = reducer2(state2, { kind: "start_game" });
 
-      const handCards1 = started1.zones["hand:0"]!.cards.map(
-        (c) => `${c.rank}_${c.suit}`,
-      );
-      const handCards2 = started2.zones["hand:0"]!.cards.map(
-        (c) => `${c.rank}_${c.suit}`,
-      );
+      const handCards1 = started1.zones["hand:0"]!.cards.map((c) => `${c.rank}_${c.suit}`);
+      const handCards2 = started2.zones["hand:0"]!.cards.map((c) => `${c.rank}_${c.suit}`);
       expect(handCards1).not.toEqual(handCards2);
     });
 
@@ -1327,12 +1096,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makeBlackjackRuleset();
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(3);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
       const started = reducer(state, { kind: "start_game" });
 
@@ -1341,12 +1105,12 @@ describe("Ruleset Interpreter", () => {
         started.zones["hand:0"]!.cards.length +
         started.zones["hand:1"]!.cards.length +
         started.zones["hand:2"]!.cards.length +
-        started.zones["dealer_hand"]!.cards.length;
+        started.zones.dealer_hand!.cards.length;
 
       expect(totalDealt).toBe(8);
 
       // Draw pile should have 52 - 8 = 44 cards
-      expect(started.zones["draw_pile"]!.cards).toHaveLength(44);
+      expect(started.zones.draw_pile!.cards).toHaveLength(44);
 
       // Game should be in progress at player_turns
       expect(started.status.kind).toBe("in_progress");
@@ -1408,9 +1172,7 @@ describe("Ruleset Interpreter", () => {
               ? {
                   ...phase,
                   // Also remove the bust transition like production ruleset
-                  transitions: [
-                    { to: "dealer_turn", when: "all_players_done" },
-                  ],
+                  transitions: [{ to: "dealer_turn", when: "all_players_done" }],
                 }
               : phase,
         ),
@@ -1421,12 +1183,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makeBlackjackWithAllPlayersRoundEnd();
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
       const started = reducer(state, { kind: "start_game" });
 
@@ -1443,19 +1200,14 @@ describe("Ruleset Interpreter", () => {
       expect(afterStand.scores).toHaveProperty("dealer_score");
       expect(afterStand.scores).toHaveProperty("player_score:0");
       // Dealer hand should still have cards (not collected yet)
-      expect(afterStand.zones["dealer_hand"]!.cards.length).toBeGreaterThan(0);
+      expect(afterStand.zones.dealer_hand!.cards.length).toBeGreaterThan(0);
     });
 
     it("new_round action collects cards and starts new round", () => {
       const ruleset = makeBlackjackWithAllPlayersRoundEnd();
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
       const started = reducer(state, { kind: "start_game" });
       const turnNumberBefore = started.turnNumber;
@@ -1480,7 +1232,7 @@ describe("Ruleset Interpreter", () => {
       expect(afterNewRound.turnNumber).toBeGreaterThan(turnNumberBefore);
       // Fresh hands dealt
       expect(afterNewRound.zones["hand:0"]!.cards).toHaveLength(2);
-      expect(afterNewRound.zones["dealer_hand"]!.cards).toHaveLength(2);
+      expect(afterNewRound.zones.dealer_hand!.cards).toHaveLength(2);
       // Scores reset
       expect(afterNewRound.scores).toEqual({});
     });
@@ -1489,12 +1241,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makeBlackjackWithAllPlayersRoundEnd();
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(2);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("s1"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
 
       const started = reducer(state, { kind: "start_game" });
 
@@ -1628,12 +1375,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makeTurnOrderRuleset();
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(playerCount);
-      const initial = createInitialState(
-        ruleset,
-        makeSessionId("turn-test"),
-        players,
-        FIXED_SEED,
-      );
+      const initial = createInitialState(ruleset, makeSessionId("turn-test"), players, FIXED_SEED);
       const started = reducer(initial, { kind: "start_game" });
       return { reducer, started, ruleset };
     }
@@ -1780,12 +1522,7 @@ describe("Ruleset Interpreter", () => {
     it("createInitialState sets turnDirection to 1", () => {
       const ruleset = makeTurnOrderRuleset();
       const players = makePlayers(3);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("init-test"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("init-test"), players, FIXED_SEED);
       expect(state.turnDirection).toBe(1);
     });
   });
@@ -1797,13 +1534,14 @@ describe("Ruleset Interpreter", () => {
      * Minimal ruleset for variable testing.
      * Has a turn-based phase with actions that use set_var and inc_var.
      */
-    function makeVarRuleset(
-      initialVariables?: Record<string, number>,
-    ): CardGameRuleset {
+    function makeVarRuleset(initialVariables?: Record<string, number>): CardGameRuleset {
       // Convert flat initialVariables to unified manifest
       const variables = initialVariables
         ? Object.fromEntries(
-            Object.entries(initialVariables).map(([k, v]) => [k, { type: "number" as const, initial: v }])
+            Object.entries(initialVariables).map(([k, v]) => [
+              k,
+              { type: "number" as const, initial: v },
+            ]),
           )
         : undefined;
 
@@ -1879,24 +1617,14 @@ describe("Ruleset Interpreter", () => {
     it("createInitialState sets variables from initialVariables", () => {
       const ruleset = makeVarRuleset({ x: 5, y: 0 });
       const players = makePlayers(1);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("var-test"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("var-test"), players, FIXED_SEED);
       expect(state.variables).toEqual({ x: 5, y: 0 });
     });
 
     it("createInitialState sets empty variables when no initialVariables", () => {
       const ruleset = makeVarRuleset();
       const players = makePlayers(1);
-      const state = createInitialState(
-        ruleset,
-        makeSessionId("var-test"),
-        players,
-        FIXED_SEED,
-      );
+      const state = createInitialState(ruleset, makeSessionId("var-test"), players, FIXED_SEED);
       expect(state.variables).toEqual({});
     });
 
@@ -1904,12 +1632,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makeVarRuleset({ x: 0 });
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("var-test"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("var-test"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       // set_x sets x = 10
@@ -1925,12 +1648,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makeVarRuleset({ x: 99 });
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("var-test"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("var-test"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       state = reducer(state, {
@@ -1946,12 +1664,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makeVarRuleset({ x: 7 });
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("var-test"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("var-test"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       // inc_x increments x by 3
@@ -1968,12 +1681,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makeVarRuleset({});
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("var-test"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("var-test"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       state = reducer(state, {
@@ -1989,12 +1697,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makeVarRuleset({ x: 10 });
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("var-test"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("var-test"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       // dec_x increments by -2
@@ -2048,12 +1751,7 @@ describe("Ruleset Interpreter", () => {
 
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("var-test"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("var-test"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
       expect(state.variables.x).toBe(5);
 
@@ -2102,21 +1800,16 @@ describe("Ruleset Interpreter", () => {
       transitions?: Array<{ to: string; when: string }>;
       noPlayCardAction?: boolean;
     }): CardGameRuleset {
-      const playActions: PhaseDefinition["actions"] =
-        overrides?.noPlayCardAction
-          ? []
-          : [
-              {
-                name: "play_card",
-                label: "Play",
-                effect: overrides?.playCardEffects ?? [
-                  'inc_var("cards_played", 1)',
-                ],
-                ...(overrides?.playCardCondition
-                  ? { condition: overrides.playCardCondition }
-                  : {}),
-              },
-            ];
+      const playActions: PhaseDefinition["actions"] = overrides?.noPlayCardAction
+        ? []
+        : [
+            {
+              name: "play_card",
+              label: "Play",
+              effect: overrides?.playCardEffects ?? ['inc_var("cards_played", 1)'],
+              ...(overrides?.playCardCondition ? { condition: overrides.playCardCondition } : {}),
+            },
+          ];
 
       return {
         meta: {
@@ -2151,10 +1844,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [{ to: "play_turn", when: "true" }],
-            onEnter: [
-              'shuffle("draw_pile")',
-              'deal("draw_pile", "hand", 5)',
-            ],
+            onEnter: ['shuffle("draw_pile")', 'deal("draw_pile", "hand", 5)'],
           },
           {
             name: "play_turn",
@@ -2167,9 +1857,7 @@ describe("Ruleset Interpreter", () => {
                 effect: ["end_turn()"],
               },
             ],
-            transitions: overrides?.transitions ?? [
-              { to: "game_over", when: "all_players_done" },
-            ],
+            transitions: overrides?.transitions ?? [{ to: "game_over", when: "all_players_done" }],
             turnOrder: "clockwise",
             ...(overrides?.autoEndTurnCondition
               ? { autoEndTurnCondition: overrides.autoEndTurnCondition }
@@ -2183,7 +1871,8 @@ describe("Ruleset Interpreter", () => {
             onEnter: [],
           },
         ],
-        variables: { cards_played: { type: "number", initial: 0 } },        ui: { layout: "semicircle", tableColor: "felt_green" },
+        variables: { cards_played: { type: "number", initial: 0 } },
+        ui: { layout: "semicircle", tableColor: "felt_green" },
       };
     }
 
@@ -2191,12 +1880,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makePlayCardRuleset();
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("pc-test"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("pc-test"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       expect(state.variables.cards_played).toBe(0);
@@ -2211,7 +1895,7 @@ describe("Ruleset Interpreter", () => {
       });
 
       expect(state.variables.cards_played).toBe(1);
-      expect(state.zones["discard"]!.cards).toHaveLength(1);
+      expect(state.zones.discard!.cards).toHaveLength(1);
       expect(state.zones["hand:0"]!.cards).toHaveLength(4);
     });
 
@@ -2219,12 +1903,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makePlayCardRuleset({ noPlayCardAction: true });
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("pc-noaction"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("pc-noaction"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       const card = state.zones["hand:0"]!.cards[0]!;
@@ -2237,7 +1916,7 @@ describe("Ruleset Interpreter", () => {
         toZone: "discard",
       });
 
-      expect(state.zones["discard"]!.cards).toHaveLength(1);
+      expect(state.zones.discard!.cards).toHaveLength(1);
       expect(state.variables.cards_played).toBe(0); // No effects ran
     });
 
@@ -2247,12 +1926,7 @@ describe("Ruleset Interpreter", () => {
       });
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(2);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("pc-autoend"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("pc-autoend"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       expect(state.currentPlayerIndex).toBe(0);
@@ -2272,18 +1946,11 @@ describe("Ruleset Interpreter", () => {
 
     it("triggers phase transitions after effects", () => {
       const ruleset = makePlayCardRuleset({
-        transitions: [
-          { to: "game_over", when: 'get_var("cards_played") >= 1' },
-        ],
+        transitions: [{ to: "game_over", when: 'get_var("cards_played") >= 1' }],
       });
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("pc-trans"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("pc-trans"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       expect(state.currentPhase).toBe("play_turn");
@@ -2304,12 +1971,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makePlayCardRuleset({ playCardCondition: "false" });
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("pc-reject"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("pc-reject"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       const card = state.zones["hand:0"]!.cards[0]!;
@@ -2325,7 +1987,7 @@ describe("Ruleset Interpreter", () => {
 
       // State unchanged — action was rejected
       expect(state.zones["hand:0"]!.cards).toHaveLength(handCountBefore);
-      expect(state.zones["discard"]!.cards).toHaveLength(0);
+      expect(state.zones.discard!.cards).toHaveLength(0);
       expect(state.variables.cards_played).toBe(0);
     });
 
@@ -2338,10 +2000,7 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [{ to: "play_turn", when: "true" }],
-            onEnter: [
-              'shuffle("draw_pile")',
-              'deal("draw_pile", "hand", 5)',
-            ],
+            onEnter: ['shuffle("draw_pile")', 'deal("draw_pile", "hand", 5)'],
           },
           {
             name: "play_turn",
@@ -2369,17 +2028,15 @@ describe("Ruleset Interpreter", () => {
             onEnter: [],
           },
         ],
-        variables: { chosen: { type: "number", initial: 0 }, cards_played: { type: "number", initial: 0 } },
+        variables: {
+          chosen: { type: "number", initial: 0 },
+          cards_played: { type: "number", initial: 0 },
+        },
       };
 
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("pc-params"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("pc-params"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       state = reducer(state, {
@@ -2396,12 +2053,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makePlayCardRuleset();
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("pc-noparams"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("pc-noparams"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       // "done" action has end_turn() effect, should work fine without params
@@ -2417,19 +2069,11 @@ describe("Ruleset Interpreter", () => {
 
     it("play_card with multiple effects executes all", () => {
       const ruleset = makePlayCardRuleset({
-        playCardEffects: [
-          'inc_var("cards_played", 1)',
-          'inc_var("cards_played", 10)',
-        ],
+        playCardEffects: ['inc_var("cards_played", 1)', 'inc_var("cards_played", 10)'],
       });
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(1);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("pc-multi"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("pc-multi"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       const card = state.zones["hand:0"]!.cards[0]!;
@@ -2490,9 +2134,7 @@ describe("Ruleset Interpreter", () => {
           {
             name: "play",
             kind: "turn_based",
-            actions: [
-              { name: "pass", label: "Pass", effect: ["end_turn()"] },
-            ],
+            actions: [{ name: "pass", label: "Pass", effect: ["end_turn()"] }],
             transitions: [{ to: "play", when: "all_players_done" }],
             turnOrder: "clockwise",
           },
@@ -2507,12 +2149,7 @@ describe("Ruleset Interpreter", () => {
       const reducer = createReducer(ruleset, FIXED_SEED);
       // 2 human players — NPC dealer is handled via zones, not the players array
       const humans = makePlayers(2);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("npc-turn"),
-        humans,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("npc-turn"), humans, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
 
       // After deal phase, should be in "play"
@@ -2520,7 +2157,7 @@ describe("Ruleset Interpreter", () => {
       // players array contains only human players
       expect(state.players).toHaveLength(2);
       // Dealer's zone exists even though dealer isn't in the players array
-      expect(state.zones["dealer_hand"]).toBeDefined();
+      expect(state.zones.dealer_hand).toBeDefined();
 
       const startIndex = state.currentPlayerIndex;
 
@@ -2576,17 +2213,12 @@ describe("Ruleset Interpreter", () => {
             kind: "automatic",
             actions: [],
             transitions: [{ to: "play", when: "all_hands_dealt" }],
-            onEnter: [
-              "shuffle(draw_pile)",
-              "deal(draw_pile, hand, 1)",
-            ],
+            onEnter: ["shuffle(draw_pile)", "deal(draw_pile, hand, 1)"],
           },
           {
             name: "play",
             kind: "turn_based",
-            actions: [
-              { name: "pass", label: "Pass", effect: ["end_turn()"] },
-            ],
+            actions: [{ name: "pass", label: "Pass", effect: ["end_turn()"] }],
             transitions: [{ to: "play", when: "all_players_done" }],
             turnOrder: "clockwise",
           },
@@ -2600,12 +2232,7 @@ describe("Ruleset Interpreter", () => {
       const ruleset = makeSimpleTurnRuleset();
       const reducer = createReducer(ruleset, FIXED_SEED);
       const players = makePlayers(2);
-      let state = createInitialState(
-        ruleset,
-        makeSessionId("log-cap"),
-        players,
-        FIXED_SEED,
-      );
+      let state = createInitialState(ruleset, makeSessionId("log-cap"), players, FIXED_SEED);
       state = reducer(state, { kind: "start_game" });
       expect(state.currentPhase).toBe("play");
 
