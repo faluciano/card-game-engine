@@ -1,14 +1,12 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "jsx": "react-jsx",
+    "composite": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "composite": false,
-    "noEmit": true,
-    "verbatimModuleSyntax": false
+    "jsx": "react-jsx",
+    "rootDir": "src",
+    "outDir": "dist"
   },
   "include": ["src"],
   "references": [{ "path": "../shared" }]

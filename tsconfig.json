@@ -15,9 +15,20 @@
     "resolveJsonModule": true
   },
   "references": [
-    { "path": "packages/schema" },
-    { "path": "packages/shared" },
-    { "path": "packages/host" },
-    { "path": "packages/client" }
+    {
+      "path": "packages/shared"
+    },
+    {
+      "path": "packages/host-core"
+    },
+    {
+      "path": "packages/host"
+    },
+    {
+      "path": "packages/client"
+    },
+    {
+      "path": "packages/display"
+    }
   ]
 }

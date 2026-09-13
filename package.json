@@ -11,7 +11,7 @@
     "build:client": "cd packages/client && bun run build",
     "bundle:client": "cd packages/host && bunx couch-kit bundle --source ../client --output ./android/app/src/main/assets/www --manifest ./src/www-manifest.json",
     "build:android": "bun run bundle:client && cd packages/host && npx expo run:android",
-    "typecheck": "tsc -b packages/client && bun run typecheck:display",
+    "typecheck": "tsc -b packages/client packages/host-core && bun run typecheck:display && bun run typecheck:host",
     "build": "bun run typecheck && bun run build:client && bun run bundle:client",
     "apk": "bun run scripts/build-apk.ts",
     "deploy": "bun run scripts/install-apk.ts",
@@ -19,6 +19,14 @@
     "catalog": "bun run scripts/build-catalog.ts",
     "dev:display": "cd packages/display && bun run dev",
     "build:display": "cd packages/display && bun run build",
-    "typecheck:display": "cd packages/display && bun run typecheck"
+    "typecheck:display": "cd packages/display && bun run typecheck",
+    "typecheck:host": "cd packages/host && tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write ."
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "@biomejs/biome": "2.5.12",
+    "@types/node": "^24.0.0"
   }
 }

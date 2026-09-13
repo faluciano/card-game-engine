@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "main": "index.js",
-  "types": "src/index.ts",
   "scripts": {
     "prebuild": "expo prebuild",
     "android": "expo run:android",
@@ -23,12 +22,10 @@
     "expo-file-system": "~19.0.21",
     "expo-network": "~8.0.0",
     "react-native-nitro-modules": "^0.33.9",
-    "react-native-nitro-http-server": "^1.6.1",
+    "react-native-nitro-http-server": "1.6.1",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-svg": "^15.15.1",
-    "buffer": "^6.0.3",
-    "js-sha1": "^0.7.0",
-    "zod": "^3.25.0"
+    "@card-engine/host-core": "workspace:*"
   },
   "devDependencies": {
     "@couch-kit/cli": "0.3.10",
@@ -36,6 +33,6 @@
     "@types/react": "~19.1.10",
     "babel-preset-expo": "^54.0.10",
     "typescript": "~5.9.2",
-    "vitest": "^3.2.1"
+    "vitest": "^5.0.0"
   }
 }
