@@ -1,37 +1,51 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": ["config:recommended", ":dependencyDashboard"],
   "rangeStrategy": "bump",
   "dependencyDashboardApproval": false,
   "packageRules": [
     {
-      "description": "This repo dogfoods couch-kit — only manage @couch-kit/* dependencies.",
-      "matchPackageNames": ["*"],
-      "enabled": false
+      "description": "This repo dogfoods couch-kit: track every @couch-kit package in one PR and auto-merge non-major updates once CI (including the APK check) passes.",
+      "matchPackageNames": ["@couch-kit/**"],
+      "groupName": "couch-kit",
+      "automerge": true,
+      "matchUpdateTypes": ["minor", "patch", "digest"]
     },
     {
-      "description": "Track every @couch-kit package, grouped into a single PR.",
+      "description": "Android native stack: Nitro, Expo, React Native and native modules. Grouped so the APK check runs once per batch; never auto-merged, because native ABI drift (nitro-http-server vs nitro-modules, July 2026) does not show up in typecheck or unit tests.",
       "matchPackageNames": [
-        "@couch-kit/core",
-        "@couch-kit/client",
-        "@couch-kit/host",
-        "@couch-kit/devtools",
-        "@couch-kit/cli"
+        "react-native",
+        "expo",
+        "expo-**",
+        "@expo/**",
+        "babel-preset-expo",
+        "react-native-nitro-**",
+        "react-native-svg",
+        "react-native-qrcode-svg"
       ],
-      "enabled": true,
-      "groupName": "couch-kit"
+      "groupName": "android native stack",
+      "automerge": false
     },
     {
-      "description": "Auto-merge non-major @couch-kit updates once CI passes; majors are held for manual review.",
+      "description": "Web toolchain and test runner: open PRs, review manually.",
       "matchPackageNames": [
-        "@couch-kit/core",
-        "@couch-kit/client",
-        "@couch-kit/host",
-        "@couch-kit/devtools",
-        "@couch-kit/cli"
+        "vite",
+        "vitest",
+        "@vitejs/**",
+        "@biomejs/**",
+        "typescript",
+        "zod",
+        "react",
+        "react-dom",
+        "@types/**"
       ],
-      "matchUpdateTypes": ["minor", "patch", "digest"],
-      "automerge": true
+      "groupName": "web toolchain",
+      "automerge": false
+    },
+    {
+      "description": "Hold every major update for manual review.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
     }
   ]
 }
