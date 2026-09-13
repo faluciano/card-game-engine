@@ -1,40 +1,18 @@
 // ─── Import Modal (web) ────────────────────────────────────────────
-// Web port of packages/host/src/components/ImportModal.tsx. Same
-// discriminated-union state machine (idle / loading / success / error /
-// duplicate); the RN Modal + D-pad focus bookkeeping becomes a plain
-// overlay with real inputs and buttons.
+// Thin DOM renderer over `useImportModalModel` from host-core,
+// mirroring packages/host/src/components/ImportModal.tsx. The RN Modal
+// + D-pad focus bookkeeping becomes a plain overlay with real inputs
+// and buttons.
 
 import type React from "react";
-import { useState, useEffect, useCallback, useRef } from "react";
-import { colors, type ImportResult } from "@card-engine/host-core";
+import { useRef } from "react";
+import {
+  IMPORT_URL_PLACEHOLDER,
+  colors,
+  useImportModalModel,
+  type ImportResult,
+} from "@card-engine/host-core";
 import { Button } from "./Button.js";
-
-type ModalState =
-  | { readonly tag: "idle" }
-  | { readonly tag: "loading" }
-  | { readonly tag: "success"; readonly name: string }
-  | { readonly tag: "error"; readonly message: string }
-  | {
-      readonly tag: "duplicate";
-      readonly slug: string;
-      readonly suggestedSlug: string;
-    };
-
-const IDLE_STATE: ModalState = { tag: "idle" };
-const LOADING_STATE: ModalState = { tag: "loading" };
-
-const AUTO_CLOSE_DELAY_MS = 1500;
-
-/** Returns the next available slug by appending an incrementing suffix. */
-function nextAvailableSlug(base: string, existing: readonly string[]): string {
-  let n = 1;
-  let candidate = `${base}-${n}`;
-  while (existing.includes(candidate)) {
-    n++;
-    candidate = `${base}-${n}`;
-  }
-  return candidate;
-}
 
 export function ImportModal({
   visible,
@@ -49,70 +27,19 @@ export function ImportModal({
   readonly onImportWithSlug: (url: string, slug: string) => Promise<ImportResult>;
   readonly allSlugs: readonly string[];
 }): React.JSX.Element | null {
-  const [url, setUrl] = useState("");
-  const [state, setState] = useState<ModalState>(IDLE_STATE);
-  const [customSlug, setCustomSlug] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Reset when the modal closes.
-  useEffect(() => {
-    if (!visible) {
-      setUrl("");
-      setState(IDLE_STATE);
-      setCustomSlug("");
-    }
-  }, [visible]);
-
-  // Auto-focus the URL field on open.
-  useEffect(() => {
-    if (!visible) return;
-    const timer = setTimeout(() => inputRef.current?.focus(), 100);
-    return () => clearTimeout(timer);
-  }, [visible]);
-
-  // Auto-close shortly after a successful import.
-  useEffect(() => {
-    if (state.tag !== "success") return;
-    const timer = setTimeout(() => onClose(), AUTO_CLOSE_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [state, onClose]);
-
-  const handleImport = useCallback(async () => {
-    const trimmed = url.trim();
-    if (trimmed.length === 0) return;
-
-    setState(LOADING_STATE);
-    const result = await onImport(trimmed);
-
-    if (result.ok) {
-      setState({ tag: "success", name: result.name });
-    } else if (result.duplicate) {
-      const suggested = nextAvailableSlug(result.slug, allSlugs);
-      setState({ tag: "duplicate", slug: result.slug, suggestedSlug: suggested });
-    } else {
-      setState({ tag: "error", message: result.error });
-    }
-  }, [url, onImport, allSlugs]);
-
-  const handleImportWithSlug = useCallback(async () => {
-    if (state.tag !== "duplicate") return;
-
-    const slug = customSlug.trim() || state.suggestedSlug;
-    setState(LOADING_STATE);
-    const result = await onImportWithSlug(url.trim(), slug);
-
-    if (result.ok) {
-      setState({ tag: "success", name: result.name });
-    } else {
-      setState({ tag: "error", message: result.error });
-    }
-  }, [customSlug, url, onImportWithSlug, state]);
+  const model = useImportModalModel({
+    visible,
+    onClose,
+    onImport,
+    onImportWithSlug,
+    allSlugs,
+    inputRef,
+  });
 
   if (!visible) return null;
 
-  const isLoading = state.tag === "loading";
-  const isDuplicate = state.tag === "duplicate";
-  const isImportDisabled = url.trim().length === 0 || isLoading;
+  const { state, isLoading, isDuplicate, isImportDisabled } = model;
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss is a pointer-only convenience; keyboard users close the dialog with Escape (handled on the dialog panel) or the Cancel button
@@ -134,14 +61,14 @@ export function ImportModal({
         <input
           ref={inputRef}
           style={styles.input}
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          value={model.url}
+          onChange={(e) => model.setUrl(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !isImportDisabled && !isDuplicate) {
-              void handleImport();
+              void model.handleImport();
             }
           }}
-          placeholder="https://example.com/game.cardgame.json"
+          placeholder={IMPORT_URL_PLACEHOLDER}
           disabled={isLoading || isDuplicate}
           autoComplete="off"
           spellCheck={false}
@@ -163,10 +90,10 @@ export function ImportModal({
             <div style={styles.hintText}>Choose a different name to import:</div>
             <input
               style={styles.input}
-              value={customSlug}
-              onChange={(e) => setCustomSlug(e.target.value)}
+              value={model.customSlug}
+              onChange={(e) => model.setCustomSlug(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") void handleImportWithSlug();
+                if (e.key === "Enter") void model.handleImportWithSlug();
               }}
               placeholder={state.suggestedSlug}
               autoComplete="off"
@@ -176,7 +103,7 @@ export function ImportModal({
               <Button
                 label="Import As"
                 variant="primary"
-                onPress={() => void handleImportWithSlug()}
+                onPress={() => void model.handleImportWithSlug()}
               />
               <Button label="Cancel" variant="secondary" onPress={onClose} />
             </div>
@@ -189,7 +116,7 @@ export function ImportModal({
               label="Import"
               variant="primary"
               disabled={isImportDisabled}
-              onPress={() => void handleImport()}
+              onPress={() => void model.handleImport()}
             />
             <Button label="Cancel" variant="secondary" disabled={isLoading} onPress={onClose} />
           </div>
