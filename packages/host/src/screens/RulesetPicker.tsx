@@ -1,72 +1,34 @@
 // ─── Ruleset Picker Screen ─────────────────────────────────────────
-// Displays available rulesets and allows the user to select one.
-// Built-in rulesets are loaded at build time; user-imported rulesets
-// are persisted via FileRulesetStore and managed through useRulesetStore.
+// Displays available rulesets and allows the user to select one. A
+// thin RN renderer over `useRulesetPickerModel` / `useStoreViewModel`
+// from host-core; built-in rulesets are loaded at build time and
+// user-imported rulesets are persisted via FileRulesetStore.
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useGameHost } from "@couch-kit/host";
-import type { CardGameRuleset, CatalogGame, InstalledGame } from "@card-engine/shared";
-import { safeParseRuleset } from "@card-engine/shared";
-import type { HostAction, HostGameState } from "@card-engine/shared";
+import type { CardGameRuleset, HostAction, HostGameState } from "@card-engine/shared";
 import {
-  BUILT_IN_RULESETS,
-  BUILT_IN_SLUGS,
-  CATALOG_BASE_URL,
+  PICKER_TABS,
   colors,
-  useCatalog,
-  useRulesetStore,
+  formatPlayerRange,
+  getStoreActions,
+  useRulesetPickerModel,
+  useStoreViewModel,
+  type PickerTab,
+  type RulesetItem,
+  type StoreAction,
+  type StoreGameModel,
 } from "@card-engine/host-core";
 import { ImportModal } from "../components/ImportModal";
 import { QRDisplay } from "../components/QRDisplay";
 import { rulesetStore } from "../storage";
 
-// ─── Types ─────────────────────────────────────────────────────────
-
-interface RulesetItem {
-  readonly id: string | null;
-  readonly ruleset: CardGameRuleset;
-  readonly source: "built_in" | "imported";
-}
-
 // ─── Component ─────────────────────────────────────────────────────
 
 export function RulesetPicker(): React.JSX.Element {
   const { state, dispatch, serverUrl } = useGameHost<HostGameState, HostAction>();
-  const {
-    rulesets: storedRulesets,
-    isLoading,
-    importFromUrl,
-    importWithSlug,
-    allSlugs,
-  } = useRulesetStore(rulesetStore, BUILT_IN_SLUGS, state.installedSlugs);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [tab, setTab] = useState<"library" | "store">("library");
-
-  const rulesetItems: readonly RulesetItem[] = useMemo(() => {
-    const builtIn: RulesetItem[] = BUILT_IN_RULESETS.map(
-      (rs: CardGameRuleset): RulesetItem => ({
-        id: null,
-        ruleset: rs,
-        source: "built_in" as const,
-      }),
-    );
-    const imported: RulesetItem[] = storedRulesets.map(
-      (stored): RulesetItem => ({
-        id: stored.id,
-        ruleset: stored.ruleset,
-        source: "imported" as const,
-      }),
-    );
-    return [...builtIn, ...imported];
-  }, [storedRulesets]);
-
-  const handleSelect = useCallback(
-    (ruleset: CardGameRuleset) => {
-      dispatch({ type: "SELECT_RULESET", ruleset });
-    },
-    [dispatch],
-  );
+  const model = useRulesetPickerModel(state, dispatch, rulesetStore);
 
   return (
     <View style={styles.container}>
@@ -78,47 +40,39 @@ export function RulesetPicker(): React.JSX.Element {
         </View>
       </View>
 
-      <TabBar tab={tab} onChange={setTab} />
+      <TabBar tab={model.tab} onChange={model.setTab} />
 
-      {tab === "store" ? (
+      {model.tab === "store" ? (
         <StoreView
           installedSlugs={state.installedSlugs}
-          builtInSlugs={BUILT_IN_SLUGS}
+          builtInSlugs={model.builtInSlugs}
           dispatch={dispatch}
         />
-      ) : isLoading ? (
+      ) : model.isLoading ? (
         <Text style={styles.loadingText}>Loading rulesets...</Text>
       ) : (
         <ScrollView contentContainerStyle={styles.listContent}>
           <View style={styles.grid}>
-            {rulesetItems.map((item, index) => (
+            {model.rulesetItems.map((item, index) => (
               <RulesetCard
-                key={item.id ?? `builtin:${item.ruleset.meta.slug}`}
+                key={item.key}
                 item={item}
-                onSelect={handleSelect}
+                onSelect={model.selectRuleset}
                 isFirst={index === 0}
-                onDelete={
-                  item.source === "imported" && item.id != null
-                    ? () =>
-                        dispatch({
-                          type: "UNINSTALL_RULESET",
-                          slug: item.ruleset.meta.slug,
-                        })
-                    : undefined
-                }
+                onDelete={model.deleteHandlerFor(item)}
               />
             ))}
           </View>
-          <ImportPlaceholder onPress={() => setModalVisible(true)} />
+          <ImportPlaceholder onPress={model.openModal} />
         </ScrollView>
       )}
 
       <ImportModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onImport={importFromUrl}
-        onImportWithSlug={importWithSlug}
-        allSlugs={allSlugs}
+        visible={model.modalVisible}
+        onClose={model.closeModal}
+        onImport={model.importFromUrl}
+        onImportWithSlug={model.importWithSlug}
+        allSlugs={model.allSlugs}
       />
     </View>
   );
@@ -141,11 +95,6 @@ const RulesetCard = React.memo(function RulesetCard({
   const [deleteFocused, setDeleteFocused] = useState(false);
   const { meta } = item.ruleset;
 
-  const playerRange =
-    meta.players.min === meta.players.max
-      ? `${meta.players.min} players`
-      : `${meta.players.min}–${meta.players.max} players`;
-
   return (
     <Pressable
       style={[styles.card, focused && styles.cardFocused]}
@@ -160,7 +109,7 @@ const RulesetCard = React.memo(function RulesetCard({
       <Text style={styles.cardMeta} numberOfLines={1} ellipsizeMode="tail">
         by {meta.author}
       </Text>
-      <Text style={styles.cardMeta}>{playerRange}</Text>
+      <Text style={styles.cardMeta}>{formatPlayerRange(meta.players)}</Text>
       <Text style={styles.cardVersion}>v{meta.version}</Text>
       {item.source === "built_in" && <Text style={styles.badge}>BUILT-IN</Text>}
       {onDelete != null && (
@@ -197,23 +146,18 @@ function ImportPlaceholder({ onPress }: { readonly onPress: () => void }): React
 
 // ─── Tab Bar ───────────────────────────────────────────────────────
 
-const TABS: readonly { readonly key: "library" | "store"; readonly label: string }[] = [
-  { key: "library", label: "My Games" },
-  { key: "store", label: "Store" },
-];
-
 function TabBar({
   tab,
   onChange,
 }: {
-  readonly tab: "library" | "store";
-  readonly onChange: (tab: "library" | "store") => void;
+  readonly tab: PickerTab;
+  readonly onChange: (tab: PickerTab) => void;
 }): React.JSX.Element {
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
 
   return (
     <View style={styles.tabBar}>
-      {TABS.map((t) => {
+      {PICKER_TABS.map((t) => {
         const active = tab === t.key;
         const focused = focusedKey === t.key;
         return (
@@ -239,51 +183,14 @@ function StoreView({
   builtInSlugs,
   dispatch,
 }: {
-  readonly installedSlugs: readonly InstalledGame[];
+  readonly installedSlugs: HostGameState["installedSlugs"];
   readonly builtInSlugs: readonly string[];
   readonly dispatch: (action: HostAction) => void;
 }): React.JSX.Element {
-  const { catalog, refetch } = useCatalog();
-  const [installing, setInstalling] = useState<ReadonlySet<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
-
-  const handleInstall = useCallback(
-    async (game: CatalogGame): Promise<void> => {
-      setError(null);
-      setInstalling((prev) => new Set(prev).add(game.slug));
-      try {
-        const res = await fetch(`${CATALOG_BASE_URL}${game.file}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const raw: unknown = await res.json();
-        const result = safeParseRuleset(raw);
-        if (!result.success) throw new Error("Invalid ruleset format");
-
-        dispatch({
-          type: "INSTALL_RULESET",
-          ruleset: result.data as CardGameRuleset,
-          slug: game.slug,
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Install failed";
-        setError(`Could not install ${game.name}: ${message}`);
-      } finally {
-        setInstalling((prev) => {
-          const next = new Set(prev);
-          next.delete(game.slug);
-          return next;
-        });
-      }
-    },
-    [dispatch],
-  );
-
-  const handleUninstall = useCallback(
-    (game: CatalogGame): void => {
-      setError(null);
-      dispatch({ type: "UNINSTALL_RULESET", slug: game.slug });
-    },
-    [dispatch],
+  const { catalog, refetch, error, games } = useStoreViewModel(
+    installedSlugs,
+    builtInSlugs,
+    dispatch,
   );
 
   if (catalog.tag === "loading") {
@@ -303,24 +210,13 @@ function StoreView({
   return (
     <ScrollView contentContainerStyle={styles.listContent}>
       {error != null && <Text style={styles.storeError}>{error}</Text>}
-      {catalog.games.length === 0 ? (
+      {games.length === 0 ? (
         <Text style={styles.loadingText}>No games available yet</Text>
       ) : (
         <View style={styles.grid}>
-          {catalog.games.map((game) => {
-            const installed = installedSlugs.find((s) => s.slug === game.slug);
-            return (
-              <StoreCard
-                key={game.slug}
-                game={game}
-                installedVersion={installed?.version ?? null}
-                installing={installing.has(game.slug)}
-                isBuiltIn={builtInSlugs.includes(game.slug)}
-                onInstall={() => handleInstall(game)}
-                onUninstall={() => handleUninstall(game)}
-              />
-            );
-          })}
+          {games.map((entry) => (
+            <StoreCard key={entry.game.slug} entry={entry} />
+          ))}
         </View>
       )}
     </ScrollView>
@@ -330,42 +226,12 @@ function StoreView({
 // ─── Store Card ────────────────────────────────────────────────────
 
 const StoreCard = React.memo(function StoreCard({
-  game,
-  installedVersion,
-  installing,
-  isBuiltIn,
-  onInstall,
-  onUninstall,
+  entry,
 }: {
-  readonly game: CatalogGame;
-  readonly installedVersion: string | null;
-  readonly installing: boolean;
-  readonly isBuiltIn: boolean;
-  readonly onInstall: () => void;
-  readonly onUninstall: () => void;
+  readonly entry: StoreGameModel;
 }): React.JSX.Element {
-  const isInstalled = installedVersion !== null;
-  const isUpdate = isInstalled && installedVersion !== game.version;
-
-  const playerRange =
-    game.players.min === game.players.max
-      ? `${game.players.min} players`
-      : `${game.players.min}–${game.players.max} players`;
-
-  const actions: readonly StoreAction[] = installing
-    ? [{ label: "...", variant: "disabled" }]
-    : !isInstalled
-      ? [{ label: "GET", variant: "primary", onPress: onInstall }]
-      : [
-          ...(isUpdate
-            ? [{ label: "UPDATE", variant: "primary", onPress: onInstall } as const]
-            : []),
-          ...(isBuiltIn
-            ? isUpdate
-              ? []
-              : [{ label: "BUILT-IN", variant: "disabled" } as const]
-            : [{ label: "REMOVE", variant: "danger", onPress: onUninstall } as const]),
-        ];
+  const { game } = entry;
+  const actions = getStoreActions(entry);
 
   return (
     <View style={styles.card}>
@@ -375,7 +241,7 @@ const StoreCard = React.memo(function StoreCard({
       <Text style={styles.cardMeta} numberOfLines={1} ellipsizeMode="tail">
         by {game.author}
       </Text>
-      <Text style={styles.cardMeta}>{playerRange}</Text>
+      <Text style={styles.cardMeta}>{formatPlayerRange(game.players)}</Text>
       {game.description != null && game.description !== "" && (
         <Text style={styles.cardDesc} numberOfLines={2} ellipsizeMode="tail">
           {game.description}
@@ -392,10 +258,6 @@ const StoreCard = React.memo(function StoreCard({
 });
 
 // ─── Store Action Button ───────────────────────────────────────────
-
-type StoreAction =
-  | { readonly label: string; readonly variant: "primary" | "danger"; readonly onPress: () => void }
-  | { readonly label: string; readonly variant: "disabled"; readonly onPress?: undefined };
 
 function ActionButton({ action }: { readonly action: StoreAction }): React.JSX.Element {
   const [focused, setFocused] = useState(false);
