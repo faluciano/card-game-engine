@@ -15,7 +15,6 @@ packages/client/
 └── src/
     ├── main.tsx            ReactDOM.createRoot entry (StrictMode)
     ├── App.tsx             Root component: CouchKit wiring + screen router
-    ├── index.ts            Barrel re-exports (all screens + components)
     ├── styles.css          Dark theme variables, CSS reset, keyframes
     ├── screens/
     │   ├── ConnectingScreen.tsx  Spinner + connection status
