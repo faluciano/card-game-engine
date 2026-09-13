@@ -53,4 +53,4 @@ Zone visibility is configured per-zone via the `visibility` field on each zone d
 
 For the full format specification, expression language reference, and annotated examples, see the **[Ruleset Authoring Guide](../docs/ruleset-authoring.md)**.
 
-Validate your ruleset against the JSON Schema at `packages/schema/src/schema/cardgame.v1.schema.json`.
+Validate your ruleset against the JSON Schema at `packages/shared/src/schema/cardgame.v1.schema.json`.

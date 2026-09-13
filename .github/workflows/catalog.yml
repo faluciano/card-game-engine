@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "rulesets/**"
-      - "packages/schema/**"
+      - "packages/shared/src/schema/**"
   workflow_dispatch:
 
 jobs:

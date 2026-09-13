@@ -1,2 +1,176 @@
-// Re-export all ruleset types from the canonical schema package.
-export type { CardGameRuleset, CardTemplateConfig, DeckConfig, DeckPreset, Expression, PhaseAction, PhaseDefinition, PhaseKind, PhaseTransition, RoleDefinition, RulesetMeta, ScoringConfig, TableColor, TableLayout, UIConfig, VariableDefinition, ZoneConfig } from "@card-engine/schema";
+// ─── Ruleset Definition ────────────────────────────────────────────
+// The complete, declarative schema for a card game.
+// A .cardgame.json file is parsed into this type.
+// Every section is readonly to enforce immutability after parse.
+
+import type { CardValue, ZoneVisibility } from "./card";
+
+// ─── Meta ──────────────────────────────────────────────────────────
+
+export interface RulesetMeta {
+  readonly name: string;
+  readonly slug: string;
+  readonly version: string;
+  readonly author: string;
+  readonly players: {
+    readonly min: number;
+    readonly max: number;
+  };
+  readonly description?: string;
+  readonly tags?: readonly string[];
+  readonly license?: string;
+}
+
+// ─── Deck Configuration ────────────────────────────────────────────
+
+/** Preset deck identifiers the engine knows how to build. */
+export type DeckPreset = "standard_52" | "standard_54";
+
+/** A card template for custom deck definitions. */
+export interface CardTemplateConfig {
+  readonly suit: string;
+  readonly rank: string;
+}
+
+/** Deck configuration — either a known preset or a custom card list. */
+export type DeckConfig =
+  | {
+      readonly preset: DeckPreset;
+      readonly copies: number;
+      readonly cardValues: Readonly<Record<string, CardValue>>;
+    }
+  | {
+      readonly preset: "custom";
+      readonly cards: readonly CardTemplateConfig[];
+      readonly copies: number;
+      readonly cardValues: Readonly<Record<string, CardValue>>;
+    };
+
+// ─── Zone Configuration ────────────────────────────────────────────
+
+export interface ZoneConfig {
+  readonly name: string;
+  readonly visibility: ZoneVisibility;
+  readonly owners: readonly string[];
+  readonly maxCards?: number;
+  /** Override visibility during specific game phases. */
+  readonly phaseOverrides?: readonly {
+    readonly phase: string;
+    readonly visibility: ZoneVisibility;
+  }[];
+}
+
+// ─── Roles ─────────────────────────────────────────────────────────
+
+export interface RoleDefinition {
+  readonly name: string;
+  readonly isHuman: boolean;
+  readonly count: number | "per_player";
+}
+
+// ─── Phases ────────────────────────────────────────────────────────
+
+/**
+ * Phase advancement model — discriminated on `kind`.
+ *
+ * - `automatic`:   engine advances after executing a sequence of actions
+ * - `turn_based`:  players take turns choosing from allowed actions
+ * - `all_players`: all players act simultaneously (e.g., reveal phase)
+ */
+export type PhaseKind = "automatic" | "turn_based" | "all_players";
+
+export interface PhaseAction {
+  readonly name: string;
+  readonly label: string;
+  readonly condition?: Expression;
+  readonly effect: readonly Expression[];
+}
+
+export interface PhaseDefinition {
+  readonly name: string;
+  readonly kind: PhaseKind;
+  readonly actions: readonly PhaseAction[];
+  readonly transitions: readonly PhaseTransition[];
+  /** Lifecycle hook: expressions executed when entering an automatic phase. */
+  readonly onEnter?: readonly Expression[];
+  /**
+   * Lifecycle hook: expressions executed once per host-driven step while
+   * lingering in an automatic phase (via the `step_phase` action). Enables
+   * paced sequences — e.g., a dealer drawing one card at a time with a delay.
+   */
+  readonly onStep?: readonly Expression[];
+  /** Lifecycle hook: expressions executed when leaving any phase (not yet implemented). */
+  readonly onExit?: readonly Expression[];
+  /** For turn_based phases: how turn order advances. */
+  readonly turnOrder?: "clockwise" | "counterclockwise" | "fixed";
+  /** Auto-ends the current player's turn when this condition is true. */
+  readonly autoEndTurnCondition?: Expression;
+}
+
+export interface PhaseTransition {
+  readonly to: string;
+  readonly when: Expression;
+}
+
+// ─── Expression DSL ────────────────────────────────────────────────
+
+/**
+ * A safe expression in the ruleset DSL.
+ * Can be a simple string expression or a structured operation.
+ * The ExpressionEvaluator interprets these at runtime.
+ */
+export type Expression = string;
+
+// ─── Scoring ───────────────────────────────────────────────────────
+
+export interface ScoringConfig {
+  readonly method: Expression;
+  readonly winCondition: Expression;
+  readonly bustCondition?: Expression;
+  readonly tieCondition?: Expression;
+}
+
+// ─── UI Hints ──────────────────────────────────────────────────────
+
+export type TableLayout = "semicircle" | "circle" | "grid" | "linear";
+export type TableColor = "felt_green" | "wood" | "dark" | "custom";
+
+export interface UIConfig {
+  readonly layout: TableLayout;
+  readonly tableColor: TableColor;
+  readonly customColor?: string;
+}
+
+// ─── Variable Definitions ──────────────────────────────────────────
+
+/**
+ * A unified variable definition declaring type, initial value, and
+ * optional public visibility in a single manifest entry.
+ */
+export type VariableDefinition =
+  | { readonly type: "number"; readonly initial: number; readonly public?: boolean }
+  | { readonly type: "string"; readonly initial: string; readonly public?: boolean };
+
+// ─── Complete Ruleset ──────────────────────────────────────────────
+
+/**
+ * The top-level type for a fully parsed .cardgame.json file.
+ * Immutable by design — the engine never mutates a ruleset.
+ */
+export interface CardGameRuleset {
+  readonly $schema?: string;
+  readonly meta: RulesetMeta;
+  readonly deck: DeckConfig;
+  readonly zones: readonly ZoneConfig[];
+  readonly roles: readonly RoleDefinition[];
+  readonly phases: readonly PhaseDefinition[];
+  readonly scoring: ScoringConfig;
+  /**
+   * Unified variable manifest. Each entry declares a variable's type,
+   * initial value, and optional public visibility.
+   */
+  readonly variables?: Readonly<Record<string, VariableDefinition>>;
+  /** Cross-cutting transitions evaluated after phase-specific ones. */
+  readonly globalTransitions?: readonly PhaseTransition[];
+  readonly ui: UIConfig;
+}

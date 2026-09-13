@@ -5,15 +5,13 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { safeParseRuleset } from "../packages/schema/src/index";
+import { safeParseRuleset } from "../packages/shared/src/index";
 
 const RULESETS_DIR = join(import.meta.dir, "..", "rulesets");
 
 async function main(): Promise<void> {
   const entries = await readdir(RULESETS_DIR);
-  const files = entries
-    .filter((f) => f.endsWith(".cardgame.json"))
-    .sort();
+  const files = entries.filter((f) => f.endsWith(".cardgame.json")).sort();
 
   if (files.length === 0) {
     console.error("No .cardgame.json files found in rulesets/");

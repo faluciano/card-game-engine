@@ -1,5 +1,5 @@
 {
-  "$schema": "../packages/schema/src/schema/cardgame.v1.schema.json",
+  "$schema": "../packages/shared/src/schema/cardgame.v1.schema.json",
   "meta": {
     "name": "Crazy Eights",
     "slug": "crazy-eights",
@@ -69,9 +69,7 @@
       "name": "setup",
       "kind": "automatic",
       "actions": [],
-      "transitions": [
-        { "to": "player_turns", "when": "all_hands_dealt" }
-      ],
+      "transitions": [{ "to": "player_turns", "when": "all_hands_dealt" }],
       "onEnter": [
         "shuffle(draw_pile)",
         "deal(draw_pile, hand, 5)",
@@ -97,15 +95,18 @@
           "name": "draw",
           "label": "Draw Card",
           "condition": "count_rank(current_player.hand, \"8\") == 0 && (get_str_var(\"active_suit\") == \"\" && !has_playable_card(current_player.hand, discard) || get_str_var(\"active_suit\") != \"\" && !has_card_matching_suit(current_player.hand, get_str_var(\"active_suit\")))",
-          "effect": [
-            "draw(draw_pile, current_player.hand, 1)",
-            "end_turn()"
-          ]
+          "effect": ["draw(draw_pile, current_player.hand, 1)", "end_turn()"]
         }
       ],
       "transitions": [
-        { "to": "scoring", "when": "card_count(\"hand:0\") == 0 || card_count(\"hand:1\") == 0 || if(player_count > 2, card_count(\"hand:2\") == 0, false) || if(player_count > 3, card_count(\"hand:3\") == 0, false)" },
-        { "to": "choose_suit", "when": "card_rank_name(discard, 0) == \"8\" && get_str_var(\"active_suit\") == \"\"" },
+        {
+          "to": "scoring",
+          "when": "card_count(\"hand:0\") == 0 || card_count(\"hand:1\") == 0 || if(player_count > 2, card_count(\"hand:2\") == 0, false) || if(player_count > 3, card_count(\"hand:3\") == 0, false)"
+        },
+        {
+          "to": "choose_suit",
+          "when": "card_rank_name(discard, 0) == \"8\" && get_str_var(\"active_suit\") == \"\""
+        },
         { "to": "reshuffle", "when": "card_count(draw_pile) == 0 && card_count(discard) > 1" }
       ],
       "turnOrder": "clockwise"
@@ -117,48 +118,32 @@
         {
           "name": "choose_hearts",
           "label": "Hearts",
-          "effect": [
-            "set_str_var(\"active_suit\", \"hearts\")",
-            "end_turn()"
-          ]
+          "effect": ["set_str_var(\"active_suit\", \"hearts\")", "end_turn()"]
         },
         {
           "name": "choose_diamonds",
           "label": "Diamonds",
-          "effect": [
-            "set_str_var(\"active_suit\", \"diamonds\")",
-            "end_turn()"
-          ]
+          "effect": ["set_str_var(\"active_suit\", \"diamonds\")", "end_turn()"]
         },
         {
           "name": "choose_clubs",
           "label": "Clubs",
-          "effect": [
-            "set_str_var(\"active_suit\", \"clubs\")",
-            "end_turn()"
-          ]
+          "effect": ["set_str_var(\"active_suit\", \"clubs\")", "end_turn()"]
         },
         {
           "name": "choose_spades",
           "label": "Spades",
-          "effect": [
-            "set_str_var(\"active_suit\", \"spades\")",
-            "end_turn()"
-          ]
+          "effect": ["set_str_var(\"active_suit\", \"spades\")", "end_turn()"]
         }
       ],
-      "transitions": [
-        { "to": "player_turns", "when": "get_str_var(\"active_suit\") != \"\"" }
-      ],
+      "transitions": [{ "to": "player_turns", "when": "get_str_var(\"active_suit\") != \"\"" }],
       "turnOrder": "clockwise"
     },
     {
       "name": "reshuffle",
       "kind": "automatic",
       "actions": [],
-      "transitions": [
-        { "to": "player_turns", "when": "card_count(draw_pile) > 0" }
-      ],
+      "transitions": [{ "to": "player_turns", "when": "card_count(draw_pile) > 0" }],
       "onEnter": [
         "move_top(discard, stash, 1)",
         "move_all(discard, draw_pile)",
@@ -170,13 +155,8 @@
       "name": "scoring",
       "kind": "automatic",
       "actions": [],
-      "transitions": [
-        { "to": "round_end", "when": "scores_calculated" }
-      ],
-      "onEnter": [
-        "calculate_scores()",
-        "determine_winners()"
-      ]
+      "transitions": [{ "to": "round_end", "when": "scores_calculated" }],
+      "onEnter": ["calculate_scores()", "determine_winners()"]
     },
     {
       "name": "round_end",
@@ -185,15 +165,10 @@
         {
           "name": "play_again",
           "label": "Play Again",
-          "effect": [
-            "collect_all_to(draw_pile)",
-            "reset_round()"
-          ]
+          "effect": ["collect_all_to(draw_pile)", "reset_round()"]
         }
       ],
-      "transitions": [
-        { "to": "setup", "when": "continue_game" }
-      ]
+      "transitions": [{ "to": "setup", "when": "continue_game" }]
     }
   ],
   "scoring": {
