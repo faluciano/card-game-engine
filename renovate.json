@@ -27,6 +27,11 @@
       "automerge": false
     },
     {
+      "description": "react-native-nitro-http-server 1.9.x (via @couch-kit/host) declares peer react-native-nitro-modules ^0.35, and Nitro minors change the generated C++ ABI, so hold nitro-modules within 0.35 until http-server moves.",
+      "matchPackageNames": ["react-native-nitro-modules"],
+      "allowedVersions": "<0.36.0"
+    },
+    {
       "description": "Web toolchain and test runner: open PRs, review manually.",
       "matchPackageNames": [
         "vite",
