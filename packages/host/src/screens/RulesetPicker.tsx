@@ -4,23 +4,22 @@
 // are persisted via FileRulesetStore and managed through useRulesetStore.
 
 import React, { useMemo, useState, useCallback } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useGameHost } from "@couch-kit/host";
 import type { CardGameRuleset, CatalogGame, InstalledGame } from "@card-engine/shared";
 import { safeParseRuleset } from "@card-engine/shared";
-import type { HostAction, HostGameState } from "../types/host-state";
-import { useRulesetStore } from "../hooks/useRulesetStore";
-import { useCatalog, CATALOG_BASE_URL } from "../hooks/useCatalog";
+import type { HostAction, HostGameState } from "@card-engine/shared";
+import {
+  BUILT_IN_RULESETS,
+  BUILT_IN_SLUGS,
+  CATALOG_BASE_URL,
+  colors,
+  useCatalog,
+  useRulesetStore,
+} from "@card-engine/host-core";
 import { ImportModal } from "../components/ImportModal";
 import { QRDisplay } from "../components/QRDisplay";
-import { BUILT_IN_RULESETS, BUILT_IN_SLUGS } from "../built-in-rulesets";
-import { colors } from "../theme";
+import { rulesetStore } from "../storage";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -40,7 +39,7 @@ export function RulesetPicker(): React.JSX.Element {
     importFromUrl,
     importWithSlug,
     allSlugs,
-  } = useRulesetStore(BUILT_IN_SLUGS, state.installedSlugs);
+  } = useRulesetStore(rulesetStore, BUILT_IN_SLUGS, state.installedSlugs);
   const [modalVisible, setModalVisible] = useState(false);
   const [tab, setTab] = useState<"library" | "store">("library");
 
@@ -155,19 +154,18 @@ const RulesetCard = React.memo(function RulesetCard({
       onPress={() => onSelect(item.ruleset)}
       hasTVPreferredFocus={isFirst}
     >
-      <Text style={styles.cardName} numberOfLines={1} ellipsizeMode="tail">{meta.name}</Text>
-      <Text style={styles.cardMeta} numberOfLines={1} ellipsizeMode="tail">by {meta.author}</Text>
+      <Text style={styles.cardName} numberOfLines={1} ellipsizeMode="tail">
+        {meta.name}
+      </Text>
+      <Text style={styles.cardMeta} numberOfLines={1} ellipsizeMode="tail">
+        by {meta.author}
+      </Text>
       <Text style={styles.cardMeta}>{playerRange}</Text>
       <Text style={styles.cardVersion}>v{meta.version}</Text>
-      {item.source === "built_in" && (
-        <Text style={styles.badge}>BUILT-IN</Text>
-      )}
+      {item.source === "built_in" && <Text style={styles.badge}>BUILT-IN</Text>}
       {onDelete != null && (
         <Pressable
-          style={[
-            styles.deleteButton,
-            deleteFocused && styles.deleteButtonFocused,
-          ]}
+          style={[styles.deleteButton, deleteFocused && styles.deleteButtonFocused]}
           onFocus={() => setDeleteFocused(true)}
           onBlur={() => setDeleteFocused(false)}
           onPress={onDelete}
@@ -181,11 +179,7 @@ const RulesetCard = React.memo(function RulesetCard({
 
 // ─── Import Placeholder ────────────────────────────────────────────
 
-function ImportPlaceholder({
-  onPress,
-}: {
-  readonly onPress: () => void;
-}): React.JSX.Element {
+function ImportPlaceholder({ onPress }: { readonly onPress: () => void }): React.JSX.Element {
   const [focused, setFocused] = useState(false);
 
   return (
@@ -225,18 +219,12 @@ function TabBar({
         return (
           <Pressable
             key={t.key}
-            style={[
-              styles.tab,
-              active && styles.tabActive,
-              focused && styles.tabFocused,
-            ]}
+            style={[styles.tab, active && styles.tabActive, focused && styles.tabFocused]}
             onFocus={() => setFocusedKey(t.key)}
             onBlur={() => setFocusedKey(null)}
             onPress={() => onChange(t.key)}
           >
-            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-              {t.label}
-            </Text>
+            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t.label}</Text>
           </Pressable>
         );
       })}
@@ -442,11 +430,7 @@ function ActionButton({ action }: { readonly action: StoreAction }): React.JSX.E
 
 // ─── Retry Button ──────────────────────────────────────────────────
 
-function RetryButton({
-  onPress,
-}: {
-  readonly onPress: () => void;
-}): React.JSX.Element {
+function RetryButton({ onPress }: { readonly onPress: () => void }): React.JSX.Element {
   const [focused, setFocused] = useState(false);
   return (
     <Pressable

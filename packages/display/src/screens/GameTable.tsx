@@ -14,9 +14,8 @@ import type {
   UIConfig,
   ZoneState,
 } from "@card-engine/shared";
-import { useGameOrchestrator } from "../host-logic/use-game-orchestrator.js";
+import { colors, useGameOrchestrator } from "@card-engine/host-core";
 import { Button } from "../components/Button.js";
-import { colors } from "../theme.js";
 
 // ─── Constants ─────────────────────────────────────────────────────
 
@@ -98,19 +97,14 @@ const StatusBar = React.memo(function StatusBar({
 }: {
   readonly engineState: CardGameState;
 }): React.JSX.Element {
-  const currentPlayer =
-    engineState.players[engineState.currentPlayerIndex] ?? null;
+  const currentPlayer = engineState.players[engineState.currentPlayerIndex] ?? null;
   const statusLabel = formatStatusKind(engineState.status.kind);
 
   return (
     <div style={styles.statusBar}>
-      <span style={styles.phaseLabel}>
-        Phase: {formatPhaseName(engineState.currentPhase)}
-      </span>
+      <span style={styles.phaseLabel}>Phase: {formatPhaseName(engineState.currentPhase)}</span>
       <span style={styles.statusLabel}>{statusLabel}</span>
-      {currentPlayer && (
-        <span style={styles.turnIndicator}>Turn: {currentPlayer.name}</span>
-      )}
+      {currentPlayer && <span style={styles.turnIndicator}>Turn: {currentPlayer.name}</span>}
       <span style={styles.turnNumber}>Round {engineState.turnNumber}</span>
     </div>
   );
@@ -122,12 +116,12 @@ const SharedZones = React.memo(function SharedZones({
   engineState,
 }: {
   readonly engineState: CardGameState;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const sharedZones = useMemo(() => getSharedZones(engineState), [engineState]);
 
-  const activeSuit = engineState.stringVariables?.["active_suit"] ?? "";
+  const activeSuit = engineState.stringVariables?.active_suit ?? "";
 
-  if (sharedZones.length === 0 && !activeSuit) return <></>;
+  if (sharedZones.length === 0 && !activeSuit) return null;
 
   return (
     <div style={styles.section}>
@@ -153,13 +147,10 @@ const PlayerZones = React.memo(function PlayerZones({
   engineState,
 }: {
   readonly engineState: CardGameState;
-}): React.JSX.Element {
-  const playerZoneGroups = useMemo(
-    () => getPlayerZoneGroups(engineState),
-    [engineState],
-  );
+}): React.JSX.Element | null {
+  const playerZoneGroups = useMemo(() => getPlayerZoneGroups(engineState), [engineState]);
 
-  if (playerZoneGroups.length === 0) return <></>;
+  if (playerZoneGroups.length === 0) return null;
 
   return (
     <div style={styles.section}>
@@ -267,6 +258,7 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
   prevCardCountRef.current = cards.length;
 
   // Clear the "new" marker once the staggered deal has finished.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cards.length is the deliberate trigger — the effect only reads a ref and must re-arm the timer whenever the card count changes
   useEffect(() => {
     if (newCardStartIndex.current >= 0) {
       const timer = setTimeout(() => {
@@ -276,8 +268,7 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
     }
   }, [cards.length]);
 
-  const allFaceDown =
-    !revealed && cards.length > 0 && cards.every((card) => !card.faceUp);
+  const allFaceDown = !revealed && cards.length > 0 && cards.every((card) => !card.faceUp);
   const shouldCollapse = allFaceDown && cards.length > STACK_COLLAPSE_THRESHOLD;
   const hasFaceUpCards = cards.some((c) => c.faceUp);
   const shouldShowTopOnly =
@@ -288,17 +279,18 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
     !expanded;
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       onClick={() => setExpanded((prev) => !prev)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          setExpanded((prev) => !prev);
-        }
+      style={{
+        // Button reset; border, padding and cursor come from styles.zone.
+        background: "none",
+        margin: 0,
+        font: "inherit",
+        color: "inherit",
+        textAlign: "inherit",
+        ...styles.zone,
       }}
-      style={styles.zone}
     >
       <div style={styles.zoneName}>{formatZoneName(name)}</div>
       <div style={styles.cardRow}>
@@ -314,19 +306,14 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
           <>
             <FlippableCardView card={cards[0]!} />
             <div style={styles.moreIndicator}>
-              <span style={styles.moreIndicatorText}>
-                +{cards.length - 1} more
-              </span>
+              <span style={styles.moreIndicatorText}>+{cards.length - 1} more</span>
             </div>
           </>
         ) : (
-          <CappedCardList
-            cards={cards}
-            newCardStartIndex={newCardStartIndex.current}
-          />
+          <CappedCardList cards={cards} newCardStartIndex={newCardStartIndex.current} />
         )}
       </div>
-    </div>
+    </button>
   );
 });
 
@@ -336,13 +323,9 @@ const StackedDeck = React.memo(function StackedDeck(): React.JSX.Element {
   return (
     <div style={styles.stackedDeck}>
       {/* Bottom shadow card */}
-      <div
-        style={{ ...styles.card, ...styles.cardBack, ...styles.stackShadow2 }}
-      />
+      <div style={{ ...styles.card, ...styles.cardBack, ...styles.stackShadow2 }} />
       {/* Middle shadow card */}
-      <div
-        style={{ ...styles.card, ...styles.cardBack, ...styles.stackShadow1 }}
-      />
+      <div style={{ ...styles.card, ...styles.cardBack, ...styles.stackShadow1 }} />
       {/* Top card */}
       <div style={{ ...styles.card, ...styles.cardBack, ...styles.stackTop }}>
         <div style={styles.cardBackFrame} />
@@ -407,9 +390,7 @@ const ActiveSuitIndicator = React.memo(function ActiveSuitIndicator({
   return (
     <div style={styles.activeSuitContainer}>
       <div style={styles.activeSuitLabel}>ACTIVE SUIT</div>
-      <div style={{ ...styles.activeSuitSymbol, color: suitColor }}>
-        {symbol}
-      </div>
+      <div style={{ ...styles.activeSuitSymbol, color: suitColor }}>{symbol}</div>
       <div style={{ ...styles.activeSuitName, color: suitColor }}>
         {suit.charAt(0).toUpperCase() + suit.slice(1)}
       </div>
@@ -440,14 +421,11 @@ function CappedCardList({
       )}
       {visibleCards.map((card, i) => {
         const globalIndex = visibleOffset + i;
-        const isNewCard =
-          newCardStartIndex >= 0 && globalIndex >= newCardStartIndex;
+        const isNewCard = newCardStartIndex >= 0 && globalIndex >= newCardStartIndex;
 
         if (isNewCard) {
           const staggerDelay = (globalIndex - newCardStartIndex) * 80;
-          return (
-            <AnimatedCardView key={card.id} card={card} delay={staggerDelay} />
-          );
+          return <AnimatedCardView key={card.id} card={card} delay={staggerDelay} />;
         }
 
         return <FlippableCardView key={card.id} card={card} />;
@@ -543,9 +521,9 @@ const ScoreBoard = React.memo(function ScoreBoard({
   engineState,
 }: {
   readonly engineState: CardGameState;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const scoreEntries = Object.entries(engineState.scores);
-  if (scoreEntries.length === 0) return <></>;
+  if (scoreEntries.length === 0) return null;
 
   return (
     <div style={styles.section}>
@@ -573,21 +551,19 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
 }: {
   readonly engineState: CardGameState;
   readonly dispatch: (action: HostAction) => void;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const isRoundEnd = engineState.currentPhase === "round_end";
   const isFinished = engineState.status.kind === "finished";
 
   // Guard: only show for round_end or finished
-  if (!isRoundEnd && !isFinished) return <></>;
+  if (!isRoundEnd && !isFinished) return null;
 
   const backToMenu = (): void => dispatch({ type: "BACK_TO_PICKER" });
 
   if (isRoundEnd) {
     // ── Round-end view: show per-player results ──
     const npcScores = Object.entries(engineState.scores)
-      .filter(
-        ([key]) => key.endsWith("_score") && !key.startsWith("player_score:"),
-      )
+      .filter(([key]) => key.endsWith("_score") && !key.startsWith("player_score:"))
       .map(([key, value]) => ({
         label: key
           .replace(/_score$/, "")
@@ -604,14 +580,9 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
           {engineState.players.map((player, index) => {
             const handValue = engineState.scores[`player_score:${index}`] ?? 0;
             const result = engineState.scores[`result:${index}`] ?? 0;
-            const resultLabel =
-              result > 0 ? "WIN" : result < 0 ? "LOSS" : "DRAW";
+            const resultLabel = result > 0 ? "WIN" : result < 0 ? "LOSS" : "DRAW";
             const resultColor =
-              result > 0
-                ? colors.success
-                : result < 0
-                  ? colors.redAlt
-                  : colors.amber;
+              result > 0 ? colors.success : result < 0 ? colors.redAlt : colors.amber;
 
             return (
               <div key={player.id} style={resultsStyles.playerRow}>
@@ -623,9 +594,7 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
                     backgroundColor: resultColor,
                   }}
                 >
-                  <span style={resultsStyles.resultBadgeText}>
-                    {resultLabel}
-                  </span>
+                  <span style={resultsStyles.resultBadgeText}>{resultLabel}</span>
                 </div>
               </div>
             );
@@ -644,9 +613,7 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
           )}
 
           {/* Info text — phones trigger the new round, not the display */}
-          <div style={resultsStyles.waitingText}>
-            Waiting for players to start new round...
-          </div>
+          <div style={resultsStyles.waitingText}>Waiting for players to start new round...</div>
 
           <div style={styles.overlayButtons}>
             <Button
@@ -666,9 +633,7 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
   const { winnerId } = engineState.status as {
     readonly winnerId: string | null;
   };
-  const winner = winnerId
-    ? engineState.players.find((p) => p.id === winnerId)
-    : null;
+  const winner = winnerId ? engineState.players.find((p) => p.id === winnerId) : null;
 
   return (
     <div style={styles.overlay}>
@@ -695,12 +660,8 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
 // ─── Pure Helpers ──────────────────────────────────────────────────
 
 /** Returns shared (non-player-owned) zone entries. */
-function getSharedZones(
-  engineState: CardGameState,
-): readonly [string, ZoneState][] {
-  return Object.entries(engineState.zones).filter(
-    ([name]) => !isPlayerZone(name),
-  );
+function getSharedZones(engineState: CardGameState): readonly [string, ZoneState][] {
+  return Object.entries(engineState.zones).filter(([name]) => !isPlayerZone(name));
 }
 
 /** Checks if a zone name follows the per-player pattern (e.g., "hand:0"). */
@@ -714,16 +675,11 @@ function isPlayerZone(name: string): boolean {
  * phase overrides) is `public` — the whole table is meant to see it, so we
  * reveal it here even if individual cards were dealt face-down.
  */
-function isPublicOnTable(
-  engineState: CardGameState,
-  zoneName: string,
-): boolean {
+function isPublicOnTable(engineState: CardGameState, zoneName: string): boolean {
   const baseName = zoneName.replace(/:\d+$/, "");
   const def = engineState.ruleset.zones.find((z) => z.name === baseName);
   if (!def) return false;
-  const override = def.phaseOverrides?.find(
-    (o) => o.phase === engineState.currentPhase,
-  );
+  const override = def.phaseOverrides?.find((o) => o.phase === engineState.currentPhase);
   const visibility = override?.visibility ?? def.visibility;
   return visibility.kind === "public";
 }
@@ -736,17 +692,13 @@ interface PlayerZoneGroup {
 }
 
 /** Groups per-player zones under their owning player. */
-function getPlayerZoneGroups(
-  engineState: CardGameState,
-): readonly PlayerZoneGroup[] {
+function getPlayerZoneGroups(engineState: CardGameState): readonly PlayerZoneGroup[] {
   const groups: PlayerZoneGroup[] = [];
 
   for (let i = 0; i < engineState.players.length; i++) {
     const player = engineState.players[i]!;
     const playerSuffix = `:${i}`;
-    const zones = Object.entries(engineState.zones).filter(([name]) =>
-      name.endsWith(playerSuffix),
-    );
+    const zones = Object.entries(engineState.zones).filter(([name]) => name.endsWith(playerSuffix));
 
     if (zones.length > 0) {
       groups.push({

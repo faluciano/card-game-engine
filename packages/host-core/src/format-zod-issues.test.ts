@@ -40,9 +40,7 @@ describe("formatZodIssues", () => {
 
       const result = formatZodIssues(issues);
 
-      expect(result).toBe(
-        "Validation failed: meta.slug: Required; deck.preset: Invalid",
-      );
+      expect(result).toBe("Validation failed: meta.slug: Required; deck.preset: Invalid");
     });
   });
 
@@ -54,9 +52,7 @@ describe("formatZodIssues", () => {
 
       const result = formatZodIssues(issues);
 
-      expect(result).toBe(
-        "Validation failed: (root): Expected object, received array",
-      );
+      expect(result).toBe("Validation failed: (root): Expected object, received array");
     });
 
     it("formats single root issue correctly", () => {
@@ -112,18 +108,11 @@ describe("formatZodIssues", () => {
 
   describe("deeply nested path", () => {
     it("formats long path correctly", () => {
-      const issues = [
-        makeIssue(
-          ["phases", 0, "actions", 3, "conditions", 1, "type"],
-          "Invalid",
-        ),
-      ];
+      const issues = [makeIssue(["phases", 0, "actions", 3, "conditions", 1, "type"], "Invalid")];
 
       const result = formatZodIssues(issues);
 
-      expect(result).toBe(
-        "Validation failed: phases.0.actions.3.conditions.1.type: Invalid",
-      );
+      expect(result).toBe("Validation failed: phases.0.actions.3.conditions.1.type: Invalid");
     });
   });
 });

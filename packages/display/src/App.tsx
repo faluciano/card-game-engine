@@ -7,18 +7,17 @@ import {
   type HostGameState,
   type HostAction,
 } from "@card-engine/shared";
-import { BUILT_IN_INSTALLED } from "./host-logic/built-in-rulesets.js";
 import {
+  BUILT_IN_INSTALLED,
+  colors,
   useInstalledSlugs,
   useRulesetInstaller,
   useRulesetUninstaller,
-} from "./host-logic/ruleset-hooks.js";
+} from "@card-engine/host-core";
 import { ScreenRouter } from "./ScreenRouter.js";
-import { colors } from "./theme.js";
+import { rulesetStore } from "./storage/web-ruleset-store.js";
 
-const RELAY_URL =
-  import.meta.env.VITE_RELAY_URL ??
-  "wss://couch-kit-relay.faluciano.workers.dev";
+const RELAY_URL = import.meta.env.VITE_RELAY_URL ?? "wss://couch-kit-relay.faluciano.workers.dev";
 
 // Base URL of the deployed controller. The join link appends `?room=CODE`.
 const CONTROLLER_URL = import.meta.env.VITE_CONTROLLER_URL ?? "";
@@ -47,9 +46,9 @@ export function App(): React.JSX.Element {
 
   // Host-side ruleset orchestration (seeds built-ins, handles install/uninstall
   // requested by phones) — the same hooks the Android TV host runs.
-  useInstalledSlugs(display.dispatch, BUILT_IN_INSTALLED);
-  useRulesetInstaller(state.pendingInstall, display.dispatch, BUILT_IN_INSTALLED);
-  useRulesetUninstaller(state.pendingUninstall, display.dispatch, BUILT_IN_INSTALLED);
+  useInstalledSlugs(rulesetStore, display.dispatch, BUILT_IN_INSTALLED);
+  useRulesetInstaller(rulesetStore, state.pendingInstall, display.dispatch, BUILT_IN_INSTALLED);
+  useRulesetUninstaller(rulesetStore, state.pendingUninstall, display.dispatch, BUILT_IN_INSTALLED);
 
   const joinUrl =
     CONTROLLER_URL && roomId
@@ -67,12 +66,7 @@ export function App(): React.JSX.Element {
         fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
       }}
     >
-      <ScreenRouter
-        state={state}
-        dispatch={display.dispatch}
-        joinUrl={joinUrl}
-        roomId={roomId}
-      />
+      <ScreenRouter state={state} dispatch={display.dispatch} joinUrl={joinUrl} roomId={roomId} />
     </div>
   );
 }

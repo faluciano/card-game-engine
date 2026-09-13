@@ -13,16 +13,18 @@ import type {
   InstalledGame,
 } from "@card-engine/shared";
 import { safeParseRuleset } from "@card-engine/shared";
-import { useRulesetStore } from "../host-logic/use-ruleset-store.js";
-import { useCatalog, CATALOG_BASE_URL } from "../host-logic/use-catalog.js";
 import {
   BUILT_IN_RULESETS,
   BUILT_IN_SLUGS,
-} from "../host-logic/built-in-rulesets.js";
+  CATALOG_BASE_URL,
+  colors,
+  useCatalog,
+  useRulesetStore,
+} from "@card-engine/host-core";
 import { Button } from "../components/Button.js";
 import { ImportModal } from "../components/ImportModal.js";
 import { JoinPanel } from "../components/JoinPanel.js";
-import { colors } from "../theme.js";
+import { rulesetStore } from "../storage/web-ruleset-store.js";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -53,7 +55,7 @@ export function RulesetPicker({
     importFromUrl,
     importWithSlug,
     allSlugs,
-  } = useRulesetStore(BUILT_IN_SLUGS, state.installedSlugs);
+  } = useRulesetStore(rulesetStore, BUILT_IN_SLUGS, state.installedSlugs);
   const [modalVisible, setModalVisible] = useState(false);
   const [tab, setTab] = useState<Tab>("library");
 
@@ -157,6 +159,7 @@ const RulesetCard = React.memo(function RulesetCard({
       : `${meta.players.min}–${meta.players.max} players`;
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: cannot be a <button> because it nests the interactive DELETE <Button>; it is fully keyboard-operable (tabIndex + Enter/Space handler)
     <div
       role="button"
       tabIndex={0}
@@ -186,6 +189,7 @@ const RulesetCard = React.memo(function RulesetCard({
       {onDelete != null && (
         // Stop propagation so removing a game doesn't also select it — the RN
         // original got this for free from nested Pressables.
+        // biome-ignore lint/a11y/noStaticElementInteractions: non-interactive wrapper that only stops event propagation; the real control is the nested <Button>
         <span
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
@@ -206,11 +210,7 @@ const RulesetCard = React.memo(function RulesetCard({
 
 // ─── Import Placeholder ────────────────────────────────────────────
 
-function ImportPlaceholder({
-  onPress,
-}: {
-  readonly onPress: () => void;
-}): React.JSX.Element {
+function ImportPlaceholder({ onPress }: { readonly onPress: () => void }): React.JSX.Element {
   const [hovered, setHovered] = useState(false);
 
   return (

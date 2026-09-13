@@ -5,7 +5,7 @@
 
 import React from "react";
 import QRCode from "react-qr-code";
-import { colors } from "../theme.js";
+import { colors } from "@card-engine/host-core";
 
 export const JoinPanel = React.memo(function JoinPanel({
   joinUrl,
@@ -23,16 +23,12 @@ export const JoinPanel = React.memo(function JoinPanel({
           <QRCode value={joinUrl} size={size} />
         ) : (
           <span style={styles.qrFallback}>
-            {!roomId
-              ? "Getting a room code…"
-              : "Set VITE_CONTROLLER_URL to show a join QR"}
+            {!roomId ? "Getting a room code…" : "Set VITE_CONTROLLER_URL to show a join QR"}
           </span>
         )}
       </div>
       <div style={styles.codeLabel}>ROOM CODE</div>
-      <div style={{ ...styles.code, fontSize: Math.round(size * 0.28) }}>
-        {roomId ?? "······"}
-      </div>
+      <div style={{ ...styles.code, fontSize: Math.round(size * 0.28) }}>{roomId ?? "······"}</div>
     </div>
   );
 });

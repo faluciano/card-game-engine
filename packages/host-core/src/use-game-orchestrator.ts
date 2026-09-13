@@ -1,10 +1,10 @@
 // ─── Game Orchestrator Hook ────────────────────────────────────────
 // Watches the card engine state and auto-dispatches host-only actions
 // to advance the game through automatic lifecycle transitions.
-// Runs on the TV host only.
+// Runs on whichever process owns the game runtime (TV host or web display).
 
 import { useEffect, useRef } from "react";
-import type { HostAction, HostGameState } from "../types/host-state";
+import type { HostAction, HostGameState } from "@card-engine/shared";
 
 const RESULTS_DISPLAY_MS = 5_000;
 
@@ -36,6 +36,7 @@ export function useGameOrchestrator(
   const stepPhaseRef = useRef<string | null>(null);
   const stepCountRef = useRef(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deliberately keyed on screen tag, status kind, current phase and engine version rather than the whole state object, so timers are only (re)armed on meaningful engine transitions and not on every unrelated host-state change (e.g. player connect/disconnect)
   useEffect(() => {
     // Clear any pending timer on state change
     if (timerRef.current !== null) {
@@ -66,11 +67,8 @@ export function useGameOrchestrator(
     // ── Paced Automatic Phase → step one at a time ──────────────
     // We only linger in an automatic phase when it "stays" — i.e. it
     // defines an onStep hook whose transition isn't satisfied yet.
-    const phase = engineState.ruleset.phases.find(
-      (p) => p.name === engineState.currentPhase,
-    );
-    const isPaced =
-      phase?.kind === "automatic" && (phase.onStep?.length ?? 0) > 0;
+    const phase = engineState.ruleset.phases.find((p) => p.name === engineState.currentPhase);
+    const isPaced = phase?.kind === "automatic" && (phase.onStep?.length ?? 0) > 0;
 
     if (isPaced) {
       // Reset the step counter whenever we enter a new phase.

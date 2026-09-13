@@ -18,9 +18,7 @@ export class File {
   readonly uri: string;
 
   constructor(...segments: (string | { uri: string })[]) {
-    const joined = segments
-      .map((s) => (typeof s === "string" ? s : s.uri))
-      .join("/");
+    const joined = segments.map((s) => (typeof s === "string" ? s : s.uri)).join("/");
     this.uri = normalizeUri(joined);
   }
 
@@ -44,9 +42,7 @@ export class File {
     throw new Error("File.write() is not mocked — use vi.mock in your test");
   }
 
-  create(
-    _options?: { intermediates?: boolean; overwrite?: boolean },
-  ): void {
+  create(_options?: { intermediates?: boolean; overwrite?: boolean }): void {
     throw new Error("File.create() is not mocked — use vi.mock in your test");
   }
 
@@ -60,37 +56,25 @@ export class Directory {
   readonly uri: string;
 
   constructor(...segments: (string | { uri: string })[]) {
-    const joined = segments
-      .map((s) => (typeof s === "string" ? s : s.uri))
-      .join("/");
+    const joined = segments.map((s) => (typeof s === "string" ? s : s.uri)).join("/");
     const normalized = normalizeUri(joined);
     this.uri = normalized.endsWith("/") ? normalized : `${normalized}/`;
   }
 
   get exists(): boolean {
-    throw new Error(
-      "Directory.exists is not mocked — use vi.mock in your test",
-    );
+    throw new Error("Directory.exists is not mocked — use vi.mock in your test");
   }
 
-  create(
-    _options?: { intermediates?: boolean; idempotent?: boolean },
-  ): void {
-    throw new Error(
-      "Directory.create() is not mocked — use vi.mock in your test",
-    );
+  create(_options?: { intermediates?: boolean; idempotent?: boolean }): void {
+    throw new Error("Directory.create() is not mocked — use vi.mock in your test");
   }
 
   delete(): void {
-    throw new Error(
-      "Directory.delete() is not mocked — use vi.mock in your test",
-    );
+    throw new Error("Directory.delete() is not mocked — use vi.mock in your test");
   }
 
   list(): (File | Directory)[] {
-    throw new Error(
-      "Directory.list() is not mocked — use vi.mock in your test",
-    );
+    throw new Error("Directory.list() is not mocked — use vi.mock in your test");
   }
 }
 

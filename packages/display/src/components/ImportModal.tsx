@@ -4,10 +4,10 @@
 // duplicate); the RN Modal + D-pad focus bookkeeping becomes a plain
 // overlay with real inputs and buttons.
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import type { ImportResult } from "../host-logic/use-ruleset-store.js";
+import type React from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { colors, type ImportResult } from "@card-engine/host-core";
 import { Button } from "./Button.js";
-import { colors } from "../theme.js";
 
 type ModalState =
   | { readonly tag: "idle" }
@@ -115,14 +115,16 @@ export function ImportModal({
   const isImportDisabled = url.trim().length === 0 || isLoading;
 
   return (
-    <div
-      style={styles.backdrop}
-      onClick={isLoading ? undefined : onClose}
-      role="presentation"
-    >
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss is a pointer-only convenience; keyboard users close the dialog with Escape (handled on the dialog panel) or the Cancel button
+    <div style={styles.backdrop} onClick={isLoading ? undefined : onClose} role="presentation">
       <div
         style={styles.panel}
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && !isLoading) {
+            onClose();
+          }
+        }}
         role="dialog"
         aria-modal="true"
         aria-label="Import Ruleset"
@@ -145,17 +147,13 @@ export function ImportModal({
           spellCheck={false}
         />
 
-        {state.tag === "loading" && (
-          <div style={styles.loadingText}>Importing…</div>
-        )}
+        {state.tag === "loading" && <div style={styles.loadingText}>Importing…</div>}
         {state.tag === "success" && (
           <div style={styles.successText}>
             {"✓"} {state.name} imported successfully!
           </div>
         )}
-        {state.tag === "error" && (
-          <div style={styles.errorText}>{state.message}</div>
-        )}
+        {state.tag === "error" && <div style={styles.errorText}>{state.message}</div>}
 
         {state.tag === "duplicate" && (
           <div>
@@ -193,12 +191,7 @@ export function ImportModal({
               disabled={isImportDisabled}
               onPress={() => void handleImport()}
             />
-            <Button
-              label="Cancel"
-              variant="secondary"
-              disabled={isLoading}
-              onPress={onClose}
-            />
+            <Button label="Cancel" variant="secondary" disabled={isLoading} onPress={onClose} />
           </div>
         )}
       </div>

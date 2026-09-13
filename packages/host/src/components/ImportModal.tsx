@@ -3,17 +3,10 @@
 // Designed for D-pad navigation on Android TV. Uses a discriminated
 // union for internal state to make illegal states unrepresentable.
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import type { ImportResult } from "../hooks/useRulesetStore";
-import { colors } from "../theme";
+import type React from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { colors, type ImportResult } from "@card-engine/host-core";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -174,17 +167,13 @@ export function ImportModal({
           />
 
           {/* Status Messages */}
-          {state.tag === "loading" && (
-            <Text style={styles.loadingText}>Importing...</Text>
-          )}
+          {state.tag === "loading" && <Text style={styles.loadingText}>Importing...</Text>}
           {state.tag === "success" && (
             <Text style={styles.successText}>
               {"\u2713"} {state.name} imported successfully!
             </Text>
           )}
-          {state.tag === "error" && (
-            <Text style={styles.errorText}>{state.message}</Text>
-          )}
+          {state.tag === "error" && <Text style={styles.errorText}>{state.message}</Text>}
 
           {/* Duplicate State */}
           {state.tag === "duplicate" && (
@@ -215,9 +204,7 @@ export function ImportModal({
                   onBlur={() => setImportAsFocused(false)}
                   onPress={handleImportWithSlug}
                 >
-                  <Text style={[styles.buttonLabel, styles.buttonLabelPrimary]}>
-                    Import As
-                  </Text>
+                  <Text style={[styles.buttonLabel, styles.buttonLabelPrimary]}>Import As</Text>
                 </Pressable>
 
                 <Pressable
@@ -230,9 +217,7 @@ export function ImportModal({
                   onBlur={() => setDuplicateCancelFocused(false)}
                   onPress={onClose}
                 >
-                  <Text style={[styles.buttonLabel, styles.buttonLabelSecondary]}>
-                    Cancel
-                  </Text>
+                  <Text style={[styles.buttonLabel, styles.buttonLabelSecondary]}>Cancel</Text>
                 </Pressable>
               </View>
             </View>

@@ -4,24 +4,11 @@
 // indicator, scores, and an end-of-game results overlay.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Animated,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useGameHost } from "@couch-kit/host";
-import type {
-  Card,
-  CardGameState,
-  Player,
-  UIConfig,
-  ZoneState,
-} from "@card-engine/shared";
-import type { HostAction, HostGameState } from "../types/host-state";
-import { useGameOrchestrator } from "../hooks/useGameOrchestrator";
-import { colors } from "../theme";
+import type { Card, CardGameState, Player, UIConfig, ZoneState } from "@card-engine/shared";
+import type { HostAction, HostGameState } from "@card-engine/shared";
+import { colors, useGameOrchestrator } from "@card-engine/host-core";
 
 // ─── Constants ─────────────────────────────────────────────────────
 
@@ -98,21 +85,14 @@ const StatusBar = React.memo(function StatusBar({
 }: {
   readonly engineState: CardGameState;
 }): React.JSX.Element {
-  const currentPlayer =
-    engineState.players[engineState.currentPlayerIndex] ?? null;
+  const currentPlayer = engineState.players[engineState.currentPlayerIndex] ?? null;
   const statusLabel = formatStatusKind(engineState.status.kind);
 
   return (
     <View style={styles.statusBar}>
-      <Text style={styles.phaseLabel}>
-        Phase: {formatPhaseName(engineState.currentPhase)}
-      </Text>
+      <Text style={styles.phaseLabel}>Phase: {formatPhaseName(engineState.currentPhase)}</Text>
       <Text style={styles.statusLabel}>{statusLabel}</Text>
-      {currentPlayer && (
-        <Text style={styles.turnIndicator}>
-          Turn: {currentPlayer.name}
-        </Text>
-      )}
+      {currentPlayer && <Text style={styles.turnIndicator}>Turn: {currentPlayer.name}</Text>}
       <Text style={styles.turnNumber}>Round {engineState.turnNumber}</Text>
     </View>
   );
@@ -124,15 +104,12 @@ const SharedZones = React.memo(function SharedZones({
   engineState,
 }: {
   readonly engineState: CardGameState;
-}): React.JSX.Element {
-  const sharedZones = useMemo(
-    () => getSharedZones(engineState),
-    [engineState],
-  );
+}): React.JSX.Element | null {
+  const sharedZones = useMemo(() => getSharedZones(engineState), [engineState]);
 
-  const activeSuit = engineState.stringVariables?.["active_suit"] ?? "";
+  const activeSuit = engineState.stringVariables?.active_suit ?? "";
 
-  if (sharedZones.length === 0 && !activeSuit) return <></>;
+  if (sharedZones.length === 0 && !activeSuit) return null;
 
   return (
     <View style={styles.section}>
@@ -158,13 +135,10 @@ const PlayerZones = React.memo(function PlayerZones({
   engineState,
 }: {
   readonly engineState: CardGameState;
-}): React.JSX.Element {
-  const playerZoneGroups = useMemo(
-    () => getPlayerZoneGroups(engineState),
-    [engineState],
-  );
+}): React.JSX.Element | null {
+  const playerZoneGroups = useMemo(() => getPlayerZoneGroups(engineState), [engineState]);
 
-  if (playerZoneGroups.length === 0) return <></>;
+  if (playerZoneGroups.length === 0) return null;
 
   return (
     <View style={styles.section}>
@@ -175,33 +149,15 @@ const PlayerZones = React.memo(function PlayerZones({
         return (
           <View
             key={player.id}
-            style={[
-              styles.playerSection,
-              isCurrentTurn && styles.playerSectionActive,
-            ]}
+            style={[styles.playerSection, isCurrentTurn && styles.playerSectionActive]}
           >
             <View style={styles.playerHeader}>
-              <View
-                style={[
-                  styles.avatar,
-                  isCurrentTurn && styles.avatarActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.avatarText,
-                    isCurrentTurn && styles.avatarTextActive,
-                  ]}
-                >
+              <View style={[styles.avatar, isCurrentTurn && styles.avatarActive]}>
+                <Text style={[styles.avatarText, isCurrentTurn && styles.avatarTextActive]}>
                   {initial}
                 </Text>
               </View>
-              <Text
-                style={[
-                  styles.playerLabel,
-                  isCurrentTurn && styles.playerLabelActive,
-                ]}
-              >
+              <Text style={[styles.playerLabel, isCurrentTurn && styles.playerLabelActive]}>
                 {player.name}
               </Text>
               {typeof score === "number" && (
@@ -273,6 +229,7 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
   prevCardCountRef.current = cards.length;
 
   // Clear the "new" marker after animation completes (~500ms should cover stagger)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cards.length is the deliberate trigger — the effect only reads a ref and must re-arm the timer whenever the card count changes
   useEffect(() => {
     if (newCardStartIndex.current >= 0) {
       const timer = setTimeout(() => {
@@ -282,10 +239,8 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
     }
   }, [cards.length]);
 
-  const allFaceDown =
-    !revealed && cards.length > 0 && cards.every((card) => !card.faceUp);
-  const shouldCollapse =
-    allFaceDown && cards.length > STACK_COLLAPSE_THRESHOLD;
+  const allFaceDown = !revealed && cards.length > 0 && cards.every((card) => !card.faceUp);
+  const shouldCollapse = allFaceDown && cards.length > STACK_COLLAPSE_THRESHOLD;
   const hasFaceUpCards = cards.some((c) => c.faceUp);
   const shouldShowTopOnly =
     !revealed &&
@@ -295,10 +250,7 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
     !expanded;
 
   return (
-    <Pressable
-      style={styles.zone}
-      onPress={() => setExpanded((prev) => !prev)}
-    >
+    <Pressable style={styles.zone} onPress={() => setExpanded((prev) => !prev)}>
       <Text style={styles.zoneName}>{formatZoneName(name)}</Text>
       <View style={styles.cardRow}>
         {cards.length === 0 ? (
@@ -313,16 +265,11 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
           <>
             <FlippableCardView card={cards[0]!} />
             <View style={styles.topCardMoreIndicator}>
-              <Text style={styles.topCardMoreText}>
-                +{cards.length - 1} more
-              </Text>
+              <Text style={styles.topCardMoreText}>+{cards.length - 1} more</Text>
             </View>
           </>
         ) : (
-          <CappedCardList
-            cards={cards}
-            newCardStartIndex={newCardStartIndex.current}
-          />
+          <CappedCardList cards={cards} newCardStartIndex={newCardStartIndex.current} />
         )}
       </View>
     </Pressable>
@@ -391,9 +338,7 @@ const ActiveSuitIndicator = React.memo(function ActiveSuitIndicator({
   return (
     <View style={styles.activeSuitContainer}>
       <Text style={styles.activeSuitLabel}>ACTIVE SUIT</Text>
-      <Text style={[styles.activeSuitSymbol, { color: suitColor }]}>
-        {symbol}
-      </Text>
+      <Text style={[styles.activeSuitSymbol, { color: suitColor }]}>{symbol}</Text>
       <Text style={[styles.activeSuitName, { color: suitColor }]}>
         {suit.charAt(0).toUpperCase() + suit.slice(1)}
       </Text>
@@ -411,8 +356,7 @@ function CappedCardList({
   readonly newCardStartIndex?: number;
 }): React.JSX.Element {
   const hiddenCount = cards.length - MAX_VISIBLE_CARDS;
-  const visibleCards =
-    hiddenCount > 0 ? cards.slice(-MAX_VISIBLE_CARDS) : cards;
+  const visibleCards = hiddenCount > 0 ? cards.slice(-MAX_VISIBLE_CARDS) : cards;
   // Adjust the start index for visible slice
   const visibleOffset = hiddenCount > 0 ? hiddenCount : 0;
 
@@ -425,18 +369,11 @@ function CappedCardList({
       )}
       {visibleCards.map((card, i) => {
         const globalIndex = visibleOffset + i;
-        const isNewCard =
-          newCardStartIndex >= 0 && globalIndex >= newCardStartIndex;
+        const isNewCard = newCardStartIndex >= 0 && globalIndex >= newCardStartIndex;
 
         if (isNewCard) {
           const staggerDelay = (globalIndex - newCardStartIndex) * 80;
-          return (
-            <AnimatedCardView
-              key={card.id}
-              card={card}
-              delay={staggerDelay}
-            />
-          );
+          return <AnimatedCardView key={card.id} card={card} delay={staggerDelay} />;
         }
 
         return <FlippableCardView key={card.id} card={card} />;
@@ -466,16 +403,10 @@ const CardView = React.memo(function CardView({
   return (
     <View style={[styles.card, styles.cardFace]}>
       <View style={styles.cardCorner}>
-        <Text style={[styles.cardRank, isRed && styles.cardRed]}>
-          {card.rank}
-        </Text>
-        <Text style={[styles.cardSuit, isRed && styles.cardRed]}>
-          {suitSymbol}
-        </Text>
+        <Text style={[styles.cardRank, isRed && styles.cardRed]}>{card.rank}</Text>
+        <Text style={[styles.cardSuit, isRed && styles.cardRed]}>{suitSymbol}</Text>
       </View>
-      <Text style={[styles.cardPip, isRed && styles.cardRed]}>
-        {suitSymbol}
-      </Text>
+      <Text style={[styles.cardPip, isRed && styles.cardRed]}>{suitSymbol}</Text>
     </View>
   );
 });
@@ -580,9 +511,9 @@ const ScoreBoard = React.memo(function ScoreBoard({
   engineState,
 }: {
   readonly engineState: CardGameState;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const scoreEntries = Object.entries(engineState.scores);
-  if (scoreEntries.length === 0) return <></>;
+  if (scoreEntries.length === 0) return null;
 
   return (
     <View style={styles.section}>
@@ -610,17 +541,17 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
 }: {
   readonly engineState: CardGameState;
   readonly dispatch: (action: HostAction) => void;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const [focusedButton, setFocusedButton] = useState<string | null>(null);
   const isRoundEnd = engineState.currentPhase === "round_end";
   const isFinished = engineState.status.kind === "finished";
 
-  // Guard: only show for round_end or finished
-  if (!isRoundEnd && !isFinished) return <></>;
-
   const handleBackToMenu = useCallback(() => {
     dispatch({ type: "BACK_TO_PICKER" });
   }, [dispatch]);
+
+  // Guard: only show for round_end or finished
+  if (!isRoundEnd && !isFinished) return null;
 
   if (isRoundEnd) {
     // ── Round-end view: show per-player results ──
@@ -633,33 +564,18 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
           {engineState.players.map((player, index) => {
             const handValue = engineState.scores[`player_score:${index}`] ?? 0;
             const result = engineState.scores[`result:${index}`] ?? 0;
-            const resultLabel =
-              result > 0 ? "WIN" : result < 0 ? "LOSS" : "DRAW";
+            const resultLabel = result > 0 ? "WIN" : result < 0 ? "LOSS" : "DRAW";
             const resultColor =
               result > 0 ? colors.success : result < 0 ? colors.redAlt : colors.amber;
 
             return (
-              <View
-                key={player.id}
-                style={resultsStyles.playerRow}
-              >
+              <View key={player.id} style={resultsStyles.playerRow}>
                 <Text style={resultsStyles.playerName} numberOfLines={1} ellipsizeMode="tail">
                   {player.name}
                 </Text>
-                <Text style={resultsStyles.handValue}>
-                  {handValue}
-                </Text>
-                <View
-                  style={[
-                    resultsStyles.resultBadge,
-                    { backgroundColor: resultColor },
-                  ]}
-                >
-                  <Text
-                    style={resultsStyles.resultBadgeText}
-                  >
-                    {resultLabel}
-                  </Text>
+                <Text style={resultsStyles.handValue}>{handValue}</Text>
+                <View style={[resultsStyles.resultBadge, { backgroundColor: resultColor }]}>
+                  <Text style={resultsStyles.resultBadgeText}>{resultLabel}</Text>
                 </View>
               </View>
             );
@@ -670,7 +586,10 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
             const npcScores = Object.entries(engineState.scores)
               .filter(([key]) => key.endsWith("_score") && !key.startsWith("player_score:"))
               .map(([key, value]) => ({
-                label: key.replace(/_score$/, "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+                label: key
+                  .replace(/_score$/, "")
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, (c) => c.toUpperCase()),
                 score: value,
               }));
 
@@ -678,20 +597,11 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
 
             return (
               <>
-                <View
-                  style={resultsStyles.divider}
-                />
+                <View style={resultsStyles.divider} />
                 {npcScores.map(({ label, score }) => (
-                  <View
-                    key={label}
-                    style={resultsStyles.npcRow}
-                  >
-                    <Text style={resultsStyles.npcLabel}>
-                      {label}
-                    </Text>
-                    <Text style={resultsStyles.npcScore}>
-                      {score}
-                    </Text>
+                  <View key={label} style={resultsStyles.npcRow}>
+                    <Text style={resultsStyles.npcLabel}>{label}</Text>
+                    <Text style={resultsStyles.npcScore}>{score}</Text>
                   </View>
                 ))}
               </>
@@ -699,11 +609,7 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
           })()}
 
           {/* Info text — phones trigger new round, not TV */}
-          <Text
-            style={resultsStyles.waitingText}
-          >
-            Waiting for players to start new round...
-          </Text>
+          <Text style={resultsStyles.waitingText}>Waiting for players to start new round...</Text>
 
           <View style={styles.overlayButtons}>
             <Pressable
@@ -717,9 +623,7 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
               onPress={handleBackToMenu}
               hasTVPreferredFocus
             >
-              <Text style={styles.overlayButtonTextSecondary}>
-                Back to Menu
-              </Text>
+              <Text style={styles.overlayButtonTextSecondary}>Back to Menu</Text>
             </Pressable>
           </View>
         </View>
@@ -731,18 +635,14 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
   const { winnerId } = engineState.status as {
     readonly winnerId: string | null;
   };
-  const winner = winnerId
-    ? engineState.players.find((p) => p.id === winnerId)
-    : null;
+  const winner = winnerId ? engineState.players.find((p) => p.id === winnerId) : null;
 
   return (
     <View style={styles.overlay}>
       <View style={styles.overlayCard}>
         <Text style={styles.overlayTitle}>GAME OVER</Text>
         {winner ? (
-          <Text style={styles.overlayWinner}>
-            🏆 {winner.name} wins!
-          </Text>
+          <Text style={styles.overlayWinner}>🏆 {winner.name} wins!</Text>
         ) : (
           <Text style={styles.overlayWinner}>It's a draw!</Text>
         )}
@@ -759,9 +659,7 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
             onPress={handleBackToMenu}
             hasTVPreferredFocus
           >
-            <Text style={styles.overlayButtonTextSecondary}>
-              Back to Menu
-            </Text>
+            <Text style={styles.overlayButtonTextSecondary}>Back to Menu</Text>
           </Pressable>
         </View>
       </View>
@@ -772,12 +670,8 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
 // ─── Pure Helpers ──────────────────────────────────────────────────
 
 /** Returns shared (non-player-owned) zone entries. */
-function getSharedZones(
-  engineState: CardGameState,
-): readonly [string, ZoneState][] {
-  return Object.entries(engineState.zones).filter(
-    ([name]) => !isPlayerZone(name),
-  );
+function getSharedZones(engineState: CardGameState): readonly [string, ZoneState][] {
+  return Object.entries(engineState.zones).filter(([name]) => !isPlayerZone(name));
 }
 
 /** Checks if a zone name follows the per-player pattern (e.g., "hand:0"). */
@@ -791,16 +685,11 @@ function isPlayerZone(name: string): boolean {
  * phase overrides) is `public` — the whole table is meant to see it, so we
  * reveal it here even if individual cards were dealt face-down.
  */
-function isPublicOnTable(
-  engineState: CardGameState,
-  zoneName: string,
-): boolean {
+function isPublicOnTable(engineState: CardGameState, zoneName: string): boolean {
   const baseName = zoneName.replace(/:\d+$/, "");
   const def = engineState.ruleset.zones.find((z) => z.name === baseName);
   if (!def) return false;
-  const override = def.phaseOverrides?.find(
-    (o) => o.phase === engineState.currentPhase,
-  );
+  const override = def.phaseOverrides?.find((o) => o.phase === engineState.currentPhase);
   const visibility = override?.visibility ?? def.visibility;
   return visibility.kind === "public";
 }
@@ -813,17 +702,13 @@ interface PlayerZoneGroup {
 }
 
 /** Groups per-player zones under their owning player. */
-function getPlayerZoneGroups(
-  engineState: CardGameState,
-): readonly PlayerZoneGroup[] {
+function getPlayerZoneGroups(engineState: CardGameState): readonly PlayerZoneGroup[] {
   const groups: PlayerZoneGroup[] = [];
 
   for (let i = 0; i < engineState.players.length; i++) {
     const player = engineState.players[i]!;
     const playerSuffix = `:${i}`;
-    const zones = Object.entries(engineState.zones).filter(([name]) =>
-      name.endsWith(playerSuffix),
-    );
+    const zones = Object.entries(engineState.zones).filter(([name]) => name.endsWith(playerSuffix));
 
     if (zones.length > 0) {
       groups.push({
@@ -865,9 +750,7 @@ function resolveScoreLabel(key: string, players: readonly Player[]): string {
     return player ? `${player.name} (Result)` : key;
   }
   // Non-indexed keys like "dealer_score" — humanize
-  return key
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /** Formats a status kind for display. */

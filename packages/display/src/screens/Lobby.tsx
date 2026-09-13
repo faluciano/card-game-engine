@@ -9,7 +9,7 @@ import type { IPlayer } from "@couch-kit/core";
 import type { HostAction, HostGameState } from "@card-engine/shared";
 import { Button } from "../components/Button.js";
 import { JoinPanel } from "../components/JoinPanel.js";
-import { colors } from "../theme.js";
+import { colors } from "@card-engine/host-core";
 
 export function Lobby({
   state,
@@ -25,10 +25,7 @@ export function Lobby({
   const screen = state.screen;
 
   const playerList = useMemo(
-    () =>
-      Object.entries(state.players).map(
-        ([id, player]): IPlayer => ({ ...player, id }),
-      ),
+    () => Object.entries(state.players).map(([id, player]): IPlayer => ({ ...player, id })),
     [state.players],
   );
 
@@ -66,9 +63,7 @@ export function Lobby({
           {playerList.length === 0 ? (
             <div style={styles.emptyHint}>Waiting for players…</div>
           ) : (
-            playerList.map((player) => (
-              <PlayerRow key={player.id} player={player} />
-            ))
+            playerList.map((player) => <PlayerRow key={player.id} player={player} />)
           )}
         </div>
 
@@ -107,9 +102,7 @@ const PlayerRow = React.memo(function PlayerRow({
           ...(player.connected ? null : styles.avatarDisconnected),
         }}
       >
-        <span style={styles.avatarText}>
-          {player.name.charAt(0).toUpperCase()}
-        </span>
+        <span style={styles.avatarText}>{player.name.charAt(0).toUpperCase()}</span>
       </div>
       <span
         style={{
@@ -119,9 +112,7 @@ const PlayerRow = React.memo(function PlayerRow({
       >
         {player.name}
       </span>
-      {!player.connected && (
-        <span style={styles.disconnectedBadge}>DISCONNECTED</span>
-      )}
+      {!player.connected && <span style={styles.disconnectedBadge}>DISCONNECTED</span>}
     </div>
   );
 });

@@ -121,9 +121,7 @@ describe("importFromFile", () => {
       mockFiles.set("/deep/nested/dir/game.cardgame.json", JSON.stringify(rulesetData));
       mockSafeParseRuleset.mockReturnValue(makeSuccessParseResult(rulesetData));
 
-      const result = await importFromFile(
-        "/deep/nested/dir/game.cardgame.json",
-      );
+      const result = await importFromFile("/deep/nested/dir/game.cardgame.json");
 
       expect(result).toEqual({ ok: true, ruleset: rulesetData });
     });
@@ -189,8 +187,7 @@ describe("importFromFile", () => {
 
       expect(result).toEqual({
         ok: false,
-        error:
-          "Validation failed: meta.slug: Required; deck.preset: Invalid",
+        error: "Validation failed: meta.slug: Required; deck.preset: Invalid",
       });
     });
   });
