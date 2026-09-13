@@ -1,79 +1,62 @@
 // ─── Game Table Screen ─────────────────────────────────────────────
-// The main game display shown on the TV / host device. Renders the
-// public view of the game state: zones with cards, player info, phase
-// indicator, scores, and an end-of-game results overlay.
+// The main game display shown on the TV / host device. A thin React
+// Native renderer over `useGameTableModel` from host-core: zones with
+// cards, player info, phase indicator, scores, and the end-of-round /
+// game-over overlay. The deal-in and flip animations use RN `Animated`
+// with timing constants shared with the web display.
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useGameHost } from "@couch-kit/host";
-import type { Card, CardGameState, Player, UIConfig, ZoneState } from "@card-engine/shared";
-import type { HostAction, HostGameState } from "@card-engine/shared";
-import { colors, useGameOrchestrator } from "@card-engine/host-core";
-
-// ─── Constants ─────────────────────────────────────────────────────
-
-const SUIT_SYMBOLS: Readonly<Record<string, string>> = {
-  hearts: "♥",
-  diamonds: "♦",
-  clubs: "♣",
-  spades: "♠",
-};
-
-const RED_SUITS = new Set(["hearts", "diamonds"]);
-
-/** Maximum face-up cards rendered before showing a "+N more" indicator. */
-const MAX_VISIBLE_CARDS = 12;
-
-/** Threshold above which an all-face-down zone collapses to a stacked icon. */
-const STACK_COLLAPSE_THRESHOLD = 6;
-
-const TABLE_COLORS: Readonly<Record<string, string>> = {
-  felt_green: colors.tableBg,
-  wood: colors.tableBg,
-  dark: colors.tableBg,
-};
+import type { Card, HostAction, HostGameState } from "@card-engine/shared";
+import {
+  DEAL_DURATION_MS,
+  DEAL_SLIDE_OFFSET,
+  FLIP_DURATION_MS,
+  cardInkColor,
+  colors,
+  formatZoneName,
+  getCappedCardList,
+  suitSymbol,
+  useFlipOnReveal,
+  useGameTableModel,
+  useZoneModel,
+  type ActiveSuitModel,
+  type PlayerSectionModel,
+  type ResultsOverlayModel,
+  type ScoreRow,
+  type StatusBarModel,
+  type ZoneViewModel,
+} from "@card-engine/host-core";
 
 // ─── Component ─────────────────────────────────────────────────────
 
 export function GameTable(): React.JSX.Element {
   const { state, dispatch } = useGameHost<HostGameState, HostAction>();
-  useGameOrchestrator(state, dispatch);
+  const model = useGameTableModel(state, dispatch);
 
   // Guard: must be on game_table with active engine state
-  if (state.screen.tag !== "game_table") {
+  if (model.kind !== "table") {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Invalid screen state</Text>
+        <Text style={styles.errorText}>{model.message}</Text>
       </View>
     );
   }
-
-  if (state.engineState === null) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>No game in progress</Text>
-      </View>
-    );
-  }
-
-  const engineState = state.engineState;
-  const tableColor = resolveTableColor(engineState.ruleset.ui);
-  const isFinished = engineState.status.kind === "finished";
-  const isRoundEnd = engineState.currentPhase === "round_end";
 
   return (
-    <View style={[styles.container, { backgroundColor: tableColor }]}>
-      <StatusBar engineState={engineState} />
+    <View style={[styles.container, { backgroundColor: model.tableColor }]}>
+      <StatusBar model={model.statusBar} />
 
       <View style={styles.tableLayout}>
-        <SharedZones engineState={engineState} />
-        <PlayerZones engineState={engineState} />
-        <ScoreBoard engineState={engineState} />
+        {model.showSharedSection && (
+          <SharedZones zones={model.sharedZones} activeSuit={model.activeSuit} />
+        )}
+        <PlayerZones sections={model.playerSections} />
+        <ScoreBoard rows={model.scoreRows} />
       </View>
 
-      {(isFinished || isRoundEnd) && (
-        <ResultsOverlay engineState={engineState} dispatch={dispatch} />
-      )}
+      {model.overlay && <ResultsOverlay overlay={model.overlay} onBackToMenu={model.backToMenu} />}
     </View>
   );
 }
@@ -81,19 +64,18 @@ export function GameTable(): React.JSX.Element {
 // ─── Status Bar ────────────────────────────────────────────────────
 
 const StatusBar = React.memo(function StatusBar({
-  engineState,
+  model,
 }: {
-  readonly engineState: CardGameState;
+  readonly model: StatusBarModel;
 }): React.JSX.Element {
-  const currentPlayer = engineState.players[engineState.currentPlayerIndex] ?? null;
-  const statusLabel = formatStatusKind(engineState.status.kind);
-
   return (
     <View style={styles.statusBar}>
-      <Text style={styles.phaseLabel}>Phase: {formatPhaseName(engineState.currentPhase)}</Text>
-      <Text style={styles.statusLabel}>{statusLabel}</Text>
-      {currentPlayer && <Text style={styles.turnIndicator}>Turn: {currentPlayer.name}</Text>}
-      <Text style={styles.turnNumber}>Round {engineState.turnNumber}</Text>
+      <Text style={styles.phaseLabel}>Phase: {model.phaseLabel}</Text>
+      <Text style={styles.statusLabel}>{model.statusLabel}</Text>
+      {model.currentPlayerName !== null && (
+        <Text style={styles.turnIndicator}>Turn: {model.currentPlayerName}</Text>
+      )}
+      <Text style={styles.turnNumber}>Round {model.turnNumber}</Text>
     </View>
   );
 });
@@ -101,29 +83,20 @@ const StatusBar = React.memo(function StatusBar({
 // ─── Shared Zones ──────────────────────────────────────────────────
 
 const SharedZones = React.memo(function SharedZones({
-  engineState,
+  zones,
+  activeSuit,
 }: {
-  readonly engineState: CardGameState;
-}): React.JSX.Element | null {
-  const sharedZones = useMemo(() => getSharedZones(engineState), [engineState]);
-
-  const activeSuit = engineState.stringVariables?.active_suit ?? "";
-
-  if (sharedZones.length === 0 && !activeSuit) return null;
-
+  readonly zones: readonly ZoneViewModel[];
+  readonly activeSuit: ActiveSuitModel | null;
+}): React.JSX.Element {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>TABLE</Text>
       <View style={styles.zonesRow}>
-        {sharedZones.map(([name, zone]: [string, ZoneState]) => (
-          <ZoneDisplay
-            key={name}
-            name={name}
-            zone={zone}
-            revealed={isPublicOnTable(engineState, name)}
-          />
+        {zones.map((view) => (
+          <ZoneDisplay key={view.name} view={view} />
         ))}
-        {activeSuit !== "" && <ActiveSuitIndicator suit={activeSuit} />}
+        {activeSuit && <ActiveSuitIndicator model={activeSuit} />}
       </View>
     </View>
   );
@@ -132,58 +105,47 @@ const SharedZones = React.memo(function SharedZones({
 // ─── Player Zones ──────────────────────────────────────────────────
 
 const PlayerZones = React.memo(function PlayerZones({
-  engineState,
+  sections,
 }: {
-  readonly engineState: CardGameState;
+  readonly sections: readonly PlayerSectionModel[];
 }): React.JSX.Element | null {
-  const playerZoneGroups = useMemo(() => getPlayerZoneGroups(engineState), [engineState]);
-
-  if (playerZoneGroups.length === 0) return null;
+  if (sections.length === 0) return null;
 
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>PLAYERS</Text>
-      {playerZoneGroups.map(({ player, index, zones, isCurrentTurn }: PlayerZoneGroup) => {
-        const score = engineState.scores[`player_score:${index}`];
-        const initial = player.name.trim().charAt(0).toUpperCase() || "?";
-        return (
-          <View
-            key={player.id}
-            style={[styles.playerSection, isCurrentTurn && styles.playerSectionActive]}
-          >
-            <View style={styles.playerHeader}>
-              <View style={[styles.avatar, isCurrentTurn && styles.avatarActive]}>
-                <Text style={[styles.avatarText, isCurrentTurn && styles.avatarTextActive]}>
-                  {initial}
-                </Text>
-              </View>
-              <Text style={[styles.playerLabel, isCurrentTurn && styles.playerLabelActive]}>
-                {player.name}
+      {sections.map(({ player, zoneViews, isCurrentTurn, score, initial }) => (
+        <View
+          key={player.id}
+          style={[styles.playerSection, isCurrentTurn && styles.playerSectionActive]}
+        >
+          <View style={styles.playerHeader}>
+            <View style={[styles.avatar, isCurrentTurn && styles.avatarActive]}>
+              <Text style={[styles.avatarText, isCurrentTurn && styles.avatarTextActive]}>
+                {initial}
               </Text>
-              {typeof score === "number" && (
-                <View style={styles.scoreChip}>
-                  <Text style={styles.scoreChipText}>{score}</Text>
-                </View>
-              )}
-              {isCurrentTurn && (
-                <View style={styles.turnBadge}>
-                  <Text style={styles.turnBadgeText}>TURN</Text>
-                </View>
-              )}
             </View>
-            <View style={styles.zonesRow}>
-              {zones.map(([name, zone]: [string, ZoneState]) => (
-                <ZoneDisplay
-                  key={name}
-                  name={name}
-                  zone={zone}
-                  revealed={isPublicOnTable(engineState, name)}
-                />
-              ))}
-            </View>
+            <Text style={[styles.playerLabel, isCurrentTurn && styles.playerLabelActive]}>
+              {player.name}
+            </Text>
+            {score !== null && (
+              <View style={styles.scoreChip}>
+                <Text style={styles.scoreChipText}>{score}</Text>
+              </View>
+            )}
+            {isCurrentTurn && (
+              <View style={styles.turnBadge}>
+                <Text style={styles.turnBadgeText}>TURN</Text>
+              </View>
+            )}
           </View>
-        );
-      })}
+          <View style={styles.zonesRow}>
+            {zoneViews.map((view) => (
+              <ZoneDisplay key={view.name} view={view} />
+            ))}
+          </View>
+        </View>
+      ))}
     </View>
   );
 });
@@ -191,77 +153,29 @@ const PlayerZones = React.memo(function PlayerZones({
 // ─── Zone Display ──────────────────────────────────────────────────
 
 const ZoneDisplay = React.memo(function ZoneDisplay({
-  name,
-  zone,
-  revealed = false,
+  view,
 }: {
-  readonly name: string;
-  readonly zone: ZoneState;
-  /**
-   * When true, every card in the zone is shown face-up and fully fanned
-   * (no stack/top-only collapse). Used for zones the whole table can see
-   * (public visibility) on the shared TV god-view — e.g. player hands.
-   */
-  readonly revealed?: boolean;
+  readonly view: ZoneViewModel;
 }): React.JSX.Element {
-  const [expanded, setExpanded] = useState(false);
-  const cards = useMemo(
-    () =>
-      revealed
-        ? zone.cards.map((card) => (card.faceUp ? card : { ...card, faceUp: true }))
-        : zone.cards,
-    [revealed, zone.cards],
+  const { cards, mode, newCardStartIndex, toggleExpanded } = useZoneModel(
+    view.name,
+    view.zone,
+    view.revealed,
   );
-  const isDiscard = name === "discard";
-
-  // Track previous card count to detect newly dealt cards
-  const prevCardCountRef = useRef(cards.length);
-  const newCardStartIndex = useRef(-1);
-
-  // Detect new cards on each render
-  if (cards.length > prevCardCountRef.current) {
-    // Cards were added — mark the start index of new cards
-    newCardStartIndex.current = prevCardCountRef.current;
-  } else if (cards.length !== prevCardCountRef.current) {
-    // Cards were removed or count changed — reset
-    newCardStartIndex.current = -1;
-  }
-  prevCardCountRef.current = cards.length;
-
-  // Clear the "new" marker after animation completes (~500ms should cover stagger)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: cards.length is the deliberate trigger — the effect only reads a ref and must re-arm the timer whenever the card count changes
-  useEffect(() => {
-    if (newCardStartIndex.current >= 0) {
-      const timer = setTimeout(() => {
-        newCardStartIndex.current = -1;
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [cards.length]);
-
-  const allFaceDown = !revealed && cards.length > 0 && cards.every((card) => !card.faceUp);
-  const shouldCollapse = allFaceDown && cards.length > STACK_COLLAPSE_THRESHOLD;
-  const hasFaceUpCards = cards.some((c) => c.faceUp);
-  const shouldShowTopOnly =
-    !revealed &&
-    !allFaceDown &&
-    hasFaceUpCards &&
-    cards.length > STACK_COLLAPSE_THRESHOLD &&
-    !expanded;
 
   return (
-    <Pressable style={styles.zone} onPress={() => setExpanded((prev) => !prev)}>
-      <Text style={styles.zoneName}>{formatZoneName(name)}</Text>
+    <Pressable style={styles.zone} onPress={toggleExpanded}>
+      <Text style={styles.zoneName}>{formatZoneName(view.name)}</Text>
       <View style={styles.cardRow}>
-        {cards.length === 0 ? (
+        {mode === "empty" ? (
           <View style={styles.emptyZone}>
             <Text style={styles.emptyZoneText}>Empty</Text>
           </View>
-        ) : isDiscard ? (
+        ) : mode === "discard" ? (
           <DiscardPile topCard={cards[0]!} count={cards.length} />
-        ) : shouldCollapse ? (
+        ) : mode === "stack" ? (
           <StackedDeck />
-        ) : shouldShowTopOnly ? (
+        ) : mode === "top_only" ? (
           <>
             <FlippableCardView card={cards[0]!} />
             <View style={styles.topCardMoreIndicator}>
@@ -269,7 +183,7 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
             </View>
           </>
         ) : (
-          <CappedCardList cards={cards} newCardStartIndex={newCardStartIndex.current} />
+          <CappedCardList cards={cards} newCardStartIndex={newCardStartIndex} />
         )}
       </View>
     </Pressable>
@@ -327,21 +241,15 @@ const DiscardPile = React.memo(function DiscardPile({
 // ─── Active Suit Indicator ─────────────────────────────────────────
 
 const ActiveSuitIndicator = React.memo(function ActiveSuitIndicator({
-  suit,
+  model,
 }: {
-  readonly suit: string;
+  readonly model: ActiveSuitModel;
 }): React.JSX.Element {
-  const symbol = SUIT_SYMBOLS[suit] ?? suit;
-  const isRed = RED_SUITS.has(suit);
-  const suitColor = isRed ? colors.suitRedBright : colors.text;
-
   return (
     <View style={styles.activeSuitContainer}>
       <Text style={styles.activeSuitLabel}>ACTIVE SUIT</Text>
-      <Text style={[styles.activeSuitSymbol, { color: suitColor }]}>{symbol}</Text>
-      <Text style={[styles.activeSuitName, { color: suitColor }]}>
-        {suit.charAt(0).toUpperCase() + suit.slice(1)}
-      </Text>
+      <Text style={[styles.activeSuitSymbol, { color: model.color }]}>{model.symbol}</Text>
+      <Text style={[styles.activeSuitName, { color: model.color }]}>{model.name}</Text>
     </View>
   );
 });
@@ -350,15 +258,12 @@ const ActiveSuitIndicator = React.memo(function ActiveSuitIndicator({
 
 function CappedCardList({
   cards,
-  newCardStartIndex = -1,
+  newCardStartIndex,
 }: {
   readonly cards: readonly Card[];
-  readonly newCardStartIndex?: number;
+  readonly newCardStartIndex: number;
 }): React.JSX.Element {
-  const hiddenCount = cards.length - MAX_VISIBLE_CARDS;
-  const visibleCards = hiddenCount > 0 ? cards.slice(-MAX_VISIBLE_CARDS) : cards;
-  // Adjust the start index for visible slice
-  const visibleOffset = hiddenCount > 0 ? hiddenCount : 0;
+  const { hiddenCount, cards: visible } = getCappedCardList(cards, newCardStartIndex);
 
   return (
     <>
@@ -367,17 +272,13 @@ function CappedCardList({
           <Text style={styles.moreIndicatorText}>+{hiddenCount} more</Text>
         </View>
       )}
-      {visibleCards.map((card, i) => {
-        const globalIndex = visibleOffset + i;
-        const isNewCard = newCardStartIndex >= 0 && globalIndex >= newCardStartIndex;
-
-        if (isNewCard) {
-          const staggerDelay = (globalIndex - newCardStartIndex) * 80;
-          return <AnimatedCardView key={card.id} card={card} delay={staggerDelay} />;
-        }
-
-        return <FlippableCardView key={card.id} card={card} />;
-      })}
+      {visible.map(({ card, isNew, dealDelay }) =>
+        isNew ? (
+          <AnimatedCardView key={card.id} card={card} delay={dealDelay} />
+        ) : (
+          <FlippableCardView key={card.id} card={card} />
+        ),
+      )}
     </>
   );
 }
@@ -397,16 +298,16 @@ const CardView = React.memo(function CardView({
     );
   }
 
-  const suitSymbol = SUIT_SYMBOLS[card.suit] ?? card.suit;
-  const isRed = RED_SUITS.has(card.suit);
+  const symbol = suitSymbol(card.suit);
+  const ink = { color: cardInkColor(card) };
 
   return (
     <View style={[styles.card, styles.cardFace]}>
       <View style={styles.cardCorner}>
-        <Text style={[styles.cardRank, isRed && styles.cardRed]}>{card.rank}</Text>
-        <Text style={[styles.cardSuit, isRed && styles.cardRed]}>{suitSymbol}</Text>
+        <Text style={[styles.cardRank, ink]}>{card.rank}</Text>
+        <Text style={[styles.cardSuit, ink]}>{symbol}</Text>
       </View>
-      <Text style={[styles.cardPip, isRed && styles.cardRed]}>{suitSymbol}</Text>
+      <Text style={[styles.cardPip, ink]}>{symbol}</Text>
     </View>
   );
 });
@@ -425,19 +326,19 @@ const AnimatedCardView = React.memo(function AnimatedCardView({
   readonly delay: number;
 }): React.JSX.Element {
   const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(-20)).current;
+  const translateY = useRef(new Animated.Value(DEAL_SLIDE_OFFSET)).current;
 
   useEffect(() => {
     const animation = Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
-        duration: 250,
+        duration: DEAL_DURATION_MS,
         delay,
         useNativeDriver: true,
       }),
       Animated.timing(translateY, {
         toValue: 0,
-        duration: 250,
+        duration: DEAL_DURATION_MS,
         delay,
         useNativeDriver: true,
       }),
@@ -464,42 +365,26 @@ const FlippableCardView = React.memo(function FlippableCardView({
   readonly card: Card;
 }): React.JSX.Element {
   const flipAnim = useRef(new Animated.Value(card.faceUp ? 1 : 0)).current;
-  const wasFaceUpRef = useRef(card.faceUp);
 
-  useEffect(() => {
-    if (card.faceUp && !wasFaceUpRef.current) {
-      // Card just flipped face-up — animate
-      flipAnim.setValue(0);
-      Animated.timing(flipAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }).start();
-    }
-    wasFaceUpRef.current = card.faceUp;
-  }, [card.faceUp, flipAnim]);
+  useFlipOnReveal(card.faceUp, () => {
+    // Card just flipped face-up — animate
+    flipAnim.setValue(0);
+    Animated.timing(flipAnim, {
+      toValue: 1,
+      duration: FLIP_DURATION_MS,
+      useNativeDriver: true,
+    }).start();
+  });
 
   const rotateY = flipAnim.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: ["0deg", "90deg", "0deg"],
   });
 
-  const cardOpacity = flipAnim.interpolate({
-    inputRange: [0, 0.49, 0.5, 1],
-    outputRange: [1, 1, 1, 1],
-  });
-
-  // Show back for first half, face for second half
-  // We can't conditionally render based on animated value,
-  // so we use a simpler approach: just animate the rotation
-  // and let CardView render the current state
+  // We can't conditionally render based on animated value, so we just
+  // animate the rotation and let CardView render the current state.
   return (
-    <Animated.View
-      style={{
-        opacity: cardOpacity,
-        transform: [{ perspective: 800 }, { rotateY }],
-      }}
-    >
+    <Animated.View style={{ transform: [{ perspective: 800 }, { rotateY }] }}>
       <CardView card={card} />
     </Animated.View>
   );
@@ -508,26 +393,22 @@ const FlippableCardView = React.memo(function FlippableCardView({
 // ─── Score Board ───────────────────────────────────────────────────
 
 const ScoreBoard = React.memo(function ScoreBoard({
-  engineState,
+  rows,
 }: {
-  readonly engineState: CardGameState;
+  readonly rows: readonly ScoreRow[];
 }): React.JSX.Element | null {
-  const scoreEntries = Object.entries(engineState.scores);
-  if (scoreEntries.length === 0) return null;
+  if (rows.length === 0) return null;
 
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>SCORES</Text>
       <View style={styles.scoreBoard}>
-        {scoreEntries.map(([key, score]) => {
-          const displayName = resolveScoreLabel(key, engineState.players);
-          return (
-            <View key={key} style={styles.scoreRow}>
-              <Text style={styles.scoreName}>{displayName}</Text>
-              <Text style={styles.scoreValue}>{score}</Text>
-            </View>
-          );
-        })}
+        {rows.map(({ key, label, score }) => (
+          <View key={key} style={styles.scoreRow}>
+            <Text style={styles.scoreName}>{label}</Text>
+            <Text style={styles.scoreValue}>{score}</Text>
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -536,24 +417,33 @@ const ScoreBoard = React.memo(function ScoreBoard({
 // ─── Results Overlay ───────────────────────────────────────────────
 
 const ResultsOverlay = React.memo(function ResultsOverlay({
-  engineState,
-  dispatch,
+  overlay,
+  onBackToMenu,
 }: {
-  readonly engineState: CardGameState;
-  readonly dispatch: (action: HostAction) => void;
-}): React.JSX.Element | null {
+  readonly overlay: ResultsOverlayModel;
+  readonly onBackToMenu: () => void;
+}): React.JSX.Element {
   const [focusedButton, setFocusedButton] = useState<string | null>(null);
-  const isRoundEnd = engineState.currentPhase === "round_end";
-  const isFinished = engineState.status.kind === "finished";
 
-  const handleBackToMenu = useCallback(() => {
-    dispatch({ type: "BACK_TO_PICKER" });
-  }, [dispatch]);
+  const backButton = (
+    <View style={styles.overlayButtons}>
+      <Pressable
+        style={[
+          styles.overlayButton,
+          styles.overlayButtonSecondary,
+          focusedButton === "back" && styles.overlayButtonFocused,
+        ]}
+        onFocus={() => setFocusedButton("back")}
+        onBlur={() => setFocusedButton(null)}
+        onPress={onBackToMenu}
+        hasTVPreferredFocus
+      >
+        <Text style={styles.overlayButtonTextSecondary}>Back to Menu</Text>
+      </Pressable>
+    </View>
+  );
 
-  // Guard: only show for round_end or finished
-  if (!isRoundEnd && !isFinished) return null;
-
-  if (isRoundEnd) {
+  if (overlay.kind === "round_end") {
     // ── Round-end view: show per-player results ──
     return (
       <View style={styles.overlay}>
@@ -561,220 +451,54 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
           <Text style={styles.overlayTitle}>ROUND COMPLETE</Text>
 
           {/* Per-player results */}
-          {engineState.players.map((player, index) => {
-            const handValue = engineState.scores[`player_score:${index}`] ?? 0;
-            const result = engineState.scores[`result:${index}`] ?? 0;
-            const resultLabel = result > 0 ? "WIN" : result < 0 ? "LOSS" : "DRAW";
-            const resultColor =
-              result > 0 ? colors.success : result < 0 ? colors.redAlt : colors.amber;
-
-            return (
-              <View key={player.id} style={resultsStyles.playerRow}>
-                <Text style={resultsStyles.playerName} numberOfLines={1} ellipsizeMode="tail">
-                  {player.name}
-                </Text>
-                <Text style={resultsStyles.handValue}>{handValue}</Text>
-                <View style={[resultsStyles.resultBadge, { backgroundColor: resultColor }]}>
-                  <Text style={resultsStyles.resultBadgeText}>{resultLabel}</Text>
-                </View>
+          {overlay.players.map((row) => (
+            <View key={row.playerId} style={resultsStyles.playerRow}>
+              <Text style={resultsStyles.playerName} numberOfLines={1} ellipsizeMode="tail">
+                {row.name}
+              </Text>
+              <Text style={resultsStyles.handValue}>{row.handValue}</Text>
+              <View style={[resultsStyles.resultBadge, { backgroundColor: row.resultColor }]}>
+                <Text style={resultsStyles.resultBadgeText}>{row.resultLabel}</Text>
               </View>
-            );
-          })}
+            </View>
+          ))}
 
           {/* NPC / opponent scores */}
-          {(() => {
-            const npcScores = Object.entries(engineState.scores)
-              .filter(([key]) => key.endsWith("_score") && !key.startsWith("player_score:"))
-              .map(([key, value]) => ({
-                label: key
-                  .replace(/_score$/, "")
-                  .replace(/_/g, " ")
-                  .replace(/\b\w/g, (c) => c.toUpperCase()),
-                score: value,
-              }));
-
-            if (npcScores.length === 0) return null;
-
-            return (
-              <>
-                <View style={resultsStyles.divider} />
-                {npcScores.map(({ label, score }) => (
-                  <View key={label} style={resultsStyles.npcRow}>
-                    <Text style={resultsStyles.npcLabel}>{label}</Text>
-                    <Text style={resultsStyles.npcScore}>{score}</Text>
-                  </View>
-                ))}
-              </>
-            );
-          })()}
+          {overlay.npcScores.length > 0 && (
+            <>
+              <View style={resultsStyles.divider} />
+              {overlay.npcScores.map(({ label, score }) => (
+                <View key={label} style={resultsStyles.npcRow}>
+                  <Text style={resultsStyles.npcLabel}>{label}</Text>
+                  <Text style={resultsStyles.npcScore}>{score}</Text>
+                </View>
+              ))}
+            </>
+          )}
 
           {/* Info text — phones trigger new round, not TV */}
           <Text style={resultsStyles.waitingText}>Waiting for players to start new round...</Text>
 
-          <View style={styles.overlayButtons}>
-            <Pressable
-              style={[
-                styles.overlayButton,
-                styles.overlayButtonSecondary,
-                focusedButton === "back" && styles.overlayButtonFocused,
-              ]}
-              onFocus={() => setFocusedButton("back")}
-              onBlur={() => setFocusedButton(null)}
-              onPress={handleBackToMenu}
-              hasTVPreferredFocus
-            >
-              <Text style={styles.overlayButtonTextSecondary}>Back to Menu</Text>
-            </Pressable>
-          </View>
+          {backButton}
         </View>
       </View>
     );
   }
 
-  // ── Finished view (existing behavior) ──
-  const { winnerId } = engineState.status as {
-    readonly winnerId: string | null;
-  };
-  const winner = winnerId ? engineState.players.find((p) => p.id === winnerId) : null;
-
+  // ── Finished view ──
   return (
     <View style={styles.overlay}>
       <View style={styles.overlayCard}>
         <Text style={styles.overlayTitle}>GAME OVER</Text>
-        {winner ? (
-          <Text style={styles.overlayWinner}>🏆 {winner.name} wins!</Text>
-        ) : (
-          <Text style={styles.overlayWinner}>It's a draw!</Text>
-        )}
+        <Text style={styles.overlayWinner}>
+          {overlay.winnerName !== null ? `🏆 ${overlay.winnerName} wins!` : "It's a draw!"}
+        </Text>
 
-        <View style={styles.overlayButtons}>
-          <Pressable
-            style={[
-              styles.overlayButton,
-              styles.overlayButtonSecondary,
-              focusedButton === "back" && styles.overlayButtonFocused,
-            ]}
-            onFocus={() => setFocusedButton("back")}
-            onBlur={() => setFocusedButton(null)}
-            onPress={handleBackToMenu}
-            hasTVPreferredFocus
-          >
-            <Text style={styles.overlayButtonTextSecondary}>Back to Menu</Text>
-          </Pressable>
-        </View>
+        {backButton}
       </View>
     </View>
   );
 });
-
-// ─── Pure Helpers ──────────────────────────────────────────────────
-
-/** Returns shared (non-player-owned) zone entries. */
-function getSharedZones(engineState: CardGameState): readonly [string, ZoneState][] {
-  return Object.entries(engineState.zones).filter(([name]) => !isPlayerZone(name));
-}
-
-/** Checks if a zone name follows the per-player pattern (e.g., "hand:0"). */
-function isPlayerZone(name: string): boolean {
-  return /:\d+$/.test(name);
-}
-
-/**
- * Determines whether a zone should render face-up on the shared TV god-view.
- * A zone is "public on the table" when its effective visibility (honoring
- * phase overrides) is `public` — the whole table is meant to see it, so we
- * reveal it here even if individual cards were dealt face-down.
- */
-function isPublicOnTable(engineState: CardGameState, zoneName: string): boolean {
-  const baseName = zoneName.replace(/:\d+$/, "");
-  const def = engineState.ruleset.zones.find((z) => z.name === baseName);
-  if (!def) return false;
-  const override = def.phaseOverrides?.find((o) => o.phase === engineState.currentPhase);
-  const visibility = override?.visibility ?? def.visibility;
-  return visibility.kind === "public";
-}
-
-interface PlayerZoneGroup {
-  readonly player: Player;
-  readonly index: number;
-  readonly zones: readonly [string, ZoneState][];
-  readonly isCurrentTurn: boolean;
-}
-
-/** Groups per-player zones under their owning player. */
-function getPlayerZoneGroups(engineState: CardGameState): readonly PlayerZoneGroup[] {
-  const groups: PlayerZoneGroup[] = [];
-
-  for (let i = 0; i < engineState.players.length; i++) {
-    const player = engineState.players[i]!;
-    const playerSuffix = `:${i}`;
-    const zones = Object.entries(engineState.zones).filter(([name]) => name.endsWith(playerSuffix));
-
-    if (zones.length > 0) {
-      groups.push({
-        player,
-        index: i,
-        zones,
-        isCurrentTurn: i === engineState.currentPlayerIndex,
-      });
-    }
-  }
-
-  return groups;
-}
-
-/** Formats a phase name for display: "player_turns" → "Player Turns" */
-function formatPhaseName(phase: string): string {
-  return phase
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-/** Formats a zone name for display: "draw_pile" → "Draw Pile", "hand:0" → "Hand" */
-function formatZoneName(name: string): string {
-  const baseName = name.replace(/:\d+$/, "");
-  return formatPhaseName(baseName);
-}
-
-/** Resolves a score key like "player:0" or "result:1" to a human-readable label. */
-function resolveScoreLabel(key: string, players: readonly Player[]): string {
-  const playerMatch = key.match(/^player_score:(\d+)$/);
-  if (playerMatch) {
-    const player = players[Number(playerMatch[1])];
-    return player?.name ?? key;
-  }
-  const resultMatch = key.match(/^result:(\d+)$/);
-  if (resultMatch) {
-    const player = players[Number(resultMatch[1])];
-    return player ? `${player.name} (Result)` : key;
-  }
-  // Non-indexed keys like "dealer_score" — humanize
-  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/** Formats a status kind for display. */
-function formatStatusKind(kind: string): string {
-  switch (kind) {
-    case "waiting_for_players":
-      return "Waiting for Players";
-    case "in_progress":
-      return "In Progress";
-    case "paused":
-      return "Paused";
-    case "finished":
-      return "Finished";
-    default:
-      return kind;
-  }
-}
-
-/** Resolves the table background color from UI config. */
-function resolveTableColor(ui: UIConfig | undefined): string {
-  if (!ui) return TABLE_COLORS.felt_green!;
-  if (ui.tableColor === "custom" && ui.customColor) return ui.customColor;
-  return TABLE_COLORS[ui.tableColor] ?? TABLE_COLORS.felt_green!;
-}
 
 // ─── Styles ────────────────────────────────────────────────────────
 
@@ -943,9 +667,6 @@ const styles = StyleSheet.create({
     color: colors.cardInk,
     fontSize: 22,
     opacity: 0.85,
-  },
-  cardRed: {
-    color: colors.suitRed,
   },
 
   // Stacked deck (collapsed face-down pile)
@@ -1185,19 +906,11 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "transparent",
   },
-  overlayButtonPrimary: {
-    backgroundColor: colors.gold,
-  },
   overlayButtonSecondary: {
     backgroundColor: colors.tableSurfaceRaised,
   },
   overlayButtonFocused: {
     borderColor: colors.gold,
-  },
-  overlayButtonText: {
-    color: colors.black,
-    fontSize: 24,
-    fontWeight: "700",
   },
   overlayButtonTextSecondary: {
     color: colors.text,
