@@ -1,0 +1,42 @@
+name: APK Check
+
+# Builds the release APK without publishing it, so native build breakage
+# (Expo prebuild, Gradle, NDK, nitro-modules version mismatches, ...) is
+# caught before merge instead of on the next auto-release. Reuses the exact
+# steps from release-apk.yml; with no `tag` the upload-to-release steps are
+# skipped and the APK is only kept as a workflow artifact.
+
+on:
+  pull_request:
+    paths:
+      - "packages/host/**"
+      - "bun.lock"
+      - ".github/workflows/release-apk.yml"
+      - ".github/workflows/apk-check.yml"
+  schedule:
+    # Weekly, Monday 06:00 UTC — catches toolchain drift (SDK/NDK images,
+    # transitive native deps) even when nothing in the repo changed.
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apk-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Fork PRs get a read-only GITHUB_TOKEN, which the reusable workflow's
+    # `contents: write` declaration would reject; skip them.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    # release-apk.yml declares `contents: write` (needed when it runs on a
+    # release), and a called workflow may not request more than its caller
+    # grants. Nothing here writes: `tag` is empty, so the release upload steps
+    # are skipped.
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-apk.yml
