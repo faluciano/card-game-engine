@@ -153,6 +153,6 @@ export function parseRuleset(raw: unknown): ParsedRuleset {
 /**
  * Safe parse variant — returns a discriminated result instead of throwing.
  */
-export function safeParseRuleset(raw: unknown): z.SafeParseReturnType<unknown, ParsedRuleset> {
+export function safeParseRuleset(raw: unknown): z.ZodSafeParseResult<ParsedRuleset> {
   return CardGameRulesetSchema.safeParse(raw);
 }

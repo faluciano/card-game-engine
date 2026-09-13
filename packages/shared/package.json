@@ -18,7 +18,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "zod": "^3.25.0",
+    "zod": "^4.1.0",
     "@couch-kit/core": "0.10.0"
   },
   "devDependencies": {
