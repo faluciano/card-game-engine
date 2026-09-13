@@ -92,10 +92,10 @@ export function loadRuleset(raw: unknown): CardGameRuleset {
       Array.isArray((error as { issues: unknown[] }).issues)
     ) {
       const zodError = error as {
-        issues: Array<{ path: (string | number)[]; message: string }>;
+        issues: Array<{ path: PropertyKey[]; message: string }>;
       };
       const formattedIssues = zodError.issues.map(
-        (issue) => `${issue.path.join(".")}: ${issue.message}`,
+        (issue) => `${issue.path.map(String).join(".")}: ${issue.message}`,
       );
       throw new RulesetParseError(
         `Invalid ruleset: ${formattedIssues.length} issue(s)`,

@@ -166,7 +166,7 @@ import {
 parseRuleset(json: unknown): ParsedRuleset
 
 // Safe variant -- returns a discriminated result instead of throwing.
-safeParseRuleset(json: unknown): z.SafeParseReturnType<unknown, ParsedRuleset>
+safeParseRuleset(json: unknown): z.ZodSafeParseResult<ParsedRuleset>
 ```
 
 ### Deck Presets

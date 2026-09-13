@@ -45,7 +45,7 @@ async function main(): Promise<void> {
     } else {
       console.error(`  \u274C ${file}`);
       for (const issue of result.error.issues) {
-        const path = issue.path.join(".");
+        const path = issue.path.map(String).join(".");
         console.error(`     ${path || "(root)"}: ${issue.message}`);
       }
       failed++;
