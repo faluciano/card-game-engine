@@ -28,7 +28,17 @@
     },
     {
       "description": "Web toolchain and test runner: open PRs, review manually.",
-      "matchPackageNames": ["vite", "vitest", "@vitejs/**", "@biomejs/**", "typescript", "zod", "react", "react-dom", "@types/**"],
+      "matchPackageNames": [
+        "vite",
+        "vitest",
+        "@vitejs/**",
+        "@biomejs/**",
+        "typescript",
+        "zod",
+        "react",
+        "react-dom",
+        "@types/**"
+      ],
       "groupName": "web toolchain",
       "automerge": false
     },
