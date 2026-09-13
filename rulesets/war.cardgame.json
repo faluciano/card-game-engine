@@ -1,0 +1,171 @@
+{
+  "$schema": "../packages/shared/src/schema/cardgame.v1.schema.json",
+  "meta": {
+    "name": "War",
+    "slug": "war",
+    "version": "1.0.0",
+    "author": "faluciano",
+    "players": {
+      "min": 2,
+      "max": 2
+    },
+    "description": "Both players flip a card at once; the higher card takes both. A tie means war: burn three cards face-down and flip again for the whole pot",
+    "tags": ["comparing", "simultaneous", "classic", "kids"],
+    "license": "public-domain"
+  },
+  "deck": {
+    "preset": "standard_52",
+    "copies": 1,
+    "cardValues": {
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9,
+      "10": 10,
+      "J": 11,
+      "Q": 12,
+      "K": 13,
+      "A": 14
+    }
+  },
+  "zones": [
+    {
+      "name": "draw_pile",
+      "visibility": { "kind": "hidden" },
+      "owners": []
+    },
+    {
+      "name": "deck",
+      "visibility": { "kind": "hidden" },
+      "owners": ["player"]
+    },
+    {
+      "name": "battle",
+      "visibility": { "kind": "public" },
+      "owners": ["player"]
+    },
+    {
+      "name": "won",
+      "visibility": { "kind": "hidden" },
+      "owners": ["player"]
+    },
+    {
+      "name": "pot",
+      "visibility": { "kind": "hidden" },
+      "owners": []
+    }
+  ],
+  "roles": [
+    {
+      "name": "player",
+      "isHuman": true,
+      "count": "per_player"
+    }
+  ],
+  "variables": {
+    "at_war": { "type": "number", "initial": 0 },
+    "battles": { "type": "number", "initial": 0, "public": true },
+    "wars": { "type": "number", "initial": 0, "public": true }
+  },
+  "phases": [
+    {
+      "name": "setup",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [{ "to": "battle", "when": "all_hands_dealt" }],
+      "onEnter": ["shuffle(draw_pile)", "deal(draw_pile, deck, 26)"]
+    },
+    {
+      "name": "battle",
+      "kind": "all_players",
+      "actions": [
+        {
+          "name": "flip",
+          "label": "Flip",
+          "condition": "card_count(current_player.battle) == 0 && card_count(current_player.deck) > 0",
+          "effect": [
+            "move_top(current_player.deck, current_player.battle, 1)",
+            "flip_top(current_player.battle, 1)"
+          ]
+        }
+      ],
+      "transitions": [{ "to": "resolve", "when": "trick_card_count(\"battle\") == player_count" }]
+    },
+    {
+      "name": "resolve",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        { "to": "war", "when": "get_var(\"at_war\") == 1" },
+        { "to": "replenish", "when": "get_var(\"at_war\") == 0" }
+      ],
+      "onEnter": [
+        "inc_var(\"battles\", 1)",
+        "if(card_rank(\"battle:0\", 0) > card_rank(\"battle:1\", 0), collect_trick(\"battle\", \"won:0\"))",
+        "if(card_rank(\"battle:0\", 0) > card_rank(\"battle:1\", 0), move_all(pot, \"won:0\"))",
+        "if(card_rank(\"battle:0\", 0) < card_rank(\"battle:1\", 0), collect_trick(\"battle\", \"won:1\"))",
+        "if(card_rank(\"battle:0\", 0) < card_rank(\"battle:1\", 0), move_all(pot, \"won:1\"))",
+        "if(card_rank(\"battle:0\", 0) == card_rank(\"battle:1\", 0), set_var(\"at_war\", 1))",
+        "if(card_rank(\"battle:0\", 0) == card_rank(\"battle:1\", 0), inc_var(\"wars\", 1))"
+      ]
+    },
+    {
+      "name": "war",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [{ "to": "replenish", "when": "true" }],
+      "onEnter": ["collect_trick(\"battle\", pot)"]
+    },
+    {
+      "name": "replenish",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [
+        {
+          "to": "game_over",
+          "when": "card_count(\"deck:0\") == 0 || card_count(\"deck:1\") == 0 || get_var(\"battles\") >= 1000"
+        },
+        { "to": "burn", "when": "get_var(\"at_war\") == 1" },
+        { "to": "battle", "when": "true" }
+      ],
+      "onEnter": [
+        "if(card_count(\"deck:0\") == 0, move_all(\"won:0\", \"deck:0\"))",
+        "if(card_count(\"deck:0\") == 0, shuffle(\"deck:0\"))",
+        "if(card_count(\"deck:1\") == 0, move_all(\"won:1\", \"deck:1\"))",
+        "if(card_count(\"deck:1\") == 0, shuffle(\"deck:1\"))"
+      ]
+    },
+    {
+      "name": "burn",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [{ "to": "battle", "when": "true" }],
+      "onEnter": [
+        "if(card_count(\"deck:0\") > 3, move_top(\"deck:0\", pot, 3), move_top(\"deck:0\", pot, card_count(\"deck:0\") - 1))",
+        "if(card_count(\"deck:1\") > 3, move_top(\"deck:1\", pot, 3), move_top(\"deck:1\", pot, card_count(\"deck:1\") - 1))",
+        "set_var(\"at_war\", 0)"
+      ]
+    },
+    {
+      "name": "game_over",
+      "kind": "automatic",
+      "actions": [],
+      "transitions": [],
+      "onEnter": ["calculate_scores()", "accumulate_scores()", "determine_winners()", "end_game()"]
+    }
+  ],
+  "scoring": {
+    "method": "card_count(current_player.deck) + card_count(current_player.won)",
+    "winCondition": "get_cumulative_score(current_player_index) == max_cumulative_score()",
+    "bustCondition": "false",
+    "tieCondition": "false"
+  },
+  "ui": {
+    "layout": "linear",
+    "tableColor": "felt_green"
+  }
+}
