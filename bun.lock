@@ -61,7 +61,6 @@
         "expo-network": "~8.0.0",
         "react": "19.1.0",
         "react-native": "0.81.5",
-        "react-native-nitro-http-server": "1.6.1",
         "react-native-nitro-modules": "^0.33.9",
         "react-native-qrcode-svg": "^6.3.21",
         "react-native-svg": "^15.15.1",
