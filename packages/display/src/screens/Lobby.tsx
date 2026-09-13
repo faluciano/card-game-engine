@@ -1,15 +1,14 @@
 // ─── Lobby Screen (web) ────────────────────────────────────────────
-// Web port of packages/host/src/screens/Lobby.tsx. Waiting room where
-// players scan a QR to join over the relay. Shows the connected players,
-// the selected game, and a start button that unlocks at the minimum
-// player count.
+// Thin DOM renderer over `useLobbyModel` from host-core, mirroring
+// packages/host/src/screens/Lobby.tsx. Waiting room where players scan
+// a QR to join over the relay: connected players, the selected game,
+// and a start button that unlocks at the minimum player count.
 
-import React, { useMemo } from "react";
-import type { IPlayer } from "@couch-kit/core";
+import React from "react";
 import type { HostAction, HostGameState } from "@card-engine/shared";
+import { colors, playerInitial, useLobbyModel, type LobbyPlayer } from "@card-engine/host-core";
 import { Button } from "../components/Button.js";
 import { JoinPanel } from "../components/JoinPanel.js";
-import { colors } from "@card-engine/host-core";
 
 export function Lobby({
   state,
@@ -22,48 +21,35 @@ export function Lobby({
   readonly joinUrl: string | null;
   readonly roomId: string | null;
 }): React.JSX.Element {
-  const screen = state.screen;
-
-  const playerList = useMemo(
-    () => Object.entries(state.players).map(([id, player]): IPlayer => ({ ...player, id })),
-    [state.players],
-  );
+  const model = useLobbyModel(state, dispatch);
 
   // Guard: this screen only renders when screen.tag === "lobby"
-  if (screen.tag !== "lobby") {
+  if (model.kind !== "lobby") {
     return (
       <div style={styles.container}>
-        <div style={styles.errorText}>Invalid screen state</div>
+        <div style={styles.errorText}>{model.message}</div>
       </div>
     );
   }
-
-  const { ruleset } = screen;
-  const { min, max } = ruleset.meta.players;
-
-  const connectedCount = playerList.filter((p) => p.connected).length;
-  const canStart = connectedCount >= min;
 
   return (
     <div style={styles.container}>
       {/* Left panel: QR code + connection info */}
       <div style={styles.leftPanel}>
         <JoinPanel joinUrl={joinUrl} roomId={roomId} size={220} />
-        <div style={styles.gameName}>{ruleset.meta.name}</div>
+        <div style={styles.gameName}>{model.gameName}</div>
         <div style={styles.connectionHint}>Scan to join on your phone</div>
       </div>
 
       {/* Right panel: player list + controls */}
       <div style={styles.rightPanel}>
-        <div style={styles.playerCountLabel}>
-          {connectedCount} / {min}–{max} players
-        </div>
+        <div style={styles.playerCountLabel}>{model.playerCountLabel}</div>
 
         <div style={styles.playerList}>
-          {playerList.length === 0 ? (
+          {model.playerList.length === 0 ? (
             <div style={styles.emptyHint}>Waiting for players…</div>
           ) : (
-            playerList.map((player) => <PlayerRow key={player.id} player={player} />)
+            model.playerList.map((player) => <PlayerRow key={player.id} player={player} />)
           )}
         </div>
 
@@ -71,14 +57,14 @@ export function Lobby({
           <Button
             label="Start Game"
             variant="primary"
-            disabled={!canStart}
-            onPress={() => dispatch({ type: "START_GAME" })}
+            disabled={!model.canStart}
+            onPress={model.start}
             style={styles.controlButton}
           />
           <Button
             label="Back"
             variant="secondary"
-            onPress={() => dispatch({ type: "BACK_TO_PICKER" })}
+            onPress={model.back}
             style={styles.controlButton}
           />
         </div>
@@ -92,7 +78,7 @@ export function Lobby({
 const PlayerRow = React.memo(function PlayerRow({
   player,
 }: {
-  readonly player: IPlayer;
+  readonly player: LobbyPlayer;
 }): React.JSX.Element {
   return (
     <div style={styles.playerRow}>
@@ -102,7 +88,7 @@ const PlayerRow = React.memo(function PlayerRow({
           ...(player.connected ? null : styles.avatarDisconnected),
         }}
       >
-        <span style={styles.avatarText}>{player.name.charAt(0).toUpperCase()}</span>
+        <span style={styles.avatarText}>{playerInitial(player)}</span>
       </div>
       <span
         style={{
