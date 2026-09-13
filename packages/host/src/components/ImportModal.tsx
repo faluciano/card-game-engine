@@ -1,12 +1,18 @@
 // ─── Import Modal ──────────────────────────────────────────────────
-// Full-screen modal overlay for importing rulesets from a URL.
-// Designed for D-pad navigation on Android TV. Uses a discriminated
-// union for internal state to make illegal states unrepresentable.
+// Full-screen modal overlay for importing rulesets from a URL, designed
+// for D-pad navigation on Android TV. A thin RN renderer over
+// `useImportModalModel` from host-core; only the focus bookkeeping for
+// the TV highlight ring lives here.
 
 import type React from "react";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors, type ImportResult } from "@card-engine/host-core";
+import {
+  IMPORT_URL_PLACEHOLDER,
+  colors,
+  useImportModalModel,
+  type ImportResult,
+} from "@card-engine/host-core";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -18,30 +24,8 @@ interface ImportModalProps {
   readonly allSlugs: readonly string[];
 }
 
-type ModalState =
-  | { readonly tag: "idle" }
-  | { readonly tag: "loading" }
-  | { readonly tag: "success"; readonly name: string }
-  | { readonly tag: "error"; readonly message: string }
-  | { readonly tag: "duplicate"; readonly slug: string; readonly suggestedSlug: string };
-
-const IDLE_STATE: ModalState = { tag: "idle" };
-const LOADING_STATE: ModalState = { tag: "loading" };
-
-const AUTO_CLOSE_DELAY_MS = 1500;
-
-// ─── Helpers ───────────────────────────────────────────────────────
-
-/** Returns the next available slug by appending an incrementing suffix. */
-function nextAvailableSlug(base: string, existing: readonly string[]): string {
-  let n = 1;
-  let candidate = `${base}-${n}`;
-  while (existing.includes(candidate)) {
-    n++;
-    candidate = `${base}-${n}`;
-  }
-  return candidate;
-}
+/** Which focusable control currently holds the D-pad focus ring. */
+type FocusKey = "input" | "slugInput" | "import" | "cancel" | "importAs" | "duplicateCancel";
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -52,93 +36,30 @@ export function ImportModal({
   onImportWithSlug,
   allSlugs,
 }: ImportModalProps): React.JSX.Element | null {
-  const [url, setUrl] = useState("");
-  const [state, setState] = useState<ModalState>(IDLE_STATE);
-  const [customSlug, setCustomSlug] = useState("");
-  const [importFocused, setImportFocused] = useState(false);
-  const [cancelFocused, setCancelFocused] = useState(false);
-  const [inputFocused, setInputFocused] = useState(false);
-  const [slugInputFocused, setSlugInputFocused] = useState(false);
-  const [importAsFocused, setImportAsFocused] = useState(false);
-  const [duplicateCancelFocused, setDuplicateCancelFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  const [focused, setFocused] = useState<FocusKey | null>(null);
+  const model = useImportModalModel({
+    visible,
+    onClose,
+    onImport,
+    onImportWithSlug,
+    allSlugs,
+    inputRef,
+  });
 
-  // Reset state when modal closes
+  // Drop the focus ring when the modal closes
   useEffect(() => {
-    if (!visible) {
-      setUrl("");
-      setState(IDLE_STATE);
-      setCustomSlug("");
-      setImportFocused(false);
-      setCancelFocused(false);
-      setInputFocused(false);
-      setSlugInputFocused(false);
-      setImportAsFocused(false);
-      setDuplicateCancelFocused(false);
-    }
+    if (!visible) setFocused(null);
   }, [visible]);
-
-  // Auto-focus the TextInput when modal opens
-  useEffect(() => {
-    if (visible) {
-      // Small delay to ensure the modal is fully rendered before focusing
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [visible]);
-
-  // Auto-close on success after delay
-  useEffect(() => {
-    if (state.tag !== "success") return;
-
-    const timer = setTimeout(() => {
-      onClose();
-    }, AUTO_CLOSE_DELAY_MS);
-
-    return () => clearTimeout(timer);
-  }, [state, onClose]);
-
-  const handleImport = useCallback(async () => {
-    const trimmed = url.trim();
-    if (trimmed.length === 0) return;
-
-    setState(LOADING_STATE);
-
-    const result = await onImport(trimmed);
-
-    if (result.ok) {
-      setState({ tag: "success", name: result.name });
-    } else if (result.duplicate) {
-      const suggested = nextAvailableSlug(result.slug, allSlugs);
-      setState({ tag: "duplicate", slug: result.slug, suggestedSlug: suggested });
-    } else {
-      setState({ tag: "error", message: result.error });
-    }
-  }, [url, onImport, allSlugs]);
-
-  const handleImportWithSlug = useCallback(async () => {
-    if (state.tag !== "duplicate") return;
-
-    const slug = customSlug.trim() || state.suggestedSlug;
-    setState(LOADING_STATE);
-
-    const result = await onImportWithSlug(url.trim(), slug);
-
-    if (result.ok) {
-      setState({ tag: "success", name: result.name });
-    } else {
-      setState({ tag: "error", message: result.error });
-    }
-  }, [customSlug, url, onImportWithSlug, state]);
 
   // Early exit: don't render when not visible
   if (!visible) return null;
 
-  const isLoading = state.tag === "loading";
-  const isDuplicate = state.tag === "duplicate";
-  const isImportDisabled = url.trim().length === 0 || isLoading;
+  const { state, isLoading, isDuplicate, isImportDisabled } = model;
+  const focusProps = (key: FocusKey) => ({
+    onFocus: () => setFocused(key),
+    onBlur: () => setFocused(null),
+  });
 
   return (
     <Modal
@@ -154,23 +75,22 @@ export function ImportModal({
           {/* URL Input */}
           <TextInput
             ref={inputRef}
-            style={[styles.input, inputFocused && styles.inputFocused]}
-            value={url}
-            onChangeText={setUrl}
-            placeholder="https://example.com/game.cardgame.json"
+            style={[styles.input, focused === "input" && styles.inputFocused]}
+            value={model.url}
+            onChangeText={model.setUrl}
+            placeholder={IMPORT_URL_PLACEHOLDER}
             placeholderTextColor={colors.textFaint}
             editable={!isLoading && !isDuplicate}
             autoCapitalize="none"
             autoCorrect={false}
-            onFocus={() => setInputFocused(true)}
-            onBlur={() => setInputFocused(false)}
+            {...focusProps("input")}
           />
 
           {/* Status Messages */}
           {state.tag === "loading" && <Text style={styles.loadingText}>Importing...</Text>}
           {state.tag === "success" && (
             <Text style={styles.successText}>
-              {"\u2713"} {state.name} imported successfully!
+              {"✓"} {state.name} imported successfully!
             </Text>
           )}
           {state.tag === "error" && <Text style={styles.errorText}>{state.message}</Text>}
@@ -183,26 +103,24 @@ export function ImportModal({
               </Text>
               <Text style={styles.hintText}>Choose a different name to import:</Text>
               <TextInput
-                style={[styles.input, slugInputFocused && styles.inputFocused]}
-                value={customSlug}
-                onChangeText={setCustomSlug}
+                style={[styles.input, focused === "slugInput" && styles.inputFocused]}
+                value={model.customSlug}
+                onChangeText={model.setCustomSlug}
                 placeholder={state.suggestedSlug}
                 placeholderTextColor={colors.textFaint}
                 autoCapitalize="none"
                 autoCorrect={false}
-                onFocus={() => setSlugInputFocused(true)}
-                onBlur={() => setSlugInputFocused(false)}
+                {...focusProps("slugInput")}
               />
               <View style={styles.buttonRow}>
                 <Pressable
                   style={[
                     styles.button,
                     styles.buttonPrimary,
-                    importAsFocused && styles.buttonFocused,
+                    focused === "importAs" && styles.buttonFocused,
                   ]}
-                  onFocus={() => setImportAsFocused(true)}
-                  onBlur={() => setImportAsFocused(false)}
-                  onPress={handleImportWithSlug}
+                  onPress={model.handleImportWithSlug}
+                  {...focusProps("importAs")}
                 >
                   <Text style={[styles.buttonLabel, styles.buttonLabelPrimary]}>Import As</Text>
                 </Pressable>
@@ -211,11 +129,10 @@ export function ImportModal({
                   style={[
                     styles.button,
                     styles.buttonSecondary,
-                    duplicateCancelFocused && styles.buttonFocused,
+                    focused === "duplicateCancel" && styles.buttonFocused,
                   ]}
-                  onFocus={() => setDuplicateCancelFocused(true)}
-                  onBlur={() => setDuplicateCancelFocused(false)}
                   onPress={onClose}
+                  {...focusProps("duplicateCancel")}
                 >
                   <Text style={[styles.buttonLabel, styles.buttonLabelSecondary]}>Cancel</Text>
                 </Pressable>
@@ -231,12 +148,11 @@ export function ImportModal({
                   styles.button,
                   styles.buttonPrimary,
                   isImportDisabled && styles.buttonDisabled,
-                  importFocused && !isImportDisabled && styles.buttonFocused,
+                  focused === "import" && !isImportDisabled && styles.buttonFocused,
                 ]}
-                onFocus={() => setImportFocused(true)}
-                onBlur={() => setImportFocused(false)}
-                onPress={handleImport}
+                onPress={model.handleImport}
                 disabled={isImportDisabled}
+                {...focusProps("import")}
               >
                 <Text
                   style={[
@@ -254,12 +170,11 @@ export function ImportModal({
                   styles.button,
                   styles.buttonSecondary,
                   isLoading && styles.buttonDisabled,
-                  cancelFocused && !isLoading && styles.buttonFocused,
+                  focused === "cancel" && !isLoading && styles.buttonFocused,
                 ]}
-                onFocus={() => setCancelFocused(true)}
-                onBlur={() => setCancelFocused(false)}
                 onPress={onClose}
                 disabled={isLoading}
+                {...focusProps("cancel")}
               >
                 <Text
                   style={[
