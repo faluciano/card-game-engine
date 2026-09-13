@@ -4,7 +4,7 @@
 
 /** Minimal shape of a Zod issue (path + message). */
 interface ZodIssueLike {
-  readonly path: readonly (string | number)[];
+  readonly path: readonly PropertyKey[];
   readonly message: string;
 }
 
@@ -20,7 +20,7 @@ interface ZodIssueLike {
  */
 export function formatZodIssues(issues: readonly ZodIssueLike[]): string {
   const details = issues.map((issue) => {
-    const path = issue.path.length > 0 ? issue.path.join(".") : "(root)";
+    const path = issue.path.length > 0 ? issue.path.map(String).join(".") : "(root)";
     return `${path}: ${issue.message}`;
   });
 
