@@ -9,12 +9,12 @@ jobs:
   typecheck-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.19"
+          bun-version: "1.4.2"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ hashFiles('bun.lock') }}
@@ -33,12 +33,12 @@ jobs:
       matrix:
         package: [shared, host-core, host]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.19"
+          bun-version: "1.4.2"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ hashFiles('bun.lock') }}
@@ -52,12 +52,12 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.19"
+          bun-version: "1.4.2"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ hashFiles('bun.lock') }}
