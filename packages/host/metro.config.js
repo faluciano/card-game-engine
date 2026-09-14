@@ -36,8 +36,6 @@ config.resolver.nodeModulesPaths = [
   couchKitHostNodeModules,
 ];
 
-config.resolver.unstable_enableSymlinks = true;
-
 // Resolve real paths for critical singleton packages to prevent duplicates.
 // Bun's .bun/ cache can contain multiple versions (e.g. react@18.3.1 AND react@19.1.0).
 // Without this, react-native's internal modules may resolve to the wrong React copy.
