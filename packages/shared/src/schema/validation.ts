@@ -2,7 +2,9 @@
 // Zod schemas for runtime validation of .cardgame.json files.
 // This is the "parse boundary" — raw JSON enters, typed data exits.
 
+import type { CardGameRuleset } from "../types/index";
 import { z } from "zod";
+import { RulesetParseError } from "../engine/interpreter";
 
 // ─── Primitives ────────────────────────────────────────────────────
 
@@ -155,4 +157,38 @@ export function parseRuleset(raw: unknown): ParsedRuleset {
  */
 export function safeParseRuleset(raw: unknown): z.ZodSafeParseResult<ParsedRuleset> {
   return CardGameRulesetSchema.safeParse(raw);
+}
+
+// ─── loadRuleset ───────────────────────────────────────────────────
+
+/**
+ * Loads and validates a raw JSON object into a trusted CardGameRuleset.
+ * This is the parse boundary — after this, the ruleset is guaranteed valid
+ * and the engine (`createInitialState`, `createReducer`) takes it as-is.
+ *
+ * @throws {RulesetParseError} if the JSON does not conform to the schema.
+ */
+export function loadRuleset(raw: unknown): CardGameRuleset {
+  try {
+    return parseRuleset(raw) as CardGameRuleset;
+  } catch (error: unknown) {
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "issues" in error &&
+      Array.isArray((error as { issues: unknown[] }).issues)
+    ) {
+      const zodError = error as {
+        issues: Array<{ path: PropertyKey[]; message: string }>;
+      };
+      const formattedIssues = zodError.issues.map(
+        (issue) => `${issue.path.map(String).join(".")}: ${issue.message}`,
+      );
+      throw new RulesetParseError(
+        `Invalid ruleset: ${formattedIssues.length} issue(s)`,
+        formattedIssues,
+      );
+    }
+    throw error;
+  }
 }

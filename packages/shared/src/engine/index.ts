@@ -1,4 +1,4 @@
-export { createReducer, createInitialState, loadRuleset, RulesetParseError } from "./interpreter";
+export { createReducer, createInitialState, RulesetParseError } from "./interpreter";
 export { PhaseMachine, type TransitionResult } from "./phase-machine";
 export {
   evaluateExpression,

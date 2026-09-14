@@ -6,7 +6,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadRuleset, createInitialState, createReducer } from "./interpreter";
+import { createInitialState, createReducer } from "./interpreter";
+import { loadRuleset } from "../schema/index";
 import { clearBuiltins } from "./expression-evaluator";
 import { registerAllBuiltins } from "./builtins";
 import type {
