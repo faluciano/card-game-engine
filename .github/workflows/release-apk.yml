@@ -115,7 +115,7 @@ jobs:
           fi
 
       - name: Restore ccache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
           key: ccache-release-apk-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
