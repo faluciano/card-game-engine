@@ -159,6 +159,7 @@ export class RulesetParseError extends Error {
 ### Architecture Rules
 
 - `packages/shared` has **zero framework dependencies** — pure TypeScript only
+- Zod is only reachable through `@card-engine/shared/schema` (`parseRuleset`, `safeParseRuleset`, `loadRuleset`); the root `@card-engine/shared` entry must stay Zod-free. In the web apps and host-core, use `await import("@card-engine/shared/schema")` so the schema lands in its own async chunk
 - Effect builtins record `EffectDescription` objects; the interpreter applies them (separation of intent vs. mutation)
 - All randomness flows through `SeededRng` — never use `Math.random()`
 - Rulesets are `.cardgame.json` files in `rulesets/`

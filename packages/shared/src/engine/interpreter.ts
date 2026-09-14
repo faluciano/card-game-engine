@@ -19,7 +19,6 @@ import type {
   ZoneDefinition,
   ZoneState,
 } from "../types/index";
-import { parseRuleset } from "../schema/validation";
 import { getPresetDeck, type CardTemplate } from "../deck/presets";
 import { PhaseMachine } from "./phase-machine";
 import { registerAllBuiltins, type EffectDescription, type MutableEvalContext } from "./builtins";
@@ -71,39 +70,6 @@ function appendToLog(
 ): readonly ResolvedAction[] {
   const newLog = [...log, entry];
   return newLog.length > MAX_ACTION_LOG_SIZE ? newLog.slice(-MAX_ACTION_LOG_SIZE) : newLog;
-}
-
-// ─── loadRuleset ───────────────────────────────────────────────────
-
-/**
- * Loads and validates a raw JSON object into a trusted CardGameRuleset.
- * This is the parse boundary — after this, the ruleset is guaranteed valid.
- *
- * @throws {RulesetParseError} if the JSON does not conform to the schema.
- */
-export function loadRuleset(raw: unknown): CardGameRuleset {
-  try {
-    return parseRuleset(raw) as CardGameRuleset;
-  } catch (error: unknown) {
-    if (
-      error !== null &&
-      typeof error === "object" &&
-      "issues" in error &&
-      Array.isArray((error as { issues: unknown[] }).issues)
-    ) {
-      const zodError = error as {
-        issues: Array<{ path: PropertyKey[]; message: string }>;
-      };
-      const formattedIssues = zodError.issues.map(
-        (issue) => `${issue.path.map(String).join(".")}: ${issue.message}`,
-      );
-      throw new RulesetParseError(
-        `Invalid ruleset: ${formattedIssues.length} issue(s)`,
-        formattedIssues,
-      );
-    }
-    throw error;
-  }
 }
 
 // ─── createInitialState ────────────────────────────────────────────
