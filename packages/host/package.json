@@ -31,7 +31,7 @@
     "@expo/metro-config": "~54.0.0",
     "@types/react": "~19.3.0",
     "babel-preset-expo": "^54.0.10",
-    "typescript": "~5.9.3",
+    "typescript": "~7.0.2",
     "vitest": "^5.0.0"
   }
 }
