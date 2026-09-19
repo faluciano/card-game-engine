@@ -16,7 +16,7 @@
     "@card-engine/shared": "workspace:*"
   },
   "peerDependencies": {
-    "react": ">=18.3.1"
+    "react": ">=19.3.0"
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
