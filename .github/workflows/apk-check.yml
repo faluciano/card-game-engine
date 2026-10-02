@@ -8,11 +8,6 @@ name: APK Check
 
 on:
   pull_request:
-    paths:
-      - "packages/host/**"
-      - "bun.lock"
-      - ".github/workflows/release-apk.yml"
-      - ".github/workflows/apk-check.yml"
   schedule:
     # Weekly, Monday 06:00 UTC — catches toolchain drift (SDK/NDK images,
     # transitive native deps) even when nothing in the repo changed.
@@ -26,13 +21,84 @@ concurrency:
   group: apk-check-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# A full native build is the slowest thing CI does, so it runs only when it
+# can find something:
+# - `changes` diffs the PR. Native inputs (the TV app's native config, or a
+#   React Native / Expo / Nitro / @couch-kit/host version in the lockfile) get
+#   the Gradle build. JavaScript the TV app bundles gets a Metro bundle
+#   (`expo export`), which catches bundling errors in seconds. Anything else
+#   — web-only dependency bumps, the client, the display — skips both.
+# - PR builds compile one ABI (arm64-v8a). The weekly and manual runs build
+#   every ABI, exactly as a release does.
+
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      native: ${{ steps.diff.outputs.native }}
+      js: ${{ steps.diff.outputs.js }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "native=true" >> "$GITHUB_OUTPUT"
+            echo "js=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          files=$(git diff --name-only "$BASE"...HEAD)
+          native=false
+          js=false
+
+          # The TV app's native configuration, and the APK workflows.
+          if echo "$files" | grep -qE '^(packages/host/(app\.json|plugins/|babel\.config\.js|metro\.config\.js)|\.github/workflows/(apk-check|release-apk)\.yml$)'; then
+            native=true
+          fi
+          # A native dependency changed: a React Native, Expo or Nitro package,
+          # or @couch-kit/host. Matched by name in the lockfile and the host's
+          # package.json, so a bump of a web or dev-only package does not count.
+          if git diff "$BASE"...HEAD -- bun.lock packages/host/package.json \
+            | grep -E '^[+-][^+-]' \
+            | grep -qE '^[+-]\s*"(react-native|react-native-[^"]+|@react-native/[^"]+|expo|expo-[^"]+|@expo/[^"]+|babel-preset-expo|@couch-kit/host)"'; then
+            native=true
+          fi
+          # JavaScript the TV app bundles.
+          if echo "$files" | grep -qE '^packages/(host|host-core|shared)/'; then
+            js=true
+          fi
+
+          echo "native=$native" >> "$GITHUB_OUTPUT"
+          echo "js=$js" >> "$GITHUB_OUTPUT"
+          echo "native=$native js=$js" >> "$GITHUB_STEP_SUMMARY"
+
+  bundle-js:
+    needs: changes
+    if: needs.changes.outputs.js == 'true' && needs.changes.outputs.native != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - run: bun install --frozen-lockfile
+      - name: Bundle the TV app's JavaScript with Metro
+        run: bunx expo export --platform android --output-dir "$RUNNER_TEMP/export"
+        working-directory: packages/host
+
   build:
+    needs: changes
     # Fork PRs get a read-only GITHUB_TOKEN, which the reusable workflow's
     # `contents: write` declaration would reject; skip them.
     if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      needs.changes.outputs.native == 'true' &&
+      (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     # release-apk.yml declares `contents: write` (needed when it runs on a
     # release), and a called workflow may not request more than its caller
     # grants. Nothing here writes: `tag` is empty, so the release upload steps
@@ -40,3 +106,5 @@ jobs:
     permissions:
       contents: write
     uses: ./.github/workflows/release-apk.yml
+    with:
+      architectures: ${{ github.event_name == 'pull_request' && 'arm64-v8a' || '' }}
