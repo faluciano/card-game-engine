@@ -51,6 +51,22 @@
       "description": "Hold every major update for manual review.",
       "matchUpdateTypes": ["major"],
       "automerge": false
+    },
+    {
+      "description": "Expo CLI's Metro server needs the TypeScript 5 compiler API (TS 7 fails with 'reading getCurrentDirectory'), so the TV host stays on TS 5 while the rest of the monorepo moves on.",
+      "matchFileNames": ["packages/host/package.json"],
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<6.0.0"
+    },
+    {
+      "description": "React Native's Android build targets JDK 17; JDK 25 class files (major version 69) break Gradle's build script compile.",
+      "matchPackageNames": ["java-jdk"],
+      "allowedVersions": "<18"
+    },
+    {
+      "description": "Peer ranges describe compatibility, not the version we install: widen them instead of raising the floor.",
+      "matchDepTypes": ["peerDependencies"],
+      "rangeStrategy": "widen"
     }
   ]
 }
