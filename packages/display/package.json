@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@card-engine/shared": "workspace:*",
-    "@couch-kit/core": "0.10.0",
-    "@couch-kit/display": "0.4.0",
+    "@couch-kit/core": "0.10.1",
+    "@couch-kit/display": "0.7.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-qr-code": "^2.2.0",
@@ -23,6 +23,6 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react-swc": "^4.3.3",
     "typescript": "~7.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.3.2"
   }
 }

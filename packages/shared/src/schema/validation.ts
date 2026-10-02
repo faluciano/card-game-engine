@@ -1,8 +1,24 @@
 // ─── Schema Validation ─────────────────────────────────────────────
 // Zod schemas for runtime validation of .cardgame.json files.
 // This is the "parse boundary" — raw JSON enters, typed data exits.
+//
+// Written against `zod/mini` (Zod 4's tree-shakable, function-first API)
+// so the async schema chunk only carries the checks it actually uses.
+// Same core, same issue shapes and messages as the classic API.
 
-import { z } from "zod";
+import type { CardGameRuleset } from "../types/index";
+import * as z from "zod/mini";
+import { RulesetParseError } from "../engine/interpreter";
+
+// zod/mini does not install the English locale on its own (the classic
+// API does it on first schema construction). Without this, messages fall
+// back to a bare "Invalid input".
+z.config(z.locales.en());
+
+// ─── Helpers ───────────────────────────────────────────────────────
+
+const nonEmptyString = () => z.string().check(z.minLength(1));
+const positiveInt = () => z.int().check(z.minimum(1));
 
 // ─── Primitives ────────────────────────────────────────────────────
 
@@ -13,7 +29,10 @@ const CardValueObjectSchema = z.discriminatedUnion("kind", [
 
 /** Accepts a bare number (shorthand for fixed) or the full object form. */
 const CardValueSchema = z.union([
-  z.number().transform((n): { kind: "fixed"; value: number } => ({ kind: "fixed", value: n })),
+  z.pipe(
+    z.number(),
+    z.transform((n): { kind: "fixed"; value: number } => ({ kind: "fixed", value: n })),
+  ),
   CardValueObjectSchema,
 ]);
 
@@ -27,132 +46,169 @@ const ZoneVisibilitySchema = z.discriminatedUnion("kind", [
 // ─── Sections ──────────────────────────────────────────────────────
 
 const MetaSchema = z.object({
-  name: z.string().min(1),
-  slug: z.string().regex(/^[a-z0-9-]+$/),
-  version: z.string().regex(/^\d+\.\d+\.\d+$/),
-  author: z.string().min(1),
+  name: nonEmptyString(),
+  slug: z.string().check(z.regex(/^[a-z0-9-]+$/)),
+  version: z.string().check(z.regex(/^\d+\.\d+\.\d+$/)),
+  author: nonEmptyString(),
   players: z
     .object({
-      min: z.number().int().min(1),
-      max: z.number().int().min(1),
+      min: positiveInt(),
+      max: positiveInt(),
     })
-    .refine((p) => p.min <= p.max, { message: "players.min must be <= players.max" }),
-  description: z.string().min(1).optional(),
-  tags: z.array(z.string().min(1)).optional(),
-  license: z.string().min(1).optional(),
+    .check(z.refine((p) => p.min <= p.max, { error: "players.min must be <= players.max" })),
+  description: z.optional(nonEmptyString()),
+  tags: z.optional(z.array(nonEmptyString())),
+  license: z.optional(nonEmptyString()),
 });
 
 const CardTemplateSchema = z.object({
-  suit: z.string().min(1),
-  rank: z.string().min(1),
+  suit: nonEmptyString(),
+  rank: nonEmptyString(),
 });
 
 const DeckSchema = z.discriminatedUnion("preset", [
   z.object({
     preset: z.enum(["standard_52", "standard_54"]),
-    copies: z.number().int().min(1).max(100),
+    copies: z.int().check(z.minimum(1), z.maximum(100)),
     cardValues: z.record(z.string(), CardValueSchema),
   }),
   z.object({
     preset: z.literal("custom"),
-    cards: z.array(CardTemplateSchema).min(1),
-    copies: z.number().int().min(1).max(100),
+    cards: z.array(CardTemplateSchema).check(z.minLength(1)),
+    copies: z.int().check(z.minimum(1), z.maximum(100)),
     cardValues: z.record(z.string(), CardValueSchema),
   }),
 ]);
 
 const ZoneSchema = z.object({
-  name: z.string().min(1),
+  name: nonEmptyString(),
   visibility: ZoneVisibilitySchema,
   owners: z.array(z.string()),
-  maxCards: z.number().int().min(1).optional(),
-  phaseOverrides: z
-    .array(
+  maxCards: z.optional(positiveInt()),
+  phaseOverrides: z.optional(
+    z.array(
       z.object({
-        phase: z.string().min(1),
+        phase: nonEmptyString(),
         visibility: ZoneVisibilitySchema,
       }),
-    )
-    .optional(),
+    ),
+  ),
 });
 
 const RoleSchema = z.object({
-  name: z.string().min(1),
+  name: nonEmptyString(),
   isHuman: z.boolean(),
-  count: z.union([z.number().int().min(1), z.literal("per_player")]),
+  count: z.union([positiveInt(), z.literal("per_player")]),
 });
 
 const PhaseActionSchema = z.object({
-  name: z.string().min(1),
-  label: z.string().min(1),
-  condition: z.string().optional(),
+  name: nonEmptyString(),
+  label: nonEmptyString(),
+  condition: z.optional(z.string()),
   effect: z.array(z.string()),
 });
 
 const PhaseTransitionSchema = z.object({
-  to: z.string().min(1),
-  when: z.string().min(1),
+  to: nonEmptyString(),
+  when: nonEmptyString(),
 });
 
 const PhaseSchema = z.object({
-  name: z.string().min(1),
+  name: nonEmptyString(),
   kind: z.enum(["automatic", "turn_based", "all_players"]),
   actions: z.array(PhaseActionSchema),
   transitions: z.array(PhaseTransitionSchema),
-  onEnter: z.array(z.string()).optional(),
-  onStep: z.array(z.string()).optional(),
-  onExit: z.array(z.string()).optional(),
-  turnOrder: z.enum(["clockwise", "counterclockwise", "fixed"]).optional(),
-  autoEndTurnCondition: z.string().optional(),
+  onEnter: z.optional(z.array(z.string())),
+  onStep: z.optional(z.array(z.string())),
+  onExit: z.optional(z.array(z.string())),
+  turnOrder: z.optional(z.enum(["clockwise", "counterclockwise", "fixed"])),
+  autoEndTurnCondition: z.optional(z.string()),
 });
 
 const ScoringSchema = z.object({
-  method: z.string().min(1),
-  winCondition: z.string().min(1),
-  bustCondition: z.string().optional(),
-  tieCondition: z.string().optional(),
+  method: nonEmptyString(),
+  winCondition: nonEmptyString(),
+  bustCondition: z.optional(z.string()),
+  tieCondition: z.optional(z.string()),
 });
 
 const UISchema = z.object({
   layout: z.enum(["semicircle", "circle", "grid", "linear"]),
   tableColor: z.enum(["felt_green", "wood", "dark", "custom"]),
-  customColor: z.string().optional(),
+  customColor: z.optional(z.string()),
 });
 
 const VariableDefinitionSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("number"), initial: z.number(), public: z.boolean().optional() }),
-  z.object({ type: z.literal("string"), initial: z.string(), public: z.boolean().optional() }),
+  z.object({ type: z.literal("number"), initial: z.number(), public: z.optional(z.boolean()) }),
+  z.object({ type: z.literal("string"), initial: z.string(), public: z.optional(z.boolean()) }),
 ]);
 
 // ─── Complete Ruleset Schema ───────────────────────────────────────
 
 export const CardGameRulesetSchema = z.object({
-  $schema: z.string().min(1).optional(),
+  $schema: z.optional(nonEmptyString()),
   meta: MetaSchema,
   deck: DeckSchema,
-  zones: z.array(ZoneSchema).min(1),
-  roles: z.array(RoleSchema).min(1),
-  phases: z.array(PhaseSchema).min(1),
+  zones: z.array(ZoneSchema).check(z.minLength(1)),
+  roles: z.array(RoleSchema).check(z.minLength(1)),
+  phases: z.array(PhaseSchema).check(z.minLength(1)),
   scoring: ScoringSchema,
-  variables: z.record(z.string(), VariableDefinitionSchema).optional(),
-  globalTransitions: z.array(PhaseTransitionSchema).optional(),
+  variables: z.optional(z.record(z.string(), VariableDefinitionSchema)),
+  globalTransitions: z.optional(z.array(PhaseTransitionSchema)),
   ui: UISchema,
 });
 
 /** Inferred type from the Zod schema — should match CardGameRuleset. */
 export type ParsedRuleset = z.infer<typeof CardGameRulesetSchema>;
 
+/** Result of `safeParseRuleset`: `{ success, data }` or `{ success, error }`. */
+export type RulesetParseResult = z.core.util.SafeParseResult<ParsedRuleset>;
+
 /**
  * Parses raw JSON into a validated CardGameRuleset.
  * Returns the parsed data or throws a ZodError with detailed issues.
  */
 export function parseRuleset(raw: unknown): ParsedRuleset {
-  return CardGameRulesetSchema.parse(raw);
+  return z.parse(CardGameRulesetSchema, raw);
 }
 
 /**
  * Safe parse variant — returns a discriminated result instead of throwing.
  */
-export function safeParseRuleset(raw: unknown): z.ZodSafeParseResult<ParsedRuleset> {
-  return CardGameRulesetSchema.safeParse(raw);
+export function safeParseRuleset(raw: unknown): RulesetParseResult {
+  return z.safeParse(CardGameRulesetSchema, raw);
+}
+
+// ─── loadRuleset ───────────────────────────────────────────────────
+
+/**
+ * Loads and validates a raw JSON object into a trusted CardGameRuleset.
+ * This is the parse boundary — after this, the ruleset is guaranteed valid
+ * and the engine (`createInitialState`, `createReducer`) takes it as-is.
+ *
+ * @throws {RulesetParseError} if the JSON does not conform to the schema.
+ */
+export function loadRuleset(raw: unknown): CardGameRuleset {
+  try {
+    return parseRuleset(raw) as CardGameRuleset;
+  } catch (error: unknown) {
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "issues" in error &&
+      Array.isArray((error as { issues: unknown[] }).issues)
+    ) {
+      const zodError = error as {
+        issues: Array<{ path: PropertyKey[]; message: string }>;
+      };
+      const formattedIssues = zodError.issues.map(
+        (issue) => `${issue.path.map(String).join(".")}: ${issue.message}`,
+      );
+      throw new RulesetParseError(
+        `Invalid ruleset: ${formattedIssues.length} issue(s)`,
+        formattedIssues,
+      );
+    }
+    throw error;
+  }
 }

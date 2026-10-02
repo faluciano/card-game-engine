@@ -8,7 +8,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadRuleset, createInitialState, createReducer } from "./interpreter";
+import { createInitialState, createReducer } from "./interpreter";
+import { loadRuleset } from "../schema/index";
 import { getPlayableCardIndices } from "./action-validator";
 import { registerAllBuiltins } from "./builtins";
 import { evaluateExpression } from "./expression-evaluator";

@@ -6,7 +6,6 @@ import type React from "react";
 import { useCallback, useState } from "react";
 import type { CSSProperties } from "react";
 import type { CatalogGame, CardGameRuleset, HostClientView, HostAction } from "@card-engine/shared";
-import { safeParseRuleset } from "@card-engine/shared";
 import { useCatalog } from "../hooks/useCatalog.js";
 import { GameCard } from "../components/GameCard.js";
 import { CenteredState } from "../components/CenteredState.js";
@@ -152,6 +151,8 @@ export function LobbyScreen({
         if (!res.ok) throw new Error(`Failed to download: HTTP ${res.status}`);
 
         const raw: unknown = await res.json();
+        // Zod is only needed here, so it is loaded on demand (own chunk).
+        const { safeParseRuleset } = await import("@card-engine/shared/schema");
         const result = safeParseRuleset(raw);
 
         if (!result.success) {
@@ -180,6 +181,7 @@ export function LobbyScreen({
         if (!res.ok) throw new Error(`Failed to download: HTTP ${res.status}`);
 
         const raw: unknown = await res.json();
+        const { safeParseRuleset } = await import("@card-engine/shared/schema");
         const result = safeParseRuleset(raw);
 
         if (!result.success) {

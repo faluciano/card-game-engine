@@ -16,12 +16,12 @@
     "@card-engine/shared": "workspace:*"
   },
   "peerDependencies": {
-    "react": ">=18.0.0"
+    "react": ">=18.3.1"
   },
   "devDependencies": {
     "@types/react": "~19.2.4",
     "react": "19.2.3",
     "typescript": "~7.0.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.3"
   }
 }

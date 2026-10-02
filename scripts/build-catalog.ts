@@ -5,7 +5,7 @@
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { safeParseRuleset } from "../packages/shared/src/index";
+import { safeParseRuleset } from "../packages/shared/src/schema/index";
 
 const RULESETS_DIR = join(import.meta.dir, "..", "rulesets");
 const OUTPUT_PATH = join(import.meta.dir, "..", "catalog.json");

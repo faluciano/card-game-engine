@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { loadRuleset, createInitialState, createReducer, RulesetParseError } from "./interpreter";
+import { createInitialState, createReducer, RulesetParseError } from "./interpreter";
+import { loadRuleset } from "../schema/index";
 import { clearBuiltins } from "./expression-evaluator";
 import { registerAllBuiltins } from "./builtins";
 import type {

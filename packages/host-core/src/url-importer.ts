@@ -2,7 +2,6 @@
 // Imports a .cardgame.json ruleset from a remote URL.
 
 import type { CardGameRuleset } from "@card-engine/shared";
-import { safeParseRuleset } from "@card-engine/shared";
 
 import { formatZodIssues } from "./format-zod-issues";
 
@@ -80,6 +79,8 @@ export async function importFromUrl(
   }
 
   // ── Validate against schema ──────────────────────────────────────
+  // Loaded on demand so Zod stays off the display/host startup path.
+  const { safeParseRuleset } = await import("@card-engine/shared/schema");
   const result = safeParseRuleset(json);
 
   if (!result.success) {

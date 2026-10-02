@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { safeParseRuleset } from "@card-engine/shared";
+import { safeParseRuleset } from "@card-engine/shared/schema";
 import { importFromUrl } from "./url-importer";
 
 // ══════════════════════════════════════════════════════════════════════
 // Mocks
 // ══════════════════════════════════════════════════════════════════════
 
-vi.mock("@card-engine/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@card-engine/shared")>();
+vi.mock("@card-engine/shared/schema", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@card-engine/shared/schema")>();
   return {
     ...actual,
     safeParseRuleset: vi.fn(),

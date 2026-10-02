@@ -7,7 +7,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadRuleset, createInitialState, createReducer } from "./interpreter";
+import { createInitialState, createReducer } from "./interpreter";
+import { loadRuleset } from "../schema/index";
 import type { PlayerId, GameSessionId, Player, CardGameState, GameReducer } from "../types/index";
 
 // ─── Fixture Setup ─────────────────────────────────────────────────

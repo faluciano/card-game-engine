@@ -3,7 +3,7 @@
 
 import { File } from "expo-file-system";
 import type { CardGameRuleset } from "@card-engine/shared";
-import { safeParseRuleset } from "@card-engine/shared";
+import { safeParseRuleset } from "@card-engine/shared/schema";
 
 import { formatZodIssues } from "@card-engine/host-core";
 

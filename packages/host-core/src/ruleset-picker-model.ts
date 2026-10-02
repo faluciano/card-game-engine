@@ -4,7 +4,6 @@
 // imported), the store card actions, and the catalog install step.
 
 import type { CardGameRuleset, CatalogGame, InstalledGame } from "@card-engine/shared";
-import { safeParseRuleset } from "@card-engine/shared";
 import type { StoredRuleset } from "./ruleset-store";
 import { CATALOG_BASE_URL } from "./use-catalog";
 
@@ -108,6 +107,8 @@ export async function fetchCatalogRuleset(game: CatalogGame): Promise<CardGameRu
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
   const raw: unknown = await res.json();
+  // Loaded on demand so Zod stays off the display/host startup path.
+  const { safeParseRuleset } = await import("@card-engine/shared/schema");
   const result = safeParseRuleset(raw);
   if (!result.success) throw new Error("Invalid ruleset format");
 

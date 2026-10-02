@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { safeParseRuleset } from "@card-engine/shared";
+import { safeParseRuleset } from "@card-engine/shared/schema";
 import { importFromFile } from "./file-importer";
 
 // ══════════════════════════════════════════════════════════════════════
@@ -29,8 +29,8 @@ vi.mock("expo-file-system", () => {
   return { File: MockFile };
 });
 
-vi.mock("@card-engine/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@card-engine/shared")>();
+vi.mock("@card-engine/shared/schema", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@card-engine/shared/schema")>();
   return {
     ...actual,
     safeParseRuleset: vi.fn(),

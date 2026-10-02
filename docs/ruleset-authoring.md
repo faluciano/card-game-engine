@@ -1409,7 +1409,7 @@ The primary validation is done with [Zod](https://zod.dev/) schemas. The
 descriptions.
 
 ```typescript
-import { parseRuleset, safeParseRuleset } from "@card-engine/shared";
+import { parseRuleset, safeParseRuleset } from "@card-engine/shared/schema";
 
 // Throws on invalid input
 const ruleset = parseRuleset(rawJson);

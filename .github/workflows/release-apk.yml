@@ -14,6 +14,14 @@ on:
         required: false
         default: ""
         type: string
+      architectures:
+        description: >-
+          Comma-separated ABIs to compile (e.g. arm64-v8a). Empty builds every
+          ABI app.json configures, as a release must; apk-check.yml passes one
+          ABI on PRs, which catches a native break at a fraction of the cost.
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -22,7 +30,7 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Resolve release tag
         id: tag
@@ -35,7 +43,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.19"
+          bun-version: "1.4.2"
 
 
       - uses: actions/setup-java@v4
@@ -43,10 +51,10 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - run: bun install --frozen-lockfile
 
@@ -115,7 +123,7 @@ jobs:
           fi
 
       - name: Restore ccache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
           key: ccache-release-apk-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
@@ -127,8 +135,10 @@ jobs:
         run: ccache --zero-stats || true
 
       - name: Build APK
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease ${ARCHS:+-PreactNativeArchitectures=$ARCHS}
         working-directory: packages/host/android
+        env:
+          ARCHS: ${{ inputs.architectures }}
 
       - name: Report ccache statistics
         if: always()
@@ -167,7 +177,7 @@ jobs:
           echo "APK: \`$(basename $APK)\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: card-game-engine-release
           path: packages/host/android/app/build/outputs/apk/release/*.apk

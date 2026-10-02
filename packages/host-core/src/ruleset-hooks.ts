@@ -9,7 +9,6 @@
 // (localStorage) share this code unchanged.
 
 import { useEffect, useRef } from "react";
-import { safeParseRuleset } from "@card-engine/shared";
 import type { HostAction, HostGameState } from "@card-engine/shared";
 import type { RulesetStore, StoredRuleset } from "./ruleset-store";
 
@@ -95,7 +94,9 @@ export function useRulesetInstaller(
       try {
         const { ruleset, slug } = pendingInstall!;
 
-        // Validate before saving (defense in depth — client already validated)
+        // Validate before saving (defense in depth — client already validated).
+        // Loaded on demand so Zod stays off the display/host startup path.
+        const { safeParseRuleset } = await import("@card-engine/shared/schema");
         const result = safeParseRuleset(ruleset);
         if (!result.success) {
           console.warn("[RulesetInstaller] Invalid ruleset, skipping:", result.error);
