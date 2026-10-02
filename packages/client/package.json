@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@card-engine/shared": "workspace:*",
-    "@couch-kit/client": "0.14.0",
+    "@couch-kit/client": "0.16.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

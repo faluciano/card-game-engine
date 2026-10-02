@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "@card-engine/shared": "workspace:*",
-    "@couch-kit/core": "0.10.0",
-    "@couch-kit/host": "2.0.0",
+    "@couch-kit/core": "0.10.1",
+    "@couch-kit/host": "2.1.1",
     "expo": "~54.0.0",
     "expo-build-properties": "^1.0.10",
     "react": "19.3.0",
@@ -27,7 +27,7 @@
     "@card-engine/host-core": "workspace:*"
   },
   "devDependencies": {
-    "@couch-kit/cli": "0.3.10",
+    "@couch-kit/cli": "0.3.12",
     "@expo/metro-config": "~54.0.0",
     "@types/react": "~19.3.0",
     "babel-preset-expo": "^54.0.10",
