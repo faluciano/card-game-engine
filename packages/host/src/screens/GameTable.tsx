@@ -344,6 +344,9 @@ const AnimatedCardView = React.memo(function AnimatedCardView({
       }),
     ]);
     animation.start();
+    // Stop the in-flight animation if the card unmounts mid-deal so the
+    // timing callbacks never touch a detached Animated.Value.
+    return () => animation.stop();
   }, [opacity, translateY, delay]);
 
   return (
