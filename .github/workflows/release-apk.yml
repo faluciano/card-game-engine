@@ -14,6 +14,14 @@ on:
         required: false
         default: ""
         type: string
+      architectures:
+        description: >-
+          Comma-separated ABIs to compile (e.g. arm64-v8a). Empty builds every
+          ABI app.json configures, as a release must; apk-check.yml passes one
+          ABI on PRs, which catches a native break at a fraction of the cost.
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -127,8 +135,10 @@ jobs:
         run: ccache --zero-stats || true
 
       - name: Build APK
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease ${ARCHS:+-PreactNativeArchitectures=$ARCHS}
         working-directory: packages/host/android
+        env:
+          ARCHS: ${{ inputs.architectures }}
 
       - name: Report ccache statistics
         if: always()
