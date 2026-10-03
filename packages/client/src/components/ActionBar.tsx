@@ -7,15 +7,14 @@
 import type React from "react";
 import { useCallback } from "react";
 import type { CSSProperties } from "react";
-import type { HostAction, PlayerView, PlayerId, CardInstanceId } from "@card-engine/shared";
-import type { ValidAction } from "@card-engine/shared";
+import type { HostAction, PlayerView, PlayerId, ValidAction } from "@card-engine/shared";
+import {
+  buildGameAction,
+  isSuitPickerPhase,
+  needsCardSelectionHint,
+  type SelectedCard,
+} from "../lib/action-bar.js";
 import { SuitPicker } from "./SuitPicker.js";
-
-/** Tracks which card the player has tapped for a play_card action. */
-interface SelectedCard {
-  readonly cardId: CardInstanceId;
-  readonly zoneName: string;
-}
 
 interface ActionBarProps {
   readonly playerView: PlayerView;
@@ -90,21 +89,6 @@ function handlePointerUp(e: React.PointerEvent<HTMLButtonElement>): void {
   e.currentTarget.style.transform = "scale(1)";
 }
 
-/** Default target zone when a play_card action doesn't specify one. */
-const DEFAULT_PLAY_TARGET_ZONE = "discard";
-
-const SUIT_ACTION_NAMES = new Set([
-  "choose_hearts",
-  "choose_diamonds",
-  "choose_clubs",
-  "choose_spades",
-]);
-
-/** Returns true when every action is a suit-choice declaration. */
-function isSuitPickerPhase(actions: readonly ValidAction[]): boolean {
-  return actions.length > 0 && actions.every((a) => SUIT_ACTION_NAMES.has(a.actionName));
-}
-
 export function ActionBar({
   playerView,
   validActions,
@@ -116,28 +100,9 @@ export function ActionBar({
 
   const handleAction = useCallback(
     (actionName: string) => {
-      // play_card requires card selection — construct the proper action shape
-      if (actionName === "play_card") {
-        if (!selectedCard) return; // guard: button should be disabled, but fail safe
-
-        sendAction({
-          type: "GAME_ACTION",
-          action: {
-            kind: "play_card",
-            playerId,
-            cardId: selectedCard.cardId,
-            fromZone: selectedCard.zoneName,
-            toZone: DEFAULT_PLAY_TARGET_ZONE,
-          },
-        });
-        return;
-      }
-
-      // All other actions are declarations
-      sendAction({
-        type: "GAME_ACTION",
-        action: { kind: "declare", playerId, declaration: actionName },
-      });
+      // play_card without a selection yields null: the button is disabled, but fail safe.
+      const action = buildGameAction(actionName, playerId, selectedCard);
+      if (action !== null) sendAction(action);
     },
     [sendAction, playerId, selectedCard],
   );
@@ -166,9 +131,7 @@ export function ActionBar({
     );
   }
 
-  const needsCardHint = validActions.some(
-    (a) => a.actionName === "play_card" && a.enabled && !selectedCard,
-  );
+  const needsCardHint = needsCardSelectionHint(validActions, selectedCard);
 
   return (
     <div style={containerStyle}>

@@ -8,6 +8,7 @@ import { useCallback } from "react";
 import type { CSSProperties } from "react";
 import type { HostAction, PlayerId } from "@card-engine/shared";
 import type { ValidAction } from "@card-engine/shared";
+import { formatSuitName, isRedSuit, suitSymbol } from "@card-engine/host-core/catalog";
 
 interface SuitPickerProps {
   readonly validActions: readonly ValidAction[];
@@ -21,20 +22,17 @@ interface SuitDisplay {
   readonly red: boolean;
 }
 
-const SUIT_ACTIONS: Readonly<Record<string, SuitDisplay>> = {
-  choose_hearts: { symbol: "\u2665", label: "Hearts", red: true },
-  choose_diamonds: { symbol: "\u2666", label: "Diamonds", red: true },
-  choose_clubs: { symbol: "\u2663", label: "Clubs", red: false },
-  choose_spades: { symbol: "\u2660", label: "Spades", red: false },
-};
+/** Grid order: top-left, top-right, bottom-left, bottom-right. */
+const SUITS: readonly string[] = ["hearts", "diamonds", "clubs", "spades"];
 
-/** Ordered keys to ensure consistent grid layout (top-left, top-right, bottom-left, bottom-right). */
-const SUIT_ORDER: readonly string[] = [
-  "choose_hearts",
-  "choose_diamonds",
-  "choose_clubs",
-  "choose_spades",
-];
+const SUIT_ACTIONS: Readonly<Record<string, SuitDisplay>> = Object.fromEntries(
+  SUITS.map((suit) => [
+    `choose_${suit}`,
+    { symbol: suitSymbol(suit), label: formatSuitName(suit), red: isRedSuit(suit) },
+  ]),
+);
+
+const SUIT_ORDER: readonly string[] = SUITS.map((suit) => `choose_${suit}`);
 
 const gridStyle: CSSProperties = {
   display: "grid",

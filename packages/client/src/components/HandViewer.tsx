@@ -9,6 +9,7 @@ import type React from "react";
 import { useCallback } from "react";
 import type { CSSProperties } from "react";
 import type { Card, PlayerView, CardInstanceId } from "@card-engine/shared";
+import { formatZoneName } from "@card-engine/host-core/catalog";
 import { CardMini } from "./CardMini.js";
 
 interface HandViewerProps {
@@ -55,18 +56,6 @@ const emptyStyle: CSSProperties = {
   textAlign: "center",
   padding: 16,
 };
-
-/**
- * Formats a zone name for display.
- * "hand_0" -> "Hand", "discard_pile" -> "Discard Pile", "community" -> "Community"
- */
-function formatZoneName(zoneName: string): string {
-  const base = zoneName.replace(/:\d+$/, "");
-  return base
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
 
 export function HandViewer({
   playerView,
