@@ -61,7 +61,7 @@ export function PlayingScreen({
         playerView={model.handPlayerView}
         onCardSelect={model.showCardSelection ? model.handleCardSelect : undefined}
         selectedCardId={model.selectedCard?.cardId}
-        playableCardIds={model.showCardSelection ? playableCardIds : undefined}
+        playableCardIds={model.highlightPlayable ? playableCardIds : undefined}
       />
       <ActionBar
         playerView={playerView}

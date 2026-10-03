@@ -2,7 +2,9 @@
 // Renders action buttons based on the player's valid actions.
 // Each ValidAction from the engine carries a name and label.
 // Tapping a button sends a GAME_ACTION to the host.
-// For play_card actions, requires a selected card from the hand.
+// For play_card actions, requires a selected card from the hand. Actions
+// that target another player (e.g. Go Fish "ask") render one button per
+// opponent under the action's label.
 
 import type React from "react";
 import { useCallback } from "react";
@@ -12,6 +14,8 @@ import {
   buildGameAction,
   isSuitPickerPhase,
   needsCardSelectionHint,
+  otherPlayerTargets,
+  targetsOtherPlayer,
   type SelectedCard,
 } from "../lib/action-bar.js";
 import { SuitPicker } from "./SuitPicker.js";
@@ -74,6 +78,21 @@ const enabledButtonStyle: CSSProperties = {
   color: "#fff",
 };
 
+const targetGroupStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  width: "100%",
+};
+
+const targetCaptionStyle: CSSProperties = {
+  textAlign: "center",
+  fontSize: 13,
+  fontWeight: 600,
+  color: "var(--color-text-muted)",
+  margin: 0,
+};
+
 const hintStyle: CSSProperties = {
   textAlign: "center",
   fontSize: 12,
@@ -99,9 +118,9 @@ export function ActionBar({
   const { isMyTurn } = playerView;
 
   const handleAction = useCallback(
-    (actionName: string) => {
-      // play_card without a selection yields null: the button is disabled, but fail safe.
-      const action = buildGameAction(actionName, playerId, selectedCard);
+    (validAction: ValidAction, targetPlayerIndex: number | null = null) => {
+      // A missing choice yields null: the button is disabled, but fail safe.
+      const action = buildGameAction(validAction, playerId, selectedCard, targetPlayerIndex);
       if (action !== null) sendAction(action);
     },
     [sendAction, playerId, selectedCard],
@@ -132,36 +151,68 @@ export function ActionBar({
   }
 
   const needsCardHint = needsCardSelectionHint(validActions, selectedCard);
+  const targets = otherPlayerTargets(playerView.players, playerId);
 
   return (
     <div style={containerStyle}>
       <div style={buttonsStyle}>
         {validActions.map((action) => {
+          if (targetsOtherPlayer(action)) {
+            return (
+              <div key={action.actionName} style={targetGroupStyle}>
+                <p style={targetCaptionStyle}>{action.label}</p>
+                <div style={buttonsStyle}>
+                  {targets.map(({ index, player }) => (
+                    <ActionButton
+                      key={player.id}
+                      label={player.name}
+                      disabled={
+                        !action.enabled ||
+                        buildGameAction(action, playerId, selectedCard, index) === null
+                      }
+                      onPress={() => handleAction(action, index)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          }
+
           const isPlayCard = action.actionName === "play_card";
           const needsSelection = isPlayCard && !selectedCard;
-          const isDisabled = !action.enabled || needsSelection;
-
-          const style = isDisabled ? disabledButtonStyle : enabledButtonStyle;
-
-          const label = isPlayCard && needsSelection ? "Select a card" : action.label;
-
           return (
-            <button
+            <ActionButton
               key={action.actionName}
-              type="button"
-              style={style}
-              disabled={isDisabled}
-              onClick={() => handleAction(action.actionName)}
-              onPointerDown={isDisabled ? undefined : handlePointerDown}
-              onPointerUp={isDisabled ? undefined : handlePointerUp}
-              onPointerLeave={isDisabled ? undefined : handlePointerUp}
-            >
-              {label}
-            </button>
+              label={needsSelection ? "Select a card" : action.label}
+              disabled={!action.enabled || buildGameAction(action, playerId, selectedCard) === null}
+              onPress={() => handleAction(action)}
+            />
           );
         })}
       </div>
       {needsCardHint && <p style={hintStyle}>Tap a card in your hand to select it</p>}
     </div>
+  );
+}
+
+interface ActionButtonProps {
+  readonly label: string;
+  readonly disabled: boolean;
+  readonly onPress: () => void;
+}
+
+function ActionButton({ label, disabled, onPress }: ActionButtonProps): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      style={disabled ? disabledButtonStyle : enabledButtonStyle}
+      disabled={disabled}
+      onClick={onPress}
+      onPointerDown={disabled ? undefined : handlePointerDown}
+      onPointerUp={disabled ? undefined : handlePointerUp}
+      onPointerLeave={disabled ? undefined : handlePointerUp}
+    >
+      {label}
+    </button>
   );
 }

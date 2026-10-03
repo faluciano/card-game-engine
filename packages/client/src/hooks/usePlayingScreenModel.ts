@@ -12,7 +12,7 @@ import type {
   ValidAction,
 } from "@card-engine/shared";
 import { getNpcScoreRows, type NpcScoreRow } from "@card-engine/host-core/catalog";
-import { hasPlayCardAction, type SelectedCard } from "../lib/action-bar.js";
+import { hasCardSelectionAction, hasPlayCardAction, type SelectedCard } from "../lib/action-bar.js";
 import {
   actionFingerprint,
   pickNewRoundAction,
@@ -35,6 +35,8 @@ export interface PlayingScreenModelInput {
 export interface PlayingScreenModel extends CompactZoneSplit {
   readonly selectedCard: SelectedCard | null;
   readonly showCardSelection: boolean;
+  /** Whether to dim cards the play_card condition rejects. */
+  readonly highlightPlayable: boolean;
   readonly handleCardSelect: (cardId: CardInstanceId, zoneName: string) => void;
   readonly handleSendAction: (action: HostAction) => void;
   readonly turnPulse: boolean;
@@ -80,9 +82,16 @@ export function usePlayingScreenModel({
     setSelectedCard(null);
   }, [fingerprint]);
 
-  const handleCardSelect = useCallback((cardId: CardInstanceId, zoneName: string) => {
-    setSelectedCard((prev) => (prev?.cardId === cardId ? null : { cardId, zoneName }));
-  }, []);
+  const handleCardSelect = useCallback(
+    (cardId: CardInstanceId, zoneName: string) => {
+      const card = playerView.zones[zoneName]?.cards.find((c) => c?.id === cardId);
+      if (!card) return;
+      setSelectedCard((prev) =>
+        prev?.cardId === cardId ? null : { cardId, zoneName, rank: card.rank },
+      );
+    },
+    [playerView.zones],
+  );
 
   const handleSendAction = useCallback(
     (action: HostAction) => {
@@ -120,7 +129,8 @@ export function usePlayingScreenModel({
   return {
     ...split,
     selectedCard,
-    showCardSelection: hasPlayCardAction(validActions),
+    showCardSelection: hasCardSelectionAction(validActions),
+    highlightPlayable: hasPlayCardAction(validActions),
     handleCardSelect,
     handleSendAction,
     turnPulse,
