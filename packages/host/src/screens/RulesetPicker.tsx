@@ -5,12 +5,11 @@
 // user-imported rulesets are persisted via FileRulesetStore.
 
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useGameHost } from "@couch-kit/host";
 import type { CardGameRuleset, HostAction, HostGameState } from "@card-engine/shared";
 import {
   PICKER_TABS,
-  colors,
   formatPlayerRange,
   getStoreActions,
   useRulesetPickerModel,
@@ -22,7 +21,9 @@ import {
 } from "@card-engine/host-core";
 import { ImportModal } from "../components/ImportModal";
 import { QRDisplay } from "../components/QRDisplay";
+import { TVPressable } from "../components/TVPressable";
 import { rulesetStore } from "../storage";
+import { styles } from "./RulesetPicker.styles";
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -33,7 +34,9 @@ export function RulesetPicker(): React.JSX.Element {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>CHOOSE A GAME</Text>
+        <Text style={styles.title} accessibilityRole="header">
+          CHOOSE A GAME
+        </Text>
         <View style={styles.qrSection}>
           <QRDisplay url={serverUrl} size={100} />
           <Text style={styles.qrHint}>Scan to connect{"\n"}your phone</Text>
@@ -60,6 +63,9 @@ export function RulesetPicker(): React.JSX.Element {
                 onSelect={model.selectRuleset}
                 isFirst={index === 0}
                 onDelete={model.deleteHandlerFor(item)}
+                deleteLabel={model.deleteLabelFor(item)}
+                isConfirmingDelete={model.confirmingDeleteKey === item.key}
+                onCancelDelete={model.cancelDelete}
               />
             ))}
           </View>
@@ -80,67 +86,87 @@ export function RulesetPicker(): React.JSX.Element {
 
 // ─── Ruleset Card ──────────────────────────────────────────────────
 
+/**
+ * One library entry. The selectable body and the DELETE control are
+ * sibling focusables inside a plain View shell: nesting a Pressable in a
+ * Pressable makes D-pad focus order ambiguous and TalkBack announce the
+ * delete label as part of the card. The shell carries the focus ring so
+ * the whole card still lights up when its body is focused.
+ */
 const RulesetCard = React.memo(function RulesetCard({
   item,
   onSelect,
   isFirst,
   onDelete,
+  deleteLabel,
+  isConfirmingDelete,
+  onCancelDelete,
 }: {
   readonly item: RulesetItem;
   readonly onSelect: (ruleset: CardGameRuleset) => void;
   readonly isFirst: boolean;
   readonly onDelete?: () => void;
+  readonly deleteLabel: string;
+  readonly isConfirmingDelete: boolean;
+  readonly onCancelDelete: (item: RulesetItem) => void;
 }): React.JSX.Element {
-  const [focused, setFocused] = useState(false);
-  const [deleteFocused, setDeleteFocused] = useState(false);
+  const [bodyFocused, setBodyFocused] = useState(false);
   const { meta } = item.ruleset;
+  const sourceLabel = item.source === "built_in" ? "built-in" : "imported";
 
   return (
-    <Pressable
-      style={[styles.card, focused && styles.cardFocused]}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      onPress={() => onSelect(item.ruleset)}
-      hasTVPreferredFocus={isFirst}
-    >
-      <Text style={styles.cardName} numberOfLines={1} ellipsizeMode="tail">
-        {meta.name}
-      </Text>
-      <Text style={styles.cardMeta} numberOfLines={1} ellipsizeMode="tail">
-        by {meta.author}
-      </Text>
-      <Text style={styles.cardMeta}>{formatPlayerRange(meta.players)}</Text>
-      <Text style={styles.cardVersion}>v{meta.version}</Text>
-      {item.source === "built_in" && <Text style={styles.badge}>BUILT-IN</Text>}
+    <View style={[styles.card, bodyFocused && styles.cardFocused]}>
+      <Pressable
+        style={styles.cardBody}
+        onFocus={() => setBodyFocused(true)}
+        onBlur={() => setBodyFocused(false)}
+        onPress={() => onSelect(item.ruleset)}
+        hasTVPreferredFocus={isFirst}
+        accessibilityRole="button"
+        accessibilityLabel={`Play ${meta.name}, ${sourceLabel}, ${formatPlayerRange(meta.players)}`}
+      >
+        <Text style={styles.cardName} numberOfLines={1} ellipsizeMode="tail">
+          {meta.name}
+        </Text>
+        <Text style={styles.cardMeta} numberOfLines={1} ellipsizeMode="tail">
+          by {meta.author}
+        </Text>
+        <Text style={styles.cardMeta}>{formatPlayerRange(meta.players)}</Text>
+        <Text style={styles.cardVersion}>v{meta.version}</Text>
+        {item.source === "built_in" && <Text style={styles.badge}>BUILT-IN</Text>}
+      </Pressable>
       {onDelete != null && (
-        <Pressable
-          style={[styles.deleteButton, deleteFocused && styles.deleteButtonFocused]}
-          onFocus={() => setDeleteFocused(true)}
-          onBlur={() => setDeleteFocused(false)}
+        <TVPressable
+          style={[styles.deleteButton, isConfirmingDelete && styles.deleteButtonConfirming]}
+          focusedStyle={styles.deleteButtonFocused}
           onPress={onDelete}
+          onBlur={() => onCancelDelete(item)}
+          accessibilityLabel={
+            isConfirmingDelete ? `Press again to delete ${meta.name}` : `Delete ${meta.name}`
+          }
         >
-          <Text style={styles.deleteLabel}>DELETE</Text>
-        </Pressable>
+          <Text style={[styles.deleteLabel, isConfirmingDelete && styles.deleteLabelConfirming]}>
+            {deleteLabel}
+          </Text>
+        </TVPressable>
       )}
-    </Pressable>
+    </View>
   );
 });
 
 // ─── Import Placeholder ────────────────────────────────────────────
 
 function ImportPlaceholder({ onPress }: { readonly onPress: () => void }): React.JSX.Element {
-  const [focused, setFocused] = useState(false);
-
   return (
-    <Pressable
-      style={[styles.importButton, focused && styles.importButtonFocused]}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+    <TVPressable
+      style={styles.importButton}
+      focusedStyle={styles.importButtonFocused}
       onPress={onPress}
+      accessibilityLabel="Import a ruleset from a URL"
     >
       <Text style={styles.importIcon}>+</Text>
       <Text style={styles.importLabel}>Import Ruleset</Text>
-    </Pressable>
+    </TVPressable>
   );
 }
 
@@ -153,23 +179,22 @@ function TabBar({
   readonly tab: PickerTab;
   readonly onChange: (tab: PickerTab) => void;
 }): React.JSX.Element {
-  const [focusedKey, setFocusedKey] = useState<string | null>(null);
-
   return (
-    <View style={styles.tabBar}>
+    <View style={styles.tabBar} accessibilityRole="tablist">
       {PICKER_TABS.map((t) => {
         const active = tab === t.key;
-        const focused = focusedKey === t.key;
         return (
-          <Pressable
+          <TVPressable
             key={t.key}
-            style={[styles.tab, active && styles.tabActive, focused && styles.tabFocused]}
-            onFocus={() => setFocusedKey(t.key)}
-            onBlur={() => setFocusedKey(null)}
+            style={[styles.tab, active && styles.tabActive]}
+            focusedStyle={styles.tabFocused}
             onPress={() => onChange(t.key)}
+            accessibilityRole="tab"
+            accessibilityLabel={`${t.label} tab`}
+            accessibilityState={{ selected: active }}
           >
             <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t.label}</Text>
-          </Pressable>
+          </TVPressable>
         );
       })}
     </View>
@@ -250,7 +275,7 @@ const StoreCard = React.memo(function StoreCard({
       <Text style={styles.cardVersion}>v{game.version}</Text>
       <View style={styles.actionsRow}>
         {actions.map((action) => (
-          <ActionButton key={action.label} action={action} />
+          <ActionButton key={action.label} action={action} gameName={game.name} />
         ))}
       </View>
     </View>
@@ -259,23 +284,24 @@ const StoreCard = React.memo(function StoreCard({
 
 // ─── Store Action Button ───────────────────────────────────────────
 
-function ActionButton({ action }: { readonly action: StoreAction }): React.JSX.Element {
-  const [focused, setFocused] = useState(false);
+function ActionButton({
+  action,
+  gameName,
+}: {
+  readonly action: StoreAction;
+  readonly gameName: string;
+}): React.JSX.Element {
   const isDisabled = action.variant === "disabled";
   const isDanger = action.variant === "danger";
 
   return (
-    <Pressable
-      style={[
-        styles.getButton,
-        isDanger && styles.removeButton,
-        isDisabled && styles.getButtonDisabled,
-        focused && !isDisabled && (isDanger ? styles.removeButtonFocused : styles.getButtonFocused),
-      ]}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+    <TVPressable
+      style={[styles.getButton, isDanger && styles.removeButton]}
+      focusedStyle={isDanger ? styles.removeButtonFocused : styles.getButtonFocused}
+      disabledStyle={styles.getButtonDisabled}
       onPress={action.onPress}
       disabled={isDisabled}
+      accessibilityLabel={`${action.label} ${gameName}`}
     >
       <Text
         style={[
@@ -286,242 +312,22 @@ function ActionButton({ action }: { readonly action: StoreAction }): React.JSX.E
       >
         {action.label}
       </Text>
-    </Pressable>
+    </TVPressable>
   );
 }
 
 // ─── Retry Button ──────────────────────────────────────────────────
 
 function RetryButton({ onPress }: { readonly onPress: () => void }): React.JSX.Element {
-  const [focused, setFocused] = useState(false);
   return (
-    <Pressable
-      style={[styles.getButton, focused && styles.getButtonFocused]}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+    <TVPressable
+      style={styles.getButton}
+      focusedStyle={styles.getButtonFocused}
       onPress={onPress}
       hasTVPreferredFocus
+      accessibilityLabel="Retry loading the store"
     >
       <Text style={styles.getLabel}>RETRY</Text>
-    </Pressable>
+    </TVPressable>
   );
 }
-
-// ─── Styles ────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 48,
-    paddingTop: 28,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 18,
-  },
-  title: {
-    color: colors.textBright,
-    fontSize: 38,
-    fontWeight: "800",
-    letterSpacing: 2,
-  },
-  qrSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  qrHint: {
-    color: colors.textDim,
-    fontSize: 18,
-    lineHeight: 26,
-  },
-  listContent: {
-    paddingBottom: 48,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
-    marginBottom: 16,
-  },
-  card: {
-    flexBasis: "48%",
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 3,
-    borderColor: "transparent",
-  },
-  cardFocused: {
-    borderColor: colors.accent,
-    backgroundColor: colors.surfaceRaised,
-  },
-  cardName: {
-    color: colors.textBright,
-    fontSize: 26,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  cardMeta: {
-    color: colors.textMuted,
-    fontSize: 17,
-    lineHeight: 23,
-  },
-  cardVersion: {
-    color: colors.textFaint,
-    fontSize: 14,
-    marginTop: 6,
-  },
-  badge: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: "700",
-    marginTop: 12,
-    letterSpacing: 1,
-  },
-  deleteButton: {
-    marginTop: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    alignSelf: "flex-start",
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  deleteButtonFocused: {
-    borderColor: colors.danger,
-  },
-  deleteLabel: {
-    color: colors.danger,
-    fontSize: 14,
-    fontWeight: "700",
-    letterSpacing: 1,
-  },
-  loadingText: {
-    color: colors.textMuted,
-    fontSize: 28,
-    textAlign: "center",
-    marginTop: 64,
-  },
-
-  // Tab bar
-  tabBar: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
-  },
-  tab: {
-    paddingVertical: 10,
-    paddingHorizontal: 26,
-    borderRadius: 999,
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  tabActive: {
-    backgroundColor: colors.surfaceRaised,
-  },
-  tabFocused: {
-    borderColor: colors.accent,
-  },
-  tabLabel: {
-    color: colors.textMuted,
-    fontSize: 22,
-    fontWeight: "700",
-    letterSpacing: 1,
-  },
-  tabLabelActive: {
-    color: colors.textBright,
-  },
-
-  // Store
-  storeMessage: {
-    alignItems: "center",
-    marginTop: 48,
-    gap: 16,
-  },
-  storeError: {
-    color: colors.danger,
-    fontSize: 20,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  cardDesc: {
-    color: colors.textMuted,
-    fontSize: 15,
-    lineHeight: 20,
-    marginTop: 6,
-  },
-  getButton: {
-    alignSelf: "flex-start",
-    paddingVertical: 8,
-    paddingHorizontal: 26,
-    borderRadius: 999,
-    backgroundColor: colors.accent,
-    borderWidth: 3,
-    borderColor: "transparent",
-  },
-  actionsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 10,
-    alignSelf: "flex-start",
-  },
-  removeButton: {
-    backgroundColor: "transparent",
-    borderColor: colors.danger,
-  },
-  removeButtonFocused: {
-    backgroundColor: colors.surfaceRaised,
-    borderColor: colors.danger,
-  },
-  removeLabel: {
-    color: colors.danger,
-  },
-  getButtonDisabled: {
-    backgroundColor: colors.surfaceRaised,
-  },
-  getButtonFocused: {
-    borderColor: colors.textBright,
-  },
-  getLabel: {
-    color: colors.textBright,
-    fontSize: 20,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  getLabelDisabled: {
-    color: colors.textMuted,
-  },
-  importButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 24,
-    marginTop: 8,
-    borderWidth: 3,
-    borderColor: "transparent",
-    borderStyle: "dashed",
-  },
-  importButtonFocused: {
-    borderColor: colors.accent,
-    backgroundColor: colors.surfaceRaised,
-  },
-  importIcon: {
-    color: colors.accent,
-    fontSize: 36,
-    fontWeight: "300",
-    marginRight: 16,
-  },
-  importLabel: {
-    color: colors.textMuted,
-    fontSize: 24,
-    fontWeight: "500",
-  },
-});

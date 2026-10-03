@@ -17,6 +17,22 @@ button {
   font-family: inherit;
 }
 
+/* ─── Focus visibility (a11y) ─────────────────────────────────────── */
+/* Ported from packages/client/src/styles.css. Inline styles drop the
+   default outline for aesthetics; restore a clear keyboard focus ring via
+   box-shadow so focus is never invisible. #7c4dff is colors.accent from
+   @card-engine/host-core (the display has no CSS custom properties).
+   Containers focused programmatically (tabindex="-1", e.g. dialogs) are
+   excluded so opening a dialog doesn't outline the whole panel. */
+
+button:focus-visible,
+input:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px #7c4dff;
+}
+
 /* Freshly dealt card: slide down + fade in (RN: Animated.parallel). */
 @keyframes deal-in {
   from {

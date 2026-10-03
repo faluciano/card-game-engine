@@ -13,6 +13,7 @@ import {
   type ImportResult,
 } from "@card-engine/host-core";
 import { Button } from "./Button.js";
+import { useFocusTrap } from "./use-focus-trap.js";
 
 export function ImportModal({
   visible,
@@ -28,6 +29,9 @@ export function ImportModal({
   readonly allSlugs: readonly string[];
 }): React.JSX.Element | null {
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Trap Tab inside the dialog and return focus to the trigger on close.
+  useFocusTrap(panelRef, visible);
   const model = useImportModalModel({
     visible,
     onClose,
@@ -45,6 +49,8 @@ export function ImportModal({
     // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss is a pointer-only convenience; keyboard users close the dialog with Escape (handled on the dialog panel) or the Cancel button
     <div style={styles.backdrop} onClick={isLoading ? undefined : onClose} role="presentation">
       <div
+        ref={panelRef}
+        tabIndex={-1}
         style={styles.panel}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
@@ -164,7 +170,6 @@ const styles = {
     borderColor: colors.border,
     padding: "14px 16px",
     marginBottom: 16,
-    outline: "none",
   },
   loadingText: {
     color: colors.textMuted,

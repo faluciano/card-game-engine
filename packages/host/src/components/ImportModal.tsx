@@ -2,17 +2,19 @@
 // Full-screen modal overlay for importing rulesets from a URL, designed
 // for D-pad navigation on Android TV. A thin RN renderer over
 // `useImportModalModel` from host-core; only the focus bookkeeping for
-// the TV highlight ring lives here.
+// the text inputs' TV highlight ring lives here (buttons get theirs
+// from TVPressable).
 
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   IMPORT_URL_PLACEHOLDER,
   colors,
   useImportModalModel,
   type ImportResult,
 } from "@card-engine/host-core";
+import { TVPressable } from "./TVPressable";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -24,8 +26,8 @@ interface ImportModalProps {
   readonly allSlugs: readonly string[];
 }
 
-/** Which focusable control currently holds the D-pad focus ring. */
-type FocusKey = "input" | "slugInput" | "import" | "cancel" | "importAs" | "duplicateCancel";
+/** Which text input currently holds the D-pad focus ring. */
+type FocusKey = "input" | "slugInput";
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -69,8 +71,10 @@ export function ImportModal({
       onRequestClose={isLoading ? undefined : onClose}
     >
       <View style={styles.backdrop}>
-        <View style={styles.panel}>
-          <Text style={styles.title}>Import Ruleset</Text>
+        <View style={styles.panel} accessibilityViewIsModal accessibilityLabel="Import Ruleset">
+          <Text style={styles.title} accessibilityRole="header">
+            Import Ruleset
+          </Text>
 
           {/* URL Input */}
           <TextInput
@@ -83,22 +87,31 @@ export function ImportModal({
             editable={!isLoading && !isDuplicate}
             autoCapitalize="none"
             autoCorrect={false}
+            accessibilityLabel="Ruleset URL"
             {...focusProps("input")}
           />
 
           {/* Status Messages */}
-          {state.tag === "loading" && <Text style={styles.loadingText}>Importing...</Text>}
+          {state.tag === "loading" && (
+            <Text style={styles.loadingText} accessibilityLiveRegion="polite">
+              Importing...
+            </Text>
+          )}
           {state.tag === "success" && (
-            <Text style={styles.successText}>
+            <Text style={styles.successText} accessibilityLiveRegion="polite">
               {"✓"} {state.name} imported successfully!
             </Text>
           )}
-          {state.tag === "error" && <Text style={styles.errorText}>{state.message}</Text>}
+          {state.tag === "error" && (
+            <Text style={styles.errorText} accessibilityLiveRegion="assertive">
+              {state.message}
+            </Text>
+          )}
 
           {/* Duplicate State */}
           {state.tag === "duplicate" && (
             <View>
-              <Text style={styles.errorText}>
+              <Text style={styles.errorText} accessibilityLiveRegion="assertive">
                 A ruleset named &quot;{state.slug}&quot; already exists.
               </Text>
               <Text style={styles.hintText}>Choose a different name to import:</Text>
@@ -110,32 +123,27 @@ export function ImportModal({
                 placeholderTextColor={colors.textFaint}
                 autoCapitalize="none"
                 autoCorrect={false}
+                accessibilityLabel="New ruleset name"
                 {...focusProps("slugInput")}
               />
               <View style={styles.buttonRow}>
-                <Pressable
-                  style={[
-                    styles.button,
-                    styles.buttonPrimary,
-                    focused === "importAs" && styles.buttonFocused,
-                  ]}
+                <TVPressable
+                  style={[styles.button, styles.buttonPrimary]}
+                  focusedStyle={styles.buttonFocused}
                   onPress={model.handleImportWithSlug}
-                  {...focusProps("importAs")}
+                  accessibilityLabel="Import under the new name"
                 >
                   <Text style={[styles.buttonLabel, styles.buttonLabelPrimary]}>Import As</Text>
-                </Pressable>
+                </TVPressable>
 
-                <Pressable
-                  style={[
-                    styles.button,
-                    styles.buttonSecondary,
-                    focused === "duplicateCancel" && styles.buttonFocused,
-                  ]}
+                <TVPressable
+                  style={[styles.button, styles.buttonSecondary]}
+                  focusedStyle={styles.buttonFocused}
                   onPress={onClose}
-                  {...focusProps("duplicateCancel")}
+                  accessibilityLabel="Cancel import"
                 >
                   <Text style={[styles.buttonLabel, styles.buttonLabelSecondary]}>Cancel</Text>
-                </Pressable>
+                </TVPressable>
               </View>
             </View>
           )}
@@ -143,16 +151,13 @@ export function ImportModal({
           {/* Normal Buttons (hidden during duplicate state) */}
           {!isDuplicate && (
             <View style={styles.buttonRow}>
-              <Pressable
-                style={[
-                  styles.button,
-                  styles.buttonPrimary,
-                  isImportDisabled && styles.buttonDisabled,
-                  focused === "import" && !isImportDisabled && styles.buttonFocused,
-                ]}
+              <TVPressable
+                style={[styles.button, styles.buttonPrimary]}
+                focusedStyle={styles.buttonFocused}
+                disabledStyle={styles.buttonDisabled}
                 onPress={model.handleImport}
                 disabled={isImportDisabled}
-                {...focusProps("import")}
+                accessibilityLabel="Import ruleset"
               >
                 <Text
                   style={[
@@ -163,18 +168,15 @@ export function ImportModal({
                 >
                   Import
                 </Text>
-              </Pressable>
+              </TVPressable>
 
-              <Pressable
-                style={[
-                  styles.button,
-                  styles.buttonSecondary,
-                  isLoading && styles.buttonDisabled,
-                  focused === "cancel" && !isLoading && styles.buttonFocused,
-                ]}
+              <TVPressable
+                style={[styles.button, styles.buttonSecondary]}
+                focusedStyle={styles.buttonFocused}
+                disabledStyle={styles.buttonDisabled}
                 onPress={onClose}
                 disabled={isLoading}
-                {...focusProps("cancel")}
+                accessibilityLabel="Cancel import"
               >
                 <Text
                   style={[
@@ -185,7 +187,7 @@ export function ImportModal({
                 >
                   Cancel
                 </Text>
-              </Pressable>
+              </TVPressable>
             </View>
           )}
         </View>

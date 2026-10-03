@@ -5,11 +5,10 @@
 // store tab that browses the published catalog. Selecting a game moves
 // every connected client to the lobby via SELECT_RULESET.
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import type { CardGameRuleset, HostAction, HostGameState } from "@card-engine/shared";
 import {
   PICKER_TABS,
-  colors,
   formatPlayerRange,
   getStoreActions,
   useRulesetPickerModel,
@@ -22,6 +21,10 @@ import { Button } from "../components/Button.js";
 import { ImportModal } from "../components/ImportModal.js";
 import { JoinPanel } from "../components/JoinPanel.js";
 import { rulesetStore } from "../storage/web-ruleset-store.js";
+import { clamp2, ellipsis, styles } from "./RulesetPicker.styles.js";
+
+const TAB_ID_PREFIX = "picker-tab-";
+const TAB_PANEL_ID = "picker-tabpanel";
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -41,7 +44,7 @@ export function RulesetPicker({
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <div style={styles.title}>CHOOSE A GAME</div>
+        <h1 style={styles.title}>CHOOSE A GAME</h1>
         <div style={styles.qrSection}>
           <JoinPanel joinUrl={joinUrl} roomId={roomId} size={120} />
           <div style={styles.qrHint}>
@@ -54,29 +57,39 @@ export function RulesetPicker({
 
       <TabBar tab={model.tab} onChange={model.setTab} />
 
-      {model.tab === "store" ? (
-        <StoreView
-          installedSlugs={state.installedSlugs}
-          builtInSlugs={model.builtInSlugs}
-          dispatch={dispatch}
-        />
-      ) : model.isLoading ? (
-        <div style={styles.loadingText}>Loading rulesets...</div>
-      ) : (
-        <div style={styles.listContent}>
-          <div style={styles.grid}>
-            {model.rulesetItems.map((item) => (
-              <RulesetCard
-                key={item.key}
-                item={item}
-                onSelect={model.selectRuleset}
-                onDelete={model.deleteHandlerFor(item)}
-              />
-            ))}
+      <div
+        id={TAB_PANEL_ID}
+        role="tabpanel"
+        aria-labelledby={`${TAB_ID_PREFIX}${model.tab}`}
+        style={styles.tabPanel}
+      >
+        {model.tab === "store" ? (
+          <StoreView
+            installedSlugs={state.installedSlugs}
+            builtInSlugs={model.builtInSlugs}
+            dispatch={dispatch}
+          />
+        ) : model.isLoading ? (
+          <div style={styles.loadingText}>Loading rulesets...</div>
+        ) : (
+          <div style={styles.listContent}>
+            <div style={styles.grid}>
+              {model.rulesetItems.map((item) => (
+                <RulesetCard
+                  key={item.key}
+                  item={item}
+                  onSelect={model.selectRuleset}
+                  onDelete={model.deleteHandlerFor(item)}
+                  deleteLabel={model.deleteLabelFor(item)}
+                  isConfirmingDelete={model.confirmingDeleteKey === item.key}
+                  onCancelDelete={model.cancelDelete}
+                />
+              ))}
+            </div>
+            <ImportPlaceholder onPress={model.openModal} />
           </div>
-          <ImportPlaceholder onPress={model.openModal} />
-        </div>
-      )}
+        )}
+      </div>
 
       <ImportModal
         visible={model.modalVisible}
@@ -91,63 +104,61 @@ export function RulesetPicker({
 
 // ─── Ruleset Card ──────────────────────────────────────────────────
 
+/**
+ * One library entry. The selectable body is a real <button> and DELETE
+ * is its sibling, so neither control is nested in the other and no
+ * propagation tricks are needed. The shell highlights while the body
+ * is hovered or focused.
+ */
 const RulesetCard = React.memo(function RulesetCard({
   item,
   onSelect,
   onDelete,
+  deleteLabel,
+  isConfirmingDelete,
+  onCancelDelete,
 }: {
   readonly item: RulesetItem;
   readonly onSelect: (ruleset: CardGameRuleset) => void;
   readonly onDelete?: () => void;
+  readonly deleteLabel: string;
+  readonly isConfirmingDelete: boolean;
+  readonly onCancelDelete: (item: RulesetItem) => void;
 }): React.JSX.Element {
   const [hovered, setHovered] = useState(false);
+  const [bodyFocused, setBodyFocused] = useState(false);
   const { meta } = item.ruleset;
+  const highlighted = hovered || bodyFocused;
 
   return (
-    // biome-ignore lint/a11y/useSemanticElements: cannot be a <button> because it nests the interactive DELETE <Button>; it is fully keyboard-operable (tabIndex + Enter/Space handler)
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(item.ruleset)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect(item.ruleset);
-        }
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
-      style={{
-        ...styles.card,
-        ...(hovered ? styles.cardFocused : null),
-        cursor: "pointer",
-        outline: "none",
-      }}
-    >
-      <div style={{ ...styles.cardName, ...ellipsis }}>{meta.name}</div>
-      <div style={{ ...styles.cardMeta, ...ellipsis }}>by {meta.author}</div>
-      <div style={styles.cardMeta}>{formatPlayerRange(meta.players)}</div>
-      <div style={styles.cardVersion}>v{meta.version}</div>
-      {item.source === "built_in" && <div style={styles.badge}>BUILT-IN</div>}
+    <div style={{ ...styles.card, ...(highlighted ? styles.cardFocused : null) }}>
+      <button
+        type="button"
+        onClick={() => onSelect(item.ruleset)}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setBodyFocused(true)}
+        onBlur={() => setBodyFocused(false)}
+        style={styles.cardBody}
+      >
+        <div style={{ ...styles.cardName, ...ellipsis }}>{meta.name}</div>
+        <div style={{ ...styles.cardMeta, ...ellipsis }}>by {meta.author}</div>
+        <div style={styles.cardMeta}>{formatPlayerRange(meta.players)}</div>
+        <div style={styles.cardVersion}>v{meta.version}</div>
+        {item.source === "built_in" && <div style={styles.badge}>BUILT-IN</div>}
+      </button>
       {onDelete != null && (
-        // Stop propagation so removing a game doesn't also select it — the RN
-        // original got this for free from nested Pressables.
-        // biome-ignore lint/a11y/noStaticElementInteractions: non-interactive wrapper that only stops event propagation; the real control is the nested <Button>
-        <span
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-          role="presentation"
-        >
-          <Button
-            label="DELETE"
-            variant="ghost"
-            onPress={() => onDelete()}
-            style={styles.deleteButton}
-            labelStyle={styles.deleteLabel}
-          />
-        </span>
+        <Button
+          label={deleteLabel}
+          variant={isConfirmingDelete ? "danger" : "ghost"}
+          onPress={onDelete}
+          onBlur={() => onCancelDelete(item)}
+          ariaLabel={
+            isConfirmingDelete ? `Press again to delete ${meta.name}` : `Delete ${meta.name}`
+          }
+          style={styles.deleteButton}
+          labelStyle={styles.deleteLabel}
+        />
       )}
     </div>
   );
@@ -166,6 +177,7 @@ function ImportPlaceholder({ onPress }: { readonly onPress: () => void }): React
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
+      aria-haspopup="dialog"
       style={{
         ...styles.importButton,
         ...(hovered ? styles.importButtonFocused : null),
@@ -179,6 +191,11 @@ function ImportPlaceholder({ onPress }: { readonly onPress: () => void }): React
 
 // ─── Tab Bar ───────────────────────────────────────────────────────
 
+/**
+ * WAI-ARIA tabs with automatic activation: only the active tab is in
+ * the Tab order (roving tabindex); Left/Right wrap between tabs and
+ * Home/End jump to the ends, selecting the tab as focus lands on it.
+ */
 function TabBar({
   tab,
   onChange,
@@ -187,17 +204,56 @@ function TabBar({
   readonly onChange: (tab: PickerTab) => void;
 }): React.JSX.Element {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const tabRefs = useRef(new Map<PickerTab, HTMLButtonElement>());
+
+  const moveTo = (index: number): void => {
+    const count = PICKER_TABS.length;
+    const next = PICKER_TABS[((index % count) + count) % count];
+    if (next === undefined) return;
+    onChange(next.key);
+    tabRefs.current.get(next.key)?.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, index: number): void => {
+    switch (e.key) {
+      case "ArrowRight":
+        moveTo(index + 1);
+        break;
+      case "ArrowLeft":
+        moveTo(index - 1);
+        break;
+      case "Home":
+        moveTo(0);
+        break;
+      case "End":
+        moveTo(PICKER_TABS.length - 1);
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+  };
 
   return (
-    <div style={styles.tabBar}>
-      {PICKER_TABS.map((t) => {
+    <div role="tablist" aria-label="Game source" style={styles.tabBar}>
+      {PICKER_TABS.map((t, index) => {
         const active = tab === t.key;
         const hovered = hoveredKey === t.key;
         return (
           <button
             key={t.key}
+            ref={(el) => {
+              if (el) tabRefs.current.set(t.key, el);
+              else tabRefs.current.delete(t.key);
+            }}
+            id={`${TAB_ID_PREFIX}${t.key}`}
             type="button"
+            role="tab"
+            aria-selected={active}
+            aria-controls={TAB_PANEL_ID}
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(t.key)}
+            onKeyDown={(e) => handleKeyDown(e, index)}
             onMouseEnter={() => setHoveredKey(t.key)}
             onMouseLeave={() => setHoveredKey(null)}
             onFocus={() => setHoveredKey(t.key)}
@@ -305,224 +361,3 @@ const StoreCard = React.memo(function StoreCard({
     </div>
   );
 });
-
-// ─── Styles ────────────────────────────────────────────────────────
-
-const ellipsis: React.CSSProperties = {
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-};
-
-const clamp2: React.CSSProperties = {
-  display: "-webkit-box",
-  WebkitLineClamp: 2,
-  WebkitBoxOrient: "vertical",
-  overflow: "hidden",
-};
-
-const styles = {
-  container: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: colors.bg,
-    padding: "28px 48px 0",
-    minHeight: 0,
-    boxSizing: "border-box",
-  },
-  header: {
-    display: "flex",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 18,
-  },
-  title: {
-    color: colors.textBright,
-    fontSize: 38,
-    fontWeight: 800,
-    letterSpacing: 2,
-  },
-  qrSection: {
-    display: "flex",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  qrHint: {
-    color: colors.textDim,
-    fontSize: 18,
-    lineHeight: 1.45,
-  },
-  listContent: {
-    flex: 1,
-    overflowY: "auto",
-    paddingBottom: 48,
-    minHeight: 0,
-  },
-  grid: {
-    display: "flex",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
-    marginBottom: 16,
-  },
-  card: {
-    flexBasis: "48%",
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 3,
-    borderStyle: "solid",
-    borderColor: "transparent",
-    boxSizing: "border-box",
-    minWidth: 0,
-  },
-  cardFocused: {
-    borderColor: colors.accent,
-    backgroundColor: colors.surfaceRaised,
-  },
-  cardName: {
-    color: colors.textBright,
-    fontSize: 26,
-    fontWeight: 700,
-    marginBottom: 4,
-  },
-  cardMeta: {
-    color: colors.textMuted,
-    fontSize: 17,
-    lineHeight: 1.35,
-  },
-  cardVersion: {
-    color: colors.textFaint,
-    fontSize: 14,
-    marginTop: 6,
-  },
-  cardDesc: {
-    color: colors.textMuted,
-    fontSize: 15,
-    lineHeight: 1.35,
-    marginTop: 6,
-  },
-  badge: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: 700,
-    marginTop: 12,
-    letterSpacing: 1,
-  },
-  deleteButton: {
-    marginTop: 12,
-    padding: "6px 12px",
-    borderRadius: 8,
-    borderWidth: 2,
-  },
-  deleteLabel: {
-    color: colors.danger,
-    fontSize: 14,
-    fontWeight: 700,
-    letterSpacing: 1,
-  },
-  loadingText: {
-    color: colors.textMuted,
-    fontSize: 28,
-    textAlign: "center",
-    marginTop: 64,
-  },
-
-  // Tab bar
-  tabBar: {
-    display: "flex",
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
-  },
-  tab: {
-    padding: "10px 26px",
-    borderRadius: 999,
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderStyle: "solid",
-    borderColor: "transparent",
-    cursor: "pointer",
-    font: "inherit",
-  },
-  tabActive: {
-    backgroundColor: colors.surfaceRaised,
-  },
-  tabFocused: {
-    borderColor: colors.accent,
-  },
-  tabLabel: {
-    color: colors.textMuted,
-    fontSize: 22,
-    fontWeight: 700,
-    letterSpacing: 1,
-  },
-  tabLabelActive: {
-    color: colors.textBright,
-  },
-
-  // Store
-  storeMessage: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    marginTop: 48,
-    gap: 16,
-  },
-  storeError: {
-    color: colors.danger,
-    fontSize: 20,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  actionsRow: {
-    display: "flex",
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 10,
-  },
-  pillButton: {
-    padding: "8px 26px",
-    borderRadius: 999,
-  },
-  pillLabel: {
-    fontSize: 20,
-    fontWeight: 800,
-    letterSpacing: 1,
-  },
-  importButton: {
-    display: "flex",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "100%",
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 24,
-    marginTop: 8,
-    borderWidth: 3,
-    borderStyle: "dashed",
-    borderColor: "transparent",
-    cursor: "pointer",
-    boxSizing: "border-box",
-  },
-  importButtonFocused: {
-    borderColor: colors.accent,
-    backgroundColor: colors.surfaceRaised,
-  },
-  importIcon: {
-    color: colors.accent,
-    fontSize: 36,
-    fontWeight: 300,
-    marginRight: 16,
-  },
-  importLabel: {
-    color: colors.textMuted,
-    fontSize: 24,
-    fontWeight: 500,
-  },
-} satisfies Record<string, React.CSSProperties>;
