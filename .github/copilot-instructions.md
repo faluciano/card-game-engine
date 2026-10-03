@@ -18,27 +18,42 @@ This is a Bun monorepo with five packages:
 
 ```bash
 bun run dev:client       # Start Vite dev server with HMR
-bun run build:client     # TypeScript check + Vite production build
+bun run build:client     # Vite production build (no type-check; use typecheck)
 bun run bundle:client    # Bundle client dist into host Android assets
 bun run build:android    # Bundle + Expo Android build
-bun run typecheck        # tsc -b packages/client packages/host-core (shared via references), then display and host
-bun run typecheck:host   # Type-check the host package only
+bun run typecheck        # tsc -b packages/client packages/host-core (shared via references), then scripts, display, and host
+bun run typecheck:host   # Type-check the host package only (host's own TypeScript 5.9)
 bun run dev:display      # Start the browser display dev server
-bun run build:display    # Build the browser display
-bun run lint             # Biome lint + format check
-bun run validate         # Validate all rulesets against schema
+bun run build:display    # Vite production build of the browser display
+bun run lint             # Biome lint + format check (bun run format fixes)
+bun run validate         # Validate all rulesets against the Zod schema
+bun run schema:generate  # Regenerate cardgame.v1.schema.json from the Zod schema
+bun run schema:check     # Fail if the JSON Schema drifted from the Zod schema
 bun run catalog          # Generate catalog.json from rulesets
 ```
 
+Bun is pinned by `packageManager` in the root `package.json` (1.4.2); workflows read it via `bun-version-file`.
+
+`packages/shared/src/schema/cardgame.v1.schema.json` is generated — edit `validation.ts` and run `bun run schema:generate` instead of editing it by hand.
+
+Deck presets are `standard_52`, `standard_54`, and `custom`. Every entry in a ruleset's `variables` manifest needs `type` (`"number"` or `"string"`) alongside `initial`.
+
 ## Testing
 
-Tests use Vitest and live in shared and host packages:
+Tests use Vitest and live in shared, host-core, host, and client:
 
 ```bash
-cd packages/shared && bunx vitest run   # Engine core + schema validation tests
-cd packages/host-core && bunx vitest run # Catalog, URL import, install-hook tests
-cd packages/host && bunx vitest run     # Host storage/file-import tests
+cd packages/shared && bunx vitest run    # Engine core + schema validation tests
+cd packages/host-core && bunx vitest run # Catalog, URL import, install-hook, screen-model tests
+cd packages/host && bunx vitest run      # Host storage/file-import tests
+cd packages/client && bunx vitest run    # Controller tests
 ```
+
+## CI
+
+- `ci.yml`: lint (`bunx biome ci .`), typecheck + client/display builds, a Vitest matrix (shared, host-core, host, client; coverage for shared and host-core), and validate + schema:check + catalog. Shared setup lives in `.github/actions/setup`.
+- `auto-release.yml`: runs after CI succeeds on `main`; creates a draft release, builds the APK via `release-apk.yml`, then publishes it.
+- `catalog.yml`: validates rulesets and deploys `catalog.json` to GitHub Pages.
 
 ## Updating @couch-kit Dependencies
 
