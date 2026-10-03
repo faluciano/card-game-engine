@@ -3,7 +3,7 @@
   "meta": {
     "name": "Crazy Eights",
     "slug": "crazy-eights",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "author": "faluciano",
     "players": {
       "min": 2,
@@ -84,6 +84,7 @@
         {
           "name": "play_card",
           "label": "Play Card",
+          "playTo": "discard",
           "condition": "played_card_index == -1 || card_rank_name(current_player.hand, played_card_index) == \"8\" || (get_str_var(\"active_suit\") == \"\" && played_card_matches_top(discard)) || (get_str_var(\"active_suit\") != \"\" && card_suit(current_player.hand, played_card_index) == get_str_var(\"active_suit\"))",
           "effect": [
             "set_face_up(\"discard\", 0, true)",

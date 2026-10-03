@@ -21,6 +21,7 @@ export {
   type EffectDescription,
 } from "./builtins";
 export {
+  DEFAULT_PLAY_TO_ZONE,
   getValidActions,
   getPlayableCardIndices,
   validateAction,

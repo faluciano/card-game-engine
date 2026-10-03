@@ -234,7 +234,7 @@ function makePlayZones(): Record<string, ZoneState> {
   const { hand, ...rest } = makeDefaultZones();
   return {
     ...rest,
-    "hand:0": makeZone("hand:0", hand!.cards),
+    "hand:0": makeZone("hand:0", [...hand!.cards]),
     "hand:1": makeZone("hand:1", [makeCard("2", "clubs")]),
   };
 }
@@ -1064,7 +1064,7 @@ describe("Action Validator", () => {
         });
       });
 
-      it("rejects play_card into another player's zone", () => {
+      it("rejects play_card into a zone other than the action's playTo", () => {
         const zones = makePlayZones();
         const cardId = zones["hand:0"]!.cards[0]!.id;
         const state = makeGameState(zones);
@@ -1081,7 +1081,10 @@ describe("Action Validator", () => {
           playMachine,
         );
 
-        expect(result).toEqual({ valid: false, reason: "Cannot play a card into zone 'hand:1'" });
+        expect(result).toEqual({
+          valid: false,
+          reason: "Cannot play a card into zone 'hand:1'; cards are played to 'discard'",
+        });
       });
     });
 

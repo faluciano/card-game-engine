@@ -203,7 +203,12 @@ describe("Go Fish ruleset", () => {
     it("offers the ask action to the current player only", () => {
       const { state, players } = startGame(2);
       expect(getValidActions(state, players[0]!.id)).toEqual([
-        { actionName: "ask", label: "Ask for a rank", enabled: true },
+        {
+          actionName: "ask",
+          label: "Ask for a rank",
+          enabled: true,
+          params: { rank: { kind: "selected_card_rank" }, target: { kind: "other_player" } },
+        },
       ]);
       expect(getValidActions(state, players[1]!.id)).toEqual([]);
     });

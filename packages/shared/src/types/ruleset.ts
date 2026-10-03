@@ -79,11 +79,31 @@ export interface RoleDefinition {
  */
 export type PhaseKind = "automatic" | "turn_based" | "all_players";
 
+/**
+ * How a controller fills in a declare action's parameter:
+ *
+ * - `other_player`:       the index of another player, picked by tapping their name
+ * - `selected_card_rank`: the rank of the card selected in the player's hand
+ */
+export type ActionParamKind = "other_player" | "selected_card_rank";
+
+export interface ActionParamSpec {
+  readonly kind: ActionParamKind;
+}
+
 export interface PhaseAction {
   readonly name: string;
   readonly label: string;
   readonly condition?: Expression;
   readonly effect: readonly Expression[];
+  /**
+   * For `play_card` actions: the zone a played card lands in. A per-player
+   * zone resolves to the acting player's own (e.g. "trick" → "trick:2").
+   * Defaults to "discard".
+   */
+  readonly playTo?: string;
+  /** Parameters the player supplies with this declare, read via `get_param()`. */
+  readonly params?: Readonly<Record<string, ActionParamSpec>>;
 }
 
 export interface PhaseDefinition {
