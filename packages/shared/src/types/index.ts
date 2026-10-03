@@ -14,6 +14,8 @@ export type {
   ZoneVisibility,
 } from "./card";
 export type {
+  ActionParamKind,
+  ActionParamSpec,
   CardGameRuleset,
   CardTemplateConfig,
   DeckConfig,

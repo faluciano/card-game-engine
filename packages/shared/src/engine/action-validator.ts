@@ -2,7 +2,14 @@
 // Determines which actions are valid for a given player in the
 // current game state. Prevents illegal moves at the engine level.
 
-import type { CardGameAction, CardGameRuleset, CardGameState, PlayerId } from "../types/index";
+import type {
+  ActionParamSpec,
+  CardGameAction,
+  CardGameRuleset,
+  CardGameState,
+  PhaseAction,
+  PlayerId,
+} from "../types/index";
 import {
   evaluateCondition,
   evaluateExpression,
@@ -38,6 +45,9 @@ function checkActionCondition(condition: string, ctx: EvalContext): ActionValida
   }
 }
 
+/** Zone a `play_card` action sends cards to when it names no `playTo`. */
+export const DEFAULT_PLAY_TO_ZONE = "discard";
+
 /**
  * A valid action descriptor: the phase action name plus display info.
  * Returned by `getValidActions` so the UI can render action buttons.
@@ -49,6 +59,20 @@ export interface ValidAction {
   readonly label: string;
   /** Whether the action's condition is currently met. */
   readonly enabled: boolean;
+  /** For `play_card`: the concrete zone a played card goes to (e.g. "trick:2"). */
+  readonly targetZone?: string;
+  /** Parameters the player must supply when declaring this action. */
+  readonly params?: Readonly<Record<string, ActionParamSpec>>;
+}
+
+/**
+ * Resolves a play_card action's `playTo` to a concrete zone name: the
+ * player's own copy of a per-player zone, otherwise the shared zone.
+ */
+function resolvePlayTarget(state: CardGameState, action: PhaseAction, playerIndex: number): string {
+  const base = action.playTo ?? DEFAULT_PLAY_TO_ZONE;
+  const own = perPlayerZone(base, playerIndex);
+  return own in state.zones ? own : base;
 }
 
 /**
@@ -111,6 +135,10 @@ export function getValidActions(
       actionName: action.name,
       label: action.label,
       enabled,
+      ...(action.name === "play_card"
+        ? { targetZone: resolvePlayTarget(state, action, playerIndex) }
+        : {}),
+      ...(action.params ? { params: action.params } : {}),
     });
   }
 
@@ -293,8 +321,10 @@ function validateDeclareAction(
 }
 
 /**
- * Validates a "play_card" action: player exists, turn check, card exists,
- * and if a "play_card" phase action is defined, its condition is met.
+ * Validates a "play_card" action: player exists, turn check, the phase
+ * defines a "play_card" action, the card comes from the player's own hand
+ * and goes to the action's `playTo` zone, and the phase action's condition
+ * (if any) is met.
  */
 function validatePlayCard(
   state: CardGameState,
@@ -303,6 +333,19 @@ function validatePlayCard(
 ): ActionValidationResult {
   const turnCheck = validatePlayerTurn(state, action.playerId, machine);
   if (!turnCheck.valid) return turnCheck;
+
+  // validatePlayerTurn above already rejected unknown phases.
+  const phase = machine.findPhase(state.currentPhase)!;
+  if (phase.kind === "automatic") {
+    return { valid: false, reason: "Cannot act during automatic phase" };
+  }
+  const playCardAction = phase.actions.find((a) => a.name === "play_card");
+  if (!playCardAction) {
+    return {
+      valid: false,
+      reason: `Action 'play_card' not available in phase '${state.currentPhase}'`,
+    };
+  }
 
   // Verify the card exists in fromZone
   const fromZone = state.zones[action.fromZone];
@@ -323,13 +366,21 @@ function validatePlayCard(
     return { valid: false, reason: `Zone '${action.toZone}' not found` };
   }
 
-  // If the current phase has a "play_card" action with a condition, validate it
-  // (validatePlayerTurn above already rejected unknown phases).
-  const playCardAction = machine
-    .findPhase(state.currentPhase)
-    ?.actions.find((a) => a.name === "play_card");
-  if (playCardAction?.condition) {
-    const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
+  // Cards come from the player's own hand — the zone play_card conditions
+  // index into via played_card_index — and land in the action's `playTo`.
+  const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
+  if (action.fromZone !== perPlayerZone("hand", playerIndex)) {
+    return { valid: false, reason: `Cannot play a card from zone '${action.fromZone}'` };
+  }
+  const targetZone = resolvePlayTarget(state, playCardAction, playerIndex);
+  if (action.toZone !== targetZone) {
+    return {
+      valid: false,
+      reason: `Cannot play a card into zone '${action.toZone}'; cards are played to '${targetZone}'`,
+    };
+  }
+
+  if (playCardAction.condition) {
     // Compute the index of the played card in fromZone for per-card validation
     const cardIndex = fromZone.cards.findIndex((c) => c.id === action.cardId);
     const ctx: EvalContext = {

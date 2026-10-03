@@ -171,8 +171,9 @@ describe("action error feedback (host reducer)", () => {
       const action: HostAction = {
         type: "GAME_ACTION",
         action: {
-          kind: "end_turn",
+          kind: "declare",
           playerId: wrongPlayerId,
+          declaration: "end_turn",
         },
       };
 
@@ -254,8 +255,9 @@ describe("action error feedback (host reducer)", () => {
       state = hostReducer(state, {
         type: "GAME_ACTION",
         action: {
-          kind: "end_turn",
+          kind: "declare",
           playerId: wrongPlayerId,
+          declaration: "end_turn",
         },
       });
       expect(state.actionError).not.toBeNull();

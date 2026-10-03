@@ -3,7 +3,7 @@
   "meta": {
     "name": "Go Fish",
     "slug": "go-fish",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "author": "faluciano",
     "players": {
       "min": 2,
@@ -101,6 +101,10 @@
         {
           "name": "ask",
           "label": "Ask for a rank",
+          "params": {
+            "rank": { "kind": "selected_card_rank" },
+            "target": { "kind": "other_player" }
+          },
           "condition": "is_availability_check() || (has_card_matching_rank(current_player.hand, get_param(\"rank\")) && get_param(\"target\") != current_player_index && get_param(\"target\") >= 0 && get_param(\"target\") < player_count)",
           "effect": [
             "set_str_var(\"asked_rank\", get_param(\"rank\"))",

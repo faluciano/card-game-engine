@@ -1901,7 +1901,7 @@ describe("Ruleset Interpreter", () => {
       expect(state.zones["hand:0"]!.cards).toHaveLength(4);
     });
 
-    it("moves card without effects when no play_card phase action exists", () => {
+    it("rejects play_card when the phase defines no play_card action", () => {
       const ruleset = makePlayCardRuleset({ noPlayCardAction: true });
       const reducer = createReducer(ruleset);
       const players = makePlayers(1);
@@ -1910,7 +1910,7 @@ describe("Ruleset Interpreter", () => {
 
       const card = state.zones["hand:0"]!.cards[0]!;
 
-      state = reducer(state, {
+      const next = reducer(state, {
         kind: "play_card",
         playerId: makePlayerId("p0"),
         cardId: card.id,
@@ -1918,8 +1918,8 @@ describe("Ruleset Interpreter", () => {
         toZone: "discard",
       });
 
-      expect(state.zones.discard!.cards).toHaveLength(1);
-      expect(state.variables.cards_played).toBe(0); // No effects ran
+      expect(next).toBe(state);
+      expect(next.zones.discard!.cards).toHaveLength(0);
     });
 
     it("checks autoEndTurnCondition after effects", () => {

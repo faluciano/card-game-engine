@@ -8,6 +8,7 @@
 
 import type { CardGameRuleset } from "../types/index";
 import * as z from "zod/mini";
+import { DEFAULT_PLAY_TO_ZONE } from "../engine/action-validator";
 import { compileExpression, ExpressionError } from "../engine/expression-evaluator";
 import { RulesetParseError } from "../engine/interpreter";
 import { PARTIAL_VISIBILITY_RULES } from "../engine/state-filter";
@@ -103,11 +104,17 @@ const RoleSchema = z.object({
   count: z.union([positiveInt(), z.literal("per_player")]),
 });
 
+const ActionParamSpecSchema = z.object({
+  kind: z.enum(["other_player", "selected_card_rank"]),
+});
+
 const PhaseActionSchema = z.object({
   name: nonEmptyString(),
   label: nonEmptyString(),
   condition: z.optional(z.string()),
   effect: z.array(z.string()),
+  playTo: z.optional(nonEmptyString()),
+  params: z.optional(z.record(nonEmptyString(), ActionParamSpecSchema)),
 });
 
 const PhaseTransitionSchema = z.object({
@@ -162,8 +169,10 @@ interface CrossCheckedRuleset {
   readonly phases: readonly {
     readonly name: string;
     readonly actions: readonly {
+      readonly name: string;
       readonly condition?: string | undefined;
       readonly effect: readonly string[];
+      readonly playTo?: string | undefined;
     }[];
     readonly transitions: readonly { readonly to: string; readonly when: string }[];
     readonly onEnter?: readonly string[] | undefined;
@@ -255,6 +264,28 @@ function checkCrossReferences(
         ["globalTransitions", t, "to"],
         `Global transition targets undeclared phase "${transition.to}". Declared phases: ${formatDeclared(phaseNames)}`,
       );
+    }
+  }
+
+  const zoneNames = new Set(ruleset.zones.map((zone) => zone.name));
+  for (const [p, phase] of ruleset.phases.entries()) {
+    for (const [a, action] of phase.actions.entries()) {
+      if (action.name !== "play_card") {
+        if (action.playTo !== undefined) {
+          report(
+            ["phases", p, "actions", a, "playTo"],
+            `Action "${action.name}" sets playTo, which only applies to "play_card" actions`,
+          );
+        }
+        continue;
+      }
+      const playTo = action.playTo ?? DEFAULT_PLAY_TO_ZONE;
+      if (!zoneNames.has(playTo)) {
+        report(
+          ["phases", p, "actions", a, action.playTo === undefined ? "name" : "playTo"],
+          `"play_card" in phase "${phase.name}" plays cards to undeclared zone "${playTo}"${action.playTo === undefined ? " (the default; set playTo)" : ""}. Declared zones: ${formatDeclared(zoneNames)}`,
+        );
+      }
     }
   }
 

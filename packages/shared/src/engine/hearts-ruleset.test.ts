@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createInitialState, createReducer } from "./interpreter";
 import { loadRuleset } from "../schema/index";
-import { getPlayableCardIndices } from "./action-validator";
+import { getPlayableCardIndices, getValidActions } from "./action-validator";
 import { registerAllBuiltins } from "./builtins";
 import { evaluateExpression } from "./expression-evaluator";
 import type {
@@ -228,6 +228,15 @@ describe("Hearts ruleset", () => {
       expect(state.variables.lead_player).toBe(holder);
       expect(state.currentPlayerIndex).toBe(holder);
       expect(state.variables).toMatchObject({ tricks_played: 0, hearts_broken: 0 });
+    });
+
+    it("tells the leader to play into their own trick zone", () => {
+      const { state } = startGame();
+      const leader = state.currentPlayerIndex;
+      const playCard = getValidActions(state, state.players[leader]!.id).find(
+        (a) => a.actionName === "play_card",
+      );
+      expect(playCard?.targetZone).toBe(`trick:${leader}`);
     });
   });
 

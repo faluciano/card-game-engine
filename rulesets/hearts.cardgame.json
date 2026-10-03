@@ -3,7 +3,7 @@
   "meta": {
     "name": "Hearts",
     "slug": "hearts",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "faluciano",
     "players": {
       "min": 4,
@@ -94,6 +94,7 @@
         {
           "name": "play_card",
           "label": "Play Card",
+          "playTo": "trick",
           "condition": "played_card_index == -1 || if(trick_card_count(\"trick\") == 0, if(get_var(\"tricks_played\") == 0, card_rank_name(current_player.hand, played_card_index) == \"2\" && card_suit(current_player.hand, played_card_index) == \"clubs\", card_suit(current_player.hand, played_card_index) != \"hearts\" || get_var(\"hearts_broken\") == 1 || count_cards_by_suit(current_player.hand, \"hearts\") == card_count(current_player.hand)), if(has_card_matching_suit(current_player.hand, led_card_suit(\"trick\")), card_suit(current_player.hand, played_card_index) == led_card_suit(\"trick\"), get_var(\"tricks_played\") > 0 || (card_suit(current_player.hand, played_card_index) != \"hearts\" && !(card_rank_name(current_player.hand, played_card_index) == \"Q\" && card_suit(current_player.hand, played_card_index) == \"spades\")) || count_cards_by_suit(current_player.hand, \"hearts\") + if(has_card_with(current_player.hand, \"Q\", \"spades\"), 1, 0) == card_count(current_player.hand)))",
           "effect": [
             "if(card_suit(current_player.trick, 0) == \"hearts\", set_var(\"hearts_broken\", 1))",

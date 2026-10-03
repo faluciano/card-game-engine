@@ -220,6 +220,29 @@ describe("War ruleset", () => {
       expect(flip(reducer, state, 1)).toBe(state);
     });
 
+    it("starts a fresh, playable game on reset_round after the game is over", () => {
+      let { state } = startGame();
+      const { reducer } = startGame();
+      while (state.status.kind === "in_progress") state = playBattle(reducer, state);
+      expect(state.status.kind).toBe("finished");
+
+      const next = reducer(state, { kind: "reset_round" });
+
+      expect(next.status.kind).toBe("in_progress");
+      expect(next.currentPhase).toBe("battle");
+      expect(next.turnNumber).toBe(1);
+      expect(next.scores).toEqual({});
+      expect(next.variables.cumulative_score_1 ?? 0).toBe(0);
+      expect(next.variables.battles).toBe(0);
+      expect(next.zones["deck:0"]!.cards).toHaveLength(26);
+      expect(next.zones["deck:1"]!.cards).toHaveLength(26);
+      expect(totalCards(next)).toBe(52);
+      expect(Object.values(next.zones).every((z) => z.cards.every((c) => !c.faceUp))).toBe(true);
+
+      // The new game accepts moves.
+      expect(flip(reducer, next, 0)).not.toBe(next);
+    });
+
     it("is deterministic for the same seed", () => {
       const runs = [0, 1].map(() => {
         let { state } = startGame(42);

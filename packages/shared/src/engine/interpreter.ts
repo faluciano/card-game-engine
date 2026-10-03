@@ -564,9 +564,12 @@ function handleStepPhase(state: CardGameState, rt: Runtime): ApplyResult {
 }
 
 /**
- * Handles a "reset_round" internal action.
+ * Handles a "reset_round" internal action. Mid-game it restarts the round
+ * from the first phase; once the game has finished it starts a new game.
  */
 function handleResetRound(state: CardGameState, rt: Runtime): ApplyResult {
+  if (state.status.kind === "finished") return applied(startNewGame(state, rt));
+
   const newState: CardGameState = {
     ...state,
     ...resetRoundFields(state.ruleset, state.variables, state.turnNumber),
@@ -574,6 +577,33 @@ function handleResetRound(state: CardGameState, rt: Runtime): ApplyResult {
     version: state.version + 1,
   };
   return applied(runAutomaticPhases(newState, rt));
+}
+
+/**
+ * Starts a new game with the same players after the previous one finished:
+ * every card goes back to the deck face-down, all variables (including
+ * `cumulative_score_*`) return to their initial values, and the first
+ * automatic phases run again (shuffle, deal).
+ */
+function startNewGame(state: CardGameState, rt: Runtime): CardGameState {
+  const allCards = Object.values(state.zones).flatMap((zone) =>
+    zone.cards.map((card) => ({ ...card, faceUp: false })),
+  );
+  const newState: CardGameState = {
+    ...state,
+    status: { kind: "in_progress", startedAt: rt.now() },
+    zones: initializeZones(state.ruleset, state.players, allCards),
+    currentPhase: state.ruleset.phases[0]!.name,
+    currentPlayerIndex: 0,
+    turnNumber: 1,
+    turnsTakenThisPhase: 0,
+    turnDirection: 1,
+    scores: {},
+    variables: getInitialVariables(state.ruleset.variables),
+    stringVariables: getInitialStringVariables(state.ruleset.variables),
+    version: state.version + 1,
+  };
+  return runAutomaticPhases(newState, rt);
 }
 
 // ─── Automatic Phase Execution ─────────────────────────────────────

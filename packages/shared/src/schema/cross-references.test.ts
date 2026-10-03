@@ -18,6 +18,7 @@ interface TestPhase {
     readonly label: string;
     readonly condition?: string;
     readonly effect: readonly string[];
+    readonly playTo?: string;
   }[];
   readonly transitions: readonly { readonly to: string; readonly when: string }[];
   readonly onEnter?: readonly string[];
@@ -146,6 +147,48 @@ describe("cross-reference checks", () => {
   });
 
   // ─── Partial visibility rules ────────────────────────────────────
+
+  describe("play_card targets", () => {
+    const playPhase = (action: TestPhase["actions"][number]): TestPhase => ({
+      ...PLAY_PHASE,
+      actions: [action],
+    });
+
+    it("accepts a playTo that names a declared zone", () => {
+      const phases = [
+        playPhase({ name: "play_card", label: "Play", playTo: "hand", effect: [] }),
+        DONE_PHASE,
+      ];
+      expect(issuesOf(makeRuleset({ phases }))).toEqual([]);
+    });
+
+    it("rejects a play_card whose default discard target is not declared", () => {
+      const phases = [playPhase({ name: "play_card", label: "Play", effect: [] }), DONE_PHASE];
+      expect(issuesOf(makeRuleset({ phases }))).toEqual([
+        'phases.0.actions.0.name: "play_card" in phase "play" plays cards to undeclared zone "discard" (the default; set playTo). Declared zones: "draw_pile", "hand"',
+      ]);
+    });
+
+    it("rejects a playTo that names an undeclared zone", () => {
+      const phases = [
+        playPhase({ name: "play_card", label: "Play", playTo: "pile", effect: [] }),
+        DONE_PHASE,
+      ];
+      expect(issuesOf(makeRuleset({ phases }))).toEqual([
+        'phases.0.actions.0.playTo: "play_card" in phase "play" plays cards to undeclared zone "pile". Declared zones: "draw_pile", "hand"',
+      ]);
+    });
+
+    it("rejects playTo on an action other than play_card", () => {
+      const phases = [
+        playPhase({ name: "pass", label: "Pass", playTo: "hand", effect: [] }),
+        DONE_PHASE,
+      ];
+      expect(issuesOf(makeRuleset({ phases }))).toEqual([
+        'phases.0.actions.0.playTo: Action "pass" sets playTo, which only applies to "play_card" actions',
+      ]);
+    });
+  });
 
   describe("partial visibility rule", () => {
     it("accepts each supported rule", () => {
