@@ -9,6 +9,7 @@
     "start": "expo start",
     "test": "vitest run",
     "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
     "ios": "expo run:ios"
   },
   "dependencies": {

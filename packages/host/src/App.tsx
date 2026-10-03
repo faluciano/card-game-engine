@@ -11,13 +11,7 @@ import { GameHostProvider, useExtractAssets, useGameHost } from "@couch-kit/host
 import type { AssetManifest } from "@couch-kit/host";
 import { hostReducer, createHostInitialState } from "@card-engine/shared";
 import type { HostAction, HostGameState } from "@card-engine/shared";
-import {
-  BUILT_IN_INSTALLED,
-  colors,
-  useInstalledSlugs,
-  useRulesetInstaller,
-  useRulesetUninstaller,
-} from "@card-engine/host-core";
+import { colors, useRulesetSync } from "@card-engine/host-core";
 import { rulesetStore } from "./storage";
 import { RulesetPicker } from "./screens/RulesetPicker";
 import { Lobby } from "./screens/Lobby";
@@ -124,9 +118,7 @@ function ScreenRouter(): React.JSX.Element {
   const { state, dispatch } = useGameHost<HostGameState, HostAction>();
 
   // ── Side-effect hooks ──────────────────────────────────────────
-  useInstalledSlugs(rulesetStore, dispatch, BUILT_IN_INSTALLED);
-  useRulesetInstaller(rulesetStore, state.pendingInstall, dispatch, BUILT_IN_INSTALLED);
-  useRulesetUninstaller(rulesetStore, state.pendingUninstall, dispatch, BUILT_IN_INSTALLED);
+  useRulesetSync(rulesetStore, state, dispatch);
 
   switch (state.screen.tag) {
     case "ruleset_picker":

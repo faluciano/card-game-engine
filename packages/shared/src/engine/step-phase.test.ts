@@ -82,7 +82,7 @@ function startCounter(): {
   reducer: GameReducer;
 } {
   const ruleset = makeCounterRuleset();
-  const reducer = createReducer(ruleset, 1);
+  const reducer = createReducer(ruleset);
   const initial = createInitialState(ruleset, sid("s"), makePlayers(1), 1);
   const state = reducer(initial, { kind: "start_game" });
   return { state, reducer };
@@ -148,7 +148,7 @@ function findLingeringGame(ruleset: CardGameRuleset): {
 } {
   for (let seed = 1; seed < 500; seed++) {
     const players = makePlayers(2);
-    const reducer = createReducer(ruleset, seed);
+    const reducer = createReducer(ruleset);
     const initial = createInitialState(ruleset, sid("s"), players, seed);
     let state = reducer(initial, { kind: "start_game" });
     state = reducer(state, {

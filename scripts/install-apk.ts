@@ -70,7 +70,10 @@ async function getDevices(adb: string): Promise<string[]> {
     .slice(1) // skip header
     .map((line) => line.trim())
     .filter((line) => line.endsWith("device"))
-    .map((line) => line.split(/\s+/)[0]);
+    .flatMap((line) => {
+      const serial = line.split(/\s+/)[0];
+      return serial ? [serial] : [];
+    });
 }
 
 async function main(): Promise<void> {
@@ -153,4 +156,7 @@ async function main(): Promise<void> {
   console.log("\n  Done.\n");
 }
 
-main();
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});

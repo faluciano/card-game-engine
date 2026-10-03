@@ -1,9 +1,12 @@
 // ─── useRulesetStore ───────────────────────────────────────────────
 // React hook providing reactive access to the platform's ruleset store.
 // Handles loading, importing from URL, and deletion with auto-refresh.
+// Store failures never reject out of the hook: reads surface through
+// `error`, imports return `{ ok: false }` results.
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { importFromUrl as fetchAndValidate } from "./url-importer";
+import { describeError } from "./ruleset-hooks";
 import type { RulesetStore, StoredRuleset } from "./ruleset-store";
 
 /** Result of an import attempt. Discriminated union. */
@@ -15,8 +18,15 @@ export type ImportResult =
 export interface UseRulesetStoreResult {
   readonly rulesets: readonly StoredRuleset[];
   readonly isLoading: boolean;
+  /**
+   * Last store failure (initial load, refresh, save, or delete), or null.
+   * Cleared by the next successful read. A corrupt library index or a
+   * full storage quota lands here with its descriptive message.
+   */
+  readonly error: string | null;
   readonly importFromUrl: (url: string) => Promise<ImportResult>;
   readonly importWithSlug: (url: string, slug: string) => Promise<ImportResult>;
+  /** Deletes a ruleset. Never rejects: failures are reported through `error`. */
   readonly deleteRuleset: (id: string) => Promise<void>;
   readonly allSlugs: readonly string[];
 }
@@ -43,6 +53,17 @@ export function useRulesetStore(
 ): UseRulesetStoreResult {
   const [rulesets, setRulesets] = useState<readonly StoredRuleset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Guards every setState that follows an await in a callback, since those
+  // can resolve after the picker screen has unmounted.
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const allSlugs: readonly string[] = useMemo(
     () => [...builtInSlugs, ...rulesets.map((r) => r.ruleset.meta.slug)],
@@ -50,20 +71,32 @@ export function useRulesetStore(
   );
 
   const refresh = useCallback(async () => {
-    const list = await store.list();
-    setRulesets(list);
+    try {
+      const list = await store.list();
+      if (!mountedRef.current) return;
+      setRulesets(list);
+      setError(null);
+    } catch (err) {
+      if (!mountedRef.current) return;
+      console.error("[useRulesetStore] Could not read the ruleset library:", err);
+      setError(describeError(err));
+    }
   }, [store]);
 
   // Load rulesets on mount
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
+    async function load(): Promise<void> {
       try {
         const list = await store.list();
-        if (!cancelled) {
-          setRulesets(list);
-        }
+        if (cancelled) return;
+        setRulesets(list);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        console.error("[useRulesetStore] Could not read the ruleset library:", err);
+        setError(describeError(err));
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -71,7 +104,7 @@ export function useRulesetStore(
       }
     }
 
-    load();
+    void load();
 
     return () => {
       cancelled = true;
@@ -90,6 +123,14 @@ export function useRulesetStore(
     void refresh();
   }, [slugKey, refresh]);
 
+  // Records a write failure on the hook and turns it into an import result.
+  const failImport = useCallback((name: string, err: unknown): ImportResult => {
+    const message = `Could not save "${name}": ${describeError(err)}`;
+    console.error("[useRulesetStore]", message, err);
+    if (mountedRef.current) setError(message);
+    return { ok: false, error: message };
+  }, []);
+
   const importFromUrl = useCallback(
     async (url: string): Promise<ImportResult> => {
       const result = await fetchAndValidate(url);
@@ -98,35 +139,31 @@ export function useRulesetStore(
         return { ok: false, error: result.error };
       }
 
-      const slug = result.ruleset.meta.slug;
+      const { slug, name } = result.ruleset.meta;
+      const duplicate: ImportResult = {
+        ok: false,
+        duplicate: true,
+        slug,
+        error: `A ruleset named '${slug}' already exists.`,
+      };
 
       // Check for duplicate slug against built-in rulesets
-      if (builtInSlugs.includes(slug)) {
-        return {
-          ok: false,
-          duplicate: true,
-          slug,
-          error: `A ruleset named '${slug}' already exists.`,
-        };
+      if (builtInSlugs.includes(slug)) return duplicate;
+
+      try {
+        // Check for duplicate slug in the store
+        const existing = await store.getBySlug(slug);
+        if (existing) return duplicate;
+
+        await store.save(result.ruleset);
+      } catch (err) {
+        return failImport(name, err);
       }
 
-      // Check for duplicate slug in file store
-      const existing = await store.getBySlug(slug);
-      if (existing) {
-        return {
-          ok: false,
-          duplicate: true,
-          slug,
-          error: `A ruleset named '${slug}' already exists.`,
-        };
-      }
-
-      await store.save(result.ruleset);
       await refresh();
-
-      return { ok: true, name: result.ruleset.meta.name };
+      return { ok: true, name };
     },
-    [store, builtInSlugs, refresh],
+    [store, builtInSlugs, refresh, failImport],
   );
 
   const importWithSlug = useCallback(
@@ -137,21 +174,40 @@ export function useRulesetStore(
         return { ok: false, error: result.error };
       }
 
-      await store.saveWithSlug(result.ruleset, slug);
-      await refresh();
+      const { name } = result.ruleset.meta;
+      try {
+        await store.saveWithSlug(result.ruleset, slug);
+      } catch (err) {
+        return failImport(name, err);
+      }
 
-      return { ok: true, name: result.ruleset.meta.name };
+      await refresh();
+      return { ok: true, name };
     },
-    [store, refresh],
+    [store, refresh, failImport],
   );
 
   const deleteRuleset = useCallback(
     async (id: string): Promise<void> => {
-      await store.delete(id);
+      try {
+        await store.delete(id);
+      } catch (err) {
+        console.error("[useRulesetStore] Could not delete ruleset:", err);
+        if (mountedRef.current) setError(`Could not delete ruleset: ${describeError(err)}`);
+        return;
+      }
       await refresh();
     },
     [store, refresh],
   );
 
-  return { rulesets, isLoading, importFromUrl, importWithSlug, deleteRuleset, allSlugs };
+  return {
+    rulesets,
+    isLoading,
+    error,
+    importFromUrl,
+    importWithSlug,
+    deleteRuleset,
+    allSlugs,
+  };
 }

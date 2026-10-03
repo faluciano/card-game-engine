@@ -83,10 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.4.2"
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - name: Bundle the TV app's JavaScript with Metro
         run: bunx expo export --platform android --output-dir "$RUNNER_TEMP/export"
         working-directory: packages/host

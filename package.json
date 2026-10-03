@@ -11,22 +11,27 @@
     "build:client": "cd packages/client && bun run build",
     "bundle:client": "cd packages/host && bunx couch-kit bundle --source ../client --output ./android/app/src/main/assets/www --manifest ./src/www-manifest.json",
     "build:android": "bun run bundle:client && cd packages/host && npx expo run:android",
-    "typecheck": "tsc -b packages/client packages/host-core && bun run typecheck:display && bun run typecheck:host",
+    "typecheck": "tsc -b packages/client packages/host-core && tsc -p scripts && bun run typecheck:display && bun run typecheck:host",
     "build": "bun run typecheck && bun run build:client && bun run bundle:client",
     "apk": "bun run scripts/build-apk.ts",
     "deploy": "bun run scripts/install-apk.ts",
     "validate": "bun run scripts/validate-rulesets.ts",
     "catalog": "bun run scripts/build-catalog.ts",
+    "schema:generate": "bun run scripts/generate-json-schema.ts",
+    "schema:check": "bun run scripts/generate-json-schema.ts --check",
     "dev:display": "cd packages/display && bun run dev",
     "build:display": "cd packages/display && bun run build",
     "typecheck:display": "cd packages/display && bun run typecheck",
-    "typecheck:host": "cd packages/host && tsc --noEmit",
+    "typecheck:host": "bun run --cwd packages/host typecheck",
     "lint": "biome check .",
     "format": "biome check --write ."
   },
   "devDependencies": {
-    "typescript": "~7.0.2",
     "@biomejs/biome": "2.5.15",
-    "@types/node": "^26.6.4"
+    "@types/bun": "^1.4.2",
+    "@types/node": "^26.6.4",
+    "@vitest/coverage-v8": "5.0.3",
+    "typescript": "~7.0.2",
+    "zod": "^4.6.5"
   }
 }

@@ -65,8 +65,8 @@ export function getPresetDeck(preset: "standard_52" | "standard_54"): readonly C
   }
 }
 
-/** Creates a unique CardInstanceId. */
-export function createCardInstanceId(): CardInstanceId {
+/** Creates a unique CardInstanceId. Internal to deck instantiation. */
+function createCardInstanceId(): CardInstanceId {
   return crypto.randomUUID() as CardInstanceId;
 }
 

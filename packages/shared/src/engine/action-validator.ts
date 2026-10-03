@@ -2,13 +2,7 @@
 // Determines which actions are valid for a given player in the
 // current game state. Prevents illegal moves at the engine level.
 
-import type {
-  CardGameAction,
-  CardGameRuleset,
-  CardGameState,
-  PhaseDefinition,
-  PlayerId,
-} from "../types/index";
+import type { CardGameAction, CardGameRuleset, CardGameState, PlayerId } from "../types/index";
 import {
   evaluateCondition,
   evaluateExpression,
@@ -19,6 +13,30 @@ import {
 import { PhaseMachine } from "./phase-machine";
 import type { MutableEvalContext, EffectDescription } from "./builtins";
 import { registerAllBuiltins } from "./builtins";
+import { perPlayerZone } from "./zone-names";
+
+/** Shared success result — validation results are immutable, so one instance suffices. */
+const VALID: ActionValidationResult = { valid: true };
+
+/**
+ * Evaluates a phase action's `condition` and maps the outcome onto a
+ * validation result. An `ExpressionError` is reported as a rejection whose
+ * reason carries the evaluator's message (which names the expression), so a
+ * broken condition surfaces to the acting player instead of crashing the
+ * reducer or being disguised as "condition not met".
+ */
+function checkActionCondition(condition: string, ctx: EvalContext): ActionValidationResult {
+  try {
+    return evaluateCondition(condition, ctx)
+      ? VALID
+      : { valid: false, reason: `Action condition not met: ${condition}` };
+  } catch (error) {
+    if (error instanceof ExpressionError) {
+      return { valid: false, reason: `Action condition failed to evaluate: ${error.message}` };
+    }
+    throw error;
+  }
+}
 
 /**
  * A valid action descriptor: the phase action name plus display info.
@@ -58,16 +76,9 @@ export function getValidActions(
   // Resolve or construct the phase machine
   const machine = phaseMachine ?? new PhaseMachine(state.ruleset.phases);
 
-  // Get current phase
-  let phase: PhaseDefinition;
-  try {
-    phase = machine.getPhase(state.currentPhase);
-  } catch {
-    return [];
-  }
-
-  // No player actions during automatic phases
-  if (phase.kind === "automatic") {
+  // No actions in an unknown phase, and no player actions during automatic phases
+  const phase = machine.findPhase(state.currentPhase);
+  if (!phase || phase.kind === "automatic") {
     return [];
   }
 
@@ -92,23 +103,9 @@ export function getValidActions(
     const bindings: Record<string, EvalResult> =
       action.name === "play_card" ? { played_card_index: { kind: "number", value: -1 } } : {};
     const ctx: EvalContext = { state, playerIndex, bindings };
-    let enabled = true;
-
-    if (action.condition) {
-      try {
-        enabled = evaluateCondition(action.condition, ctx);
-      } catch (error) {
-        if (error instanceof ExpressionError) {
-          // Log the error for debuggability — never silently swallow
-          console.warn(
-            `[ActionValidator] Condition "${action.condition}" failed for action "${action.name}": ${error.message}`,
-          );
-          enabled = false;
-        } else {
-          throw error;
-        }
-      }
-    }
+    // Conditions are parse-checked at ruleset load; an ExpressionError here
+    // is a real runtime failure and propagates to the caller.
+    const enabled = action.condition ? evaluateCondition(action.condition, ctx) : true;
 
     result.push({
       actionName: action.name,
@@ -140,21 +137,16 @@ export function getPlayableCardIndices(
 
   // Resolve the current phase
   const machine = phaseMachine ?? new PhaseMachine(ruleset.phases);
-  let phase: PhaseDefinition;
-  try {
-    phase = machine.getPhase(state.currentPhase);
-  } catch {
-    return [];
-  }
+  const phase = machine.findPhase(state.currentPhase);
 
-  // Find the play_card action in the current phase
-  const playCardAction = phase.actions.find((a) => a.name === "play_card");
+  // Find the play_card action in the current phase (none if the phase is unknown)
+  const playCardAction = phase?.actions.find((a) => a.name === "play_card");
   if (!playCardAction) {
     return [];
   }
 
   // Resolve the player's hand zone
-  const handZoneName = `hand:${playerIndex}`;
+  const handZoneName = perPlayerZone("hand", playerIndex);
   const handZone = state.zones[handZoneName];
   if (!handZone || handZone.cards.length === 0) {
     return [];
@@ -177,17 +169,8 @@ export function getPlayableCardIndices(
       },
     };
 
-    try {
-      const conditionMet = evaluateCondition(playCardAction.condition, ctx);
-      if (conditionMet) {
-        playableIndices.push(i);
-      }
-    } catch (error) {
-      if (error instanceof ExpressionError) {
-        // Condition evaluation failed for this card — treat as not playable
-        continue;
-      }
-      throw error;
+    if (evaluateCondition(playCardAction.condition, ctx)) {
+      playableIndices.push(i);
     }
   }
 
@@ -263,10 +246,8 @@ function validateDeclareAction(
   action: Extract<CardGameAction, { kind: "declare" }>,
   machine: PhaseMachine,
 ): ActionValidationResult {
-  let phase: PhaseDefinition;
-  try {
-    phase = machine.getPhase(state.currentPhase);
-  } catch {
+  const phase = machine.findPhase(state.currentPhase);
+  if (!phase) {
     return { valid: false, reason: `Unknown phase: "${state.currentPhase}"` };
   }
 
@@ -296,33 +277,19 @@ function validateDeclareAction(
   }
 
   // Evaluate the action's condition. Declare params are exposed so a
-  // condition can validate the player's choice via get_param().
+  // condition can validate the player's choice via get_param(). A real
+  // declare always carries a params record (empty if none were sent), so a
+  // missing parameter is reported rather than read as the probe sentinel.
   if (phaseAction.condition) {
     const ctx: EvalContext = {
       state,
       playerIndex,
-      ...(action.params ? { actionParams: action.params } : {}),
+      actionParams: action.params ?? {},
     };
-    try {
-      const conditionMet = evaluateCondition(phaseAction.condition, ctx);
-      if (!conditionMet) {
-        return {
-          valid: false,
-          reason: `Action condition not met: ${phaseAction.condition}`,
-        };
-      }
-    } catch (error) {
-      if (error instanceof ExpressionError) {
-        return {
-          valid: false,
-          reason: `Action condition not met: ${phaseAction.condition}`,
-        };
-      }
-      throw error;
-    }
+    return checkActionCondition(phaseAction.condition, ctx);
   }
 
-  return { valid: true };
+  return VALID;
 }
 
 /**
@@ -357,15 +324,10 @@ function validatePlayCard(
   }
 
   // If the current phase has a "play_card" action with a condition, validate it
-  let phase: PhaseDefinition;
-  try {
-    phase = machine.getPhase(state.currentPhase);
-  } catch {
-    // If phase can't be resolved, skip phase action condition check
-    return { valid: true };
-  }
-
-  const playCardAction = phase.actions.find((a) => a.name === "play_card");
+  // (validatePlayerTurn above already rejected unknown phases).
+  const playCardAction = machine
+    .findPhase(state.currentPhase)
+    ?.actions.find((a) => a.name === "play_card");
   if (playCardAction?.condition) {
     const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
     // Compute the index of the played card in fromZone for per-card validation
@@ -377,26 +339,10 @@ function validatePlayCard(
         played_card_index: { kind: "number", value: cardIndex },
       },
     };
-    try {
-      const conditionMet = evaluateCondition(playCardAction.condition, ctx);
-      if (!conditionMet) {
-        return {
-          valid: false,
-          reason: `Action condition not met: ${playCardAction.condition}`,
-        };
-      }
-    } catch (error) {
-      if (error instanceof ExpressionError) {
-        return {
-          valid: false,
-          reason: `Action condition not met: ${playCardAction.condition}`,
-        };
-      }
-      throw error;
-    }
+    return checkActionCondition(playCardAction.condition, ctx);
   }
 
-  return { valid: true };
+  return VALID;
 }
 
 /**
@@ -455,11 +401,9 @@ function validatePlayerTurn(
     return { valid: false, reason: "Player not found" };
   }
 
-  let phase: PhaseDefinition;
-  try {
-    phase = machine.getPhase(state.currentPhase);
-  } catch {
-    // Unknown phase — reject immediately; never allow actions on invalid state
+  // Unknown phase — reject immediately; never allow actions on invalid state
+  const phase = machine.findPhase(state.currentPhase);
+  if (!phase) {
     return { valid: false, reason: "Unknown phase" };
   }
 

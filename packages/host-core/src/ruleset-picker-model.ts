@@ -5,6 +5,7 @@
 
 import type { CardGameRuleset, CatalogGame, InstalledGame } from "@card-engine/shared";
 import type { StoredRuleset } from "./ruleset-store";
+import { formatZodIssues } from "./format-zod-issues";
 import { CATALOG_BASE_URL } from "./use-catalog";
 
 // ─── Types ─────────────────────────────────────────────────────────
@@ -52,9 +53,8 @@ export function buildRulesetItems(
 
 /** "2 players" or "2–6 players". */
 export function formatPlayerRange(players: { readonly min: number; readonly max: number }): string {
-  return players.min === players.max
-    ? `${players.min} players`
-    : `${players.min}–${players.max} players`;
+  if (players.min !== players.max) return `${players.min}–${players.max} players`;
+  return players.min === 1 ? "1 player" : `${players.min} players`;
 }
 
 // ─── Store ─────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ export async function fetchCatalogRuleset(game: CatalogGame): Promise<CardGameRu
   // Loaded on demand so Zod stays off the display/host startup path.
   const { safeParseRuleset } = await import("@card-engine/shared/schema");
   const result = safeParseRuleset(raw);
-  if (!result.success) throw new Error("Invalid ruleset format");
+  if (!result.success) throw new Error(formatZodIssues(result.error.issues));
 
   return result.data as CardGameRuleset;
 }

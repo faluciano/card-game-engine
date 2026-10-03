@@ -6,24 +6,35 @@ on:
     paths:
       - "rulesets/**"
       - "packages/shared/src/schema/**"
+      - "scripts/**"
+      - ".github/workflows/catalog.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pages deployments must land in order; never cancel one mid-flight.
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   validate-and-catalog:
     runs-on: ubuntu-latest
-    container: oven/bun:slim
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
 
       - name: Validate rulesets
-        run: bun run scripts/validate-rulesets.ts
+        run: bun run validate
+
+      - name: Check JSON Schema is in sync with the Zod schema
+        run: bun run schema:check
 
       - name: Build catalog
-        run: bun run scripts/build-catalog.ts
+        run: bun run catalog
 
       - name: Upload catalog artifact
         uses: actions/upload-artifact@v7
@@ -37,6 +48,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
+      contents: read
       pages: write
       id-token: write
 
@@ -84,15 +96,32 @@ jobs:
             <p class="sub">Browse available game rulesets — <a href="catalog.json">catalog.json</a></p>
             <div id="games"></div>
             <script>
-              fetch('catalog.json').then(r=>r.json()).then(({games})=>{
-                document.getElementById('games').innerHTML=games.map(g=>`
-                  <div class="game">
-                    <h2>${g.name}</h2>
-                    ${g.description?`<p class="desc">${g.description}</p>`:''}
-                    ${g.tags?.length?`<div class="tags">${g.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>`:''}
-                    <p class="meta">${g.players.min}–${g.players.max} players · v${g.version} · <a href="${g.file}">${g.slug}.cardgame.json</a></p>
-                  </div>
-                `).join('');
+              // Ruleset metadata is author-supplied, so it is rendered with
+              // textContent/createElement rather than interpolated into HTML.
+              const el = (tag, className, text) => {
+                const node = document.createElement(tag);
+                if (className) node.className = className;
+                if (text !== undefined) node.textContent = text;
+                return node;
+              };
+              fetch('catalog.json').then(r => r.json()).then(({ games }) => {
+                const root = document.getElementById('games');
+                for (const g of games) {
+                  const card = el('div', 'game');
+                  card.append(el('h2', null, g.name));
+                  if (g.description) card.append(el('p', 'desc', g.description));
+                  if (g.tags && g.tags.length) {
+                    const tags = el('div', 'tags');
+                    for (const t of g.tags) tags.append(el('span', 'tag', t));
+                    card.append(tags);
+                  }
+                  const meta = el('p', 'meta', `${g.players.min}–${g.players.max} players · v${g.version} · `);
+                  const link = el('a', null, `${g.slug}.cardgame.json`);
+                  link.href = g.file;
+                  meta.append(link);
+                  card.append(meta);
+                  root.append(card);
+                }
               });
             </script>
           </body>

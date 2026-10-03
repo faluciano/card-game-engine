@@ -2,50 +2,47 @@
 // Bridges CouchKit's IGameState world (Record-based players, string
 // status) with the card engine's CardGameState world (array-based
 // players, discriminated-union status). Handles screen navigation,
-// game lifecycle, and delegates in-game actions to the engine reducer.
+// game lifecycle, and delegates in-game actions to the engine.
 
-import { createReducer, createInitialState, validateAction } from "../engine/index";
 import type {
   CardGameAction,
   CardGameRuleset,
-  GameReducer,
+  GameSessionId,
   Player,
   PlayerId,
-  GameSessionId,
 } from "../types/index";
 import type { HostAction, HostGameState, HostScreen, InstalledGame } from "./host-state";
+import { createInitialState } from "../engine/interpreter";
+import { generateSeed } from "../engine/prng";
+import { getEngine } from "./engine-cache";
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
-/** Crypto-quality session ID. Falls back to Math.random() on Hermes. */
-function generateSessionId(): string {
-  if (
-    typeof globalThis.crypto !== "undefined" &&
-    typeof globalThis.crypto.randomUUID === "function"
-  ) {
-    return globalThis.crypto.randomUUID();
-  }
-  // Fallback for Hermes (no crypto.randomUUID)
-  const hex = () =>
-    Math.floor(Math.random() * 0x10000)
-      .toString(16)
-      .padStart(4, "0");
-  return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-${(0x8 | (Math.random() * 0x4) | 0).toString(16)}${hex().slice(1)}-${hex()}${hex()}${hex()}`;
+/**
+ * A 128-bit hex session ID. Built from `generateSeed`, which already
+ * handles the crypto / Hermes fallback, rather than duplicating it.
+ */
+function generateSessionId(): GameSessionId {
+  const word = () => generateSeed().toString(16).padStart(8, "0");
+  return `${word()}-${word()}-${word()}-${word()}` as GameSessionId;
 }
 
-// ─── Lazy Reducer Cache ────────────────────────────────────────────
+/**
+ * Engine actions a client may send through GAME_ACTION. Everything else is
+ * host-only: phase pacing (`advance_phase`, `step_phase`, `reset_round`) is
+ * driven by the host orchestrator, and the roster/lifecycle actions
+ * (`join`, `leave`, `start_game`) are owned by CouchKit and START_GAME — a
+ * client sending them could impersonate or add players.
+ */
+const CLIENT_ACTION_KINDS: ReadonlySet<CardGameAction["kind"]> = new Set([
+  "play_card",
+  "draw_card",
+  "declare",
+  "end_turn",
+]);
 
-// Module-level cache: ruleset → reducer. WeakMap allows GC when ruleset is dropped.
-const reducerCache = new WeakMap<CardGameRuleset, GameReducer>();
-
-function getOrCreateReducer(ruleset: CardGameRuleset): GameReducer {
-  let reducer = reducerCache.get(ruleset);
-  if (!reducer) {
-    reducer = createReducer(ruleset);
-    reducerCache.set(ruleset, reducer);
-  }
-  return reducer;
-}
+/** Host-only engine actions, dispatched via their own HostAction types. */
+type InternalActionKind = "advance_phase" | "step_phase" | "reset_round";
 
 // ─── Initial State Factory ─────────────────────────────────────────
 
@@ -98,19 +95,19 @@ export function hostReducerImpl(state: HostGameState, action: HostAction): HostG
       return handleBackToPicker(state);
 
     case "START_GAME":
-      return handleStartGame(state);
+      return handleStartGame(state, action.seed ?? generateSeed());
 
     case "GAME_ACTION":
       return handleGameAction(state, action.action);
 
     case "RESET_ROUND":
-      return handleResetRound(state);
+      return handleInternalAction(state, "reset_round");
 
     case "ADVANCE_PHASE":
-      return handleAdvancePhase(state);
+      return handleInternalAction(state, "advance_phase");
 
     case "STEP_PHASE":
-      return handleStepPhase(state);
+      return handleInternalAction(state, "step_phase");
 
     case "INSTALL_RULESET":
       return handleInstallRuleset(state, action.ruleset, action.slug);
@@ -122,6 +119,7 @@ export function hostReducerImpl(state: HostGameState, action: HostAction): HostG
       return handleSetInstalledSlugs(state, action.slugs);
 
     default:
+      // Unknown action types arrive over the wire from CouchKit; ignore them.
       return state;
   }
 }
@@ -156,7 +154,7 @@ function handleBackToPicker(state: HostGameState): HostGameState {
   };
 }
 
-function handleStartGame(state: HostGameState): HostGameState {
+function handleStartGame(state: HostGameState, seed: number): HostGameState {
   // Guard: must be in lobby with a ruleset selected
   if (state.screen.tag !== "lobby") return state;
 
@@ -170,109 +168,73 @@ function handleStartGame(state: HostGameState): HostGameState {
     connected: couchPlayer.connected,
   }));
 
-  // Guard: need at least one player to create a session
+  // Guard: player count must fit the ruleset (createInitialState would throw)
+  const { min, max } = ruleset.meta.players;
   if (enginePlayers.length === 0) return state;
+  if (enginePlayers.length < min || enginePlayers.length > max) return state;
 
-  const sessionId = generateSessionId() as GameSessionId;
-  const initialEngineState = createInitialState(ruleset, sessionId, enginePlayers);
+  const initialEngineState = createInitialState(ruleset, generateSessionId(), enginePlayers, seed);
 
   // Immediately transition from waiting_for_players → in_progress and run deal phase
-  const engineReducer = getOrCreateReducer(ruleset);
-  const engineState = engineReducer(initialEngineState, { kind: "start_game" });
+  const result = getEngine(ruleset).apply(initialEngineState, { kind: "start_game" });
+  if (result.kind === "rejected") return state;
 
   const screen: HostScreen = { tag: "game_table", ruleset };
 
   return {
     ...state,
-    status: deriveStatus(screen, engineState),
+    status: deriveStatus(screen, result.state),
     screen,
-    engineState,
+    engineState: result.state,
   };
 }
 
 function handleGameAction(state: HostGameState, action: CardGameAction): HostGameState {
-  // Guard: block engine-internal actions from client submissions
-  if (
-    action.kind === "advance_phase" ||
-    action.kind === "step_phase" ||
-    action.kind === "reset_round"
-  ) {
-    return state;
-  }
+  // Guard: only player moves may come from clients
+  if (!CLIENT_ACTION_KINDS.has(action.kind)) return state;
 
   // Guard: must be on game table with active engine state
   if (state.screen.tag !== "game_table") return state;
   if (state.engineState === null) return state;
 
-  const engineReducer = getOrCreateReducer(state.screen.ruleset);
-  const prevEngineState = state.engineState;
-  const engineState = engineReducer(prevEngineState, action);
+  const result = getEngine(state.screen.ruleset).apply(state.engineState, action);
 
-  // Referential equality check: if the engine returned the same object,
-  // the action was rejected (validation failure inside the engine reducer).
-  if (engineState === prevEngineState) {
-    // Determine the rejection reason via validateAction
-    const validation = validateAction(prevEngineState, action);
-    const playerId = "playerId" in action ? (action as { playerId: string }).playerId : "unknown";
-    const reason = !validation.valid ? validation.reason : "Action rejected by engine";
-
+  if (result.kind === "rejected") {
+    const playerId = "playerId" in action ? action.playerId : "unknown";
     return {
       ...state,
-      actionError: { playerId, reason, timestamp: Date.now() },
+      // Wall-clock time is fine here: it only keys the client's error toast
+      // and never feeds back into engine state.
+      actionError: { playerId, reason: result.reason, timestamp: Date.now() },
     };
   }
 
   // Successful action — update engine state and clear any previous error
   return {
     ...state,
-    status: deriveStatus(state.screen, engineState),
-    engineState,
+    status: deriveStatus(state.screen, result.state),
+    engineState: result.state,
     actionError: null,
   };
 }
 
-function handleResetRound(state: HostGameState): HostGameState {
+/**
+ * Applies a host-only engine action (RESET_ROUND / ADVANCE_PHASE /
+ * STEP_PHASE). A rejection — e.g. no transition to advance — leaves the
+ * host state untouched.
+ */
+function handleInternalAction(state: HostGameState, kind: InternalActionKind): HostGameState {
   // Guard: must be on game table with active engine state
   if (state.screen.tag !== "game_table") return state;
   if (state.engineState === null) return state;
 
-  const engineReducer = getOrCreateReducer(state.screen.ruleset);
-  const engineState = engineReducer(state.engineState, { kind: "reset_round" });
+  const result = getEngine(state.screen.ruleset).apply(state.engineState, { kind });
+  if (result.kind === "rejected") return state;
 
   return {
     ...state,
-    status: deriveStatus(state.screen, engineState),
-    engineState,
-  };
-}
-
-function handleAdvancePhase(state: HostGameState): HostGameState {
-  // Guard: must be on game table with active engine state
-  if (state.screen.tag !== "game_table") return state;
-  if (state.engineState === null) return state;
-
-  const engineReducer = getOrCreateReducer(state.screen.ruleset);
-  const engineState = engineReducer(state.engineState, { kind: "advance_phase" });
-
-  return {
-    ...state,
-    status: deriveStatus(state.screen, engineState),
-    engineState,
-  };
-}
-
-function handleStepPhase(state: HostGameState): HostGameState {
-  // Guard: must be on game table with active engine state
-  if (state.screen.tag !== "game_table") return state;
-  if (state.engineState === null) return state;
-
-  const engineReducer = getOrCreateReducer(state.screen.ruleset);
-  const engineState = engineReducer(state.engineState, { kind: "step_phase" });
-
-  return {
-    ...state,
-    status: deriveStatus(state.screen, engineState),
-    engineState,
+    status: deriveStatus(state.screen, result.state),
+    engineState: result.state,
   };
 }
 

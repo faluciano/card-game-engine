@@ -41,7 +41,7 @@ function startGame(
 ): { state: CardGameState; reducer: GameReducer; players: Player[] } {
   const ruleset = loadGoFish();
   const players = makePlayers(playerCount);
-  const reducer = createReducer(ruleset, seed);
+  const reducer = createReducer(ruleset);
   const initial = createInitialState(ruleset, "go-fish-session" as GameSessionId, players, seed);
   return { state: reducer(initial, { kind: "start_game" }), reducer, players };
 }

@@ -4,223 +4,678 @@
   "title": "Card Game Ruleset",
   "description": "Schema for .cardgame.json files defining a card game's rules.",
   "type": "object",
-  "required": ["meta", "deck", "zones", "roles", "phases", "scoring", "ui"],
-  "additionalProperties": false,
   "properties": {
     "$schema": {
       "type": "string",
-      "description": "JSON Schema reference for editor validation"
+      "minLength": 1
     },
     "meta": {
       "type": "object",
-      "required": ["name", "slug", "version", "author", "players"],
       "properties": {
-        "name": { "type": "string" },
-        "slug": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
-        "author": { "type": "string" },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "author": {
+          "type": "string",
+          "minLength": 1
+        },
         "players": {
           "type": "object",
-          "required": ["min", "max"],
           "properties": {
-            "min": { "type": "integer", "minimum": 1 },
-            "max": { "type": "integer", "minimum": 1 }
-          }
+            "min": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ]
         },
         "description": {
           "type": "string",
-          "minLength": 1,
-          "description": "Short description of the game"
+          "minLength": 1
         },
         "tags": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
-          "description": "Searchable tags for catalog browsing"
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "license": {
           "type": "string",
-          "minLength": 1,
-          "description": "License identifier (e.g., MIT, public-domain)"
+          "minLength": 1
         }
-      }
+      },
+      "required": [
+        "name",
+        "slug",
+        "version",
+        "author",
+        "players"
+      ]
     },
     "deck": {
-      "type": "object",
-      "required": ["preset", "copies", "cardValues"],
-      "properties": {
-        "preset": { "type": "string", "enum": ["standard_52", "standard_54", "custom"] },
-        "copies": { "type": "integer", "minimum": 1 },
-        "cardValues": {
+      "oneOf": [
+        {
           "type": "object",
-          "additionalProperties": {
-            "oneOf": [
-              { "type": "number" },
-              {
-                "type": "object",
-                "required": ["kind", "value"],
-                "properties": {
-                  "kind": { "const": "fixed" },
-                  "value": { "type": "number" }
-                }
+          "properties": {
+            "preset": {
+              "type": "string",
+              "enum": [
+                "standard_52",
+                "standard_54"
+              ]
+            },
+            "copies": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "cardValues": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
               },
-              {
-                "type": "object",
-                "required": ["kind", "low", "high"],
-                "properties": {
-                  "kind": { "const": "dual" },
-                  "low": { "type": "number" },
-                  "high": { "type": "number" }
-                }
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "fixed"
+                          },
+                          "value": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "dual"
+                          },
+                          "low": {
+                            "type": "number"
+                          },
+                          "high": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "low",
+                          "high"
+                        ]
+                      }
+                    ]
+                  }
+                ]
               }
-            ]
-          }
+            }
+          },
+          "required": [
+            "preset",
+            "copies",
+            "cardValues"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "preset": {
+              "type": "string",
+              "const": "custom"
+            },
+            "cards": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "suit": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "rank": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "suit",
+                  "rank"
+                ]
+              }
+            },
+            "copies": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "cardValues": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "fixed"
+                          },
+                          "value": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "dual"
+                          },
+                          "low": {
+                            "type": "number"
+                          },
+                          "high": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "low",
+                          "high"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "preset",
+            "cards",
+            "copies",
+            "cardValues"
+          ]
         }
-      }
+      ]
     },
     "zones": {
+      "minItems": 1,
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "visibility", "owners"],
         "properties": {
-          "name": { "type": "string" },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
           "visibility": {
-            "type": "object",
-            "required": ["kind"],
-            "properties": {
-              "kind": { "type": "string", "enum": ["public", "owner_only", "hidden", "partial"] },
-              "rule": { "type": "string" }
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "public"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "owner_only"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "hidden"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "partial"
+                  },
+                  "rule": {
+                    "type": "string",
+                    "enum": [
+                      "first_card_only",
+                      "last_card_only",
+                      "face_up_only"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "rule"
+                ]
+              }
+            ]
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           },
-          "owners": { "type": "array", "items": { "type": "string" } },
-          "maxCards": { "type": "integer", "minimum": 1 },
+          "maxCards": {
+            "type": "integer",
+            "minimum": 1
+          },
           "phaseOverrides": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["phase", "visibility"],
               "properties": {
-                "phase": { "type": "string" },
+                "phase": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "visibility": {
-                  "type": "object",
-                  "required": ["kind"],
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "enum": ["public", "owner_only", "hidden", "partial"]
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "public"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
                     },
-                    "rule": { "type": "string" }
-                  }
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "owner_only"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "hidden"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "partial"
+                        },
+                        "rule": {
+                          "type": "string",
+                          "enum": [
+                            "first_card_only",
+                            "last_card_only",
+                            "face_up_only"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "rule"
+                      ]
+                    }
+                  ]
                 }
-              }
+              },
+              "required": [
+                "phase",
+                "visibility"
+              ]
             }
           }
-        }
+        },
+        "required": [
+          "name",
+          "visibility",
+          "owners"
+        ]
       }
     },
     "roles": {
+      "minItems": 1,
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "isHuman", "count"],
         "properties": {
-          "name": { "type": "string" },
-          "isHuman": { "type": "boolean" },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "isHuman": {
+            "type": "boolean"
+          },
           "count": {
-            "oneOf": [{ "type": "integer", "minimum": 1 }, { "const": "per_player" }]
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "string",
+                "const": "per_player"
+              }
+            ]
           }
-        }
+        },
+        "required": [
+          "name",
+          "isHuman",
+          "count"
+        ]
       }
     },
     "phases": {
+      "minItems": 1,
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "kind", "actions", "transitions"],
         "properties": {
-          "name": { "type": "string" },
-          "kind": { "type": "string", "enum": ["automatic", "turn_based", "all_players"] },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "automatic",
+              "turn_based",
+              "all_players"
+            ]
+          },
           "actions": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["name", "label"],
               "properties": {
-                "name": { "type": "string" },
-                "label": { "type": "string" },
-                "condition": { "type": "string" },
-                "effect": { "type": "array", "items": { "type": "string" } }
-              }
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "condition": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "label",
+                "effect"
+              ]
             }
           },
           "transitions": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["to", "when"],
               "properties": {
-                "to": { "type": "string" },
-                "when": { "type": "string" }
-              }
+                "to": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "when": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "to",
+                "when"
+              ]
             }
           },
-          "onEnter": { "type": "array", "items": { "type": "string" } },
-          "onStep": { "type": "array", "items": { "type": "string" } },
-          "onExit": { "type": "array", "items": { "type": "string" } },
-          "turnOrder": { "type": "string", "enum": ["clockwise", "counterclockwise", "fixed"] },
-          "autoEndTurnCondition": {
+          "onEnter": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "onStep": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "onExit": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "turnOrder": {
             "type": "string",
-            "description": "Expression that auto-ends the current turn when true"
+            "enum": [
+              "clockwise",
+              "counterclockwise",
+              "fixed"
+            ]
+          },
+          "autoEndTurnCondition": {
+            "type": "string"
           }
-        }
+        },
+        "required": [
+          "name",
+          "kind",
+          "actions",
+          "transitions"
+        ]
       }
     },
     "scoring": {
       "type": "object",
-      "required": ["method", "winCondition"],
       "properties": {
-        "method": { "type": "string" },
-        "winCondition": { "type": "string" },
-        "bustCondition": { "type": "string" },
-        "tieCondition": {
+        "method": {
           "type": "string",
-          "description": "Expression evaluated to determine tie-breaking"
+          "minLength": 1
+        },
+        "winCondition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bustCondition": {
+          "type": "string"
+        },
+        "tieCondition": {
+          "type": "string"
         }
-      }
+      },
+      "required": [
+        "method",
+        "winCondition"
+      ]
     },
     "variables": {
       "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "required": ["type", "initial"],
-        "properties": {
-          "type": { "type": "string", "enum": ["number", "string"] },
-          "initial": {},
-          "public": { "type": "boolean" }
-        }
+      "propertyNames": {
+        "type": "string"
       },
-      "description": "Variable definitions with type, initial value, and optional public visibility"
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "number"
+              },
+              "initial": {
+                "type": "number"
+              },
+              "public": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type",
+              "initial"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "string"
+              },
+              "initial": {
+                "type": "string"
+              },
+              "public": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type",
+              "initial"
+            ]
+          }
+        ]
+      }
     },
     "globalTransitions": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["to", "when"],
         "properties": {
-          "to": { "type": "string" },
-          "when": { "type": "string" }
-        }
-      },
-      "description": "Cross-cutting transitions evaluated after phase-specific ones"
+          "to": {
+            "type": "string",
+            "minLength": 1
+          },
+          "when": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "to",
+          "when"
+        ]
+      }
     },
     "ui": {
       "type": "object",
-      "required": ["layout", "tableColor"],
       "properties": {
-        "layout": { "type": "string", "enum": ["semicircle", "circle", "grid", "linear"] },
-        "tableColor": { "type": "string", "enum": ["felt_green", "wood", "dark", "custom"] },
-        "customColor": { "type": "string" }
-      }
+        "layout": {
+          "type": "string",
+          "enum": [
+            "semicircle",
+            "circle",
+            "grid",
+            "linear"
+          ]
+        },
+        "tableColor": {
+          "type": "string",
+          "enum": [
+            "felt_green",
+            "wood",
+            "dark",
+            "custom"
+          ]
+        },
+        "customColor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "layout",
+        "tableColor"
+      ]
     }
-  }
+  },
+  "required": [
+    "meta",
+    "deck",
+    "zones",
+    "roles",
+    "phases",
+    "scoring",
+    "ui"
+  ]
 }

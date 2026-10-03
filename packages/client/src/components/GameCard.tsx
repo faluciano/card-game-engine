@@ -1,19 +1,26 @@
 // ─── Game Card ─────────────────────────────────────────────────────
 // Individual catalog entry rendered as an app-store style card.
-// Shows game metadata and an install/installed action button.
+// Shows game metadata and the install / update / select action. Which
+// buttons appear is decided by `getGameCardModel` (built on host-core's
+// `getStoreActions`), so built-in games never offer "Remove".
 
 import type React from "react";
 import type { CSSProperties } from "react";
 import type { CatalogGame } from "@card-engine/shared";
+import { formatPlayerRange } from "@card-engine/host-core/catalog";
+import { getGameCardModel, type GameCardPrimary } from "../lib/game-card.js";
 
 interface GameCardProps {
   readonly game: CatalogGame;
-  readonly isInstalled: boolean;
-  readonly isUpdateAvailable?: boolean;
+  /** Version installed on the host, or null when not installed. */
+  readonly installedVersion: string | null;
+  readonly isBuiltIn: boolean;
+  /** Install in flight (host-side or a local download). */
   readonly isPending: boolean;
   readonly isUninstalling?: boolean;
   readonly onInstall: (game: CatalogGame) => void;
   readonly onUninstall?: () => void;
+  /** Lobby only: choose this game. Presence enables the Select button. */
   readonly onSelect?: () => void;
   readonly isSelected?: boolean;
 }
@@ -95,6 +102,28 @@ const baseButtonStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+const accentButtonStyle: CSSProperties = {
+  ...baseButtonStyle,
+  backgroundColor: "var(--color-accent)",
+  color: "#fff",
+};
+
+const doneButtonStyle: CSSProperties = {
+  ...baseButtonStyle,
+  backgroundColor: "var(--color-success)",
+  color: "#fff",
+  cursor: "default",
+  opacity: 0.8,
+};
+
+const busyButtonStyle: CSSProperties = {
+  ...baseButtonStyle,
+  backgroundColor: "var(--color-surface-raised)",
+  color: "var(--color-text-muted)",
+  cursor: "wait",
+  opacity: 0.7,
+};
+
 const removeButtonStyle: CSSProperties = {
   background: "none",
   border: "none",
@@ -114,17 +143,29 @@ const actionColumnStyle: CSSProperties = {
   flexShrink: 0,
 };
 
-// ─── Component ─────────────────────────────────────────────────────
+// ─── Primary button ────────────────────────────────────────────────
 
-function formatPlayerRange(min: number, max: number): string {
-  if (min === max) return `${min} player${min === 1 ? "" : "s"}`;
-  return `${min}\u2013${max} players`;
+function primaryButtonStyle(kind: GameCardPrimary["kind"]): CSSProperties {
+  switch (kind) {
+    case "get":
+    case "update":
+    case "select":
+      return accentButtonStyle;
+    case "selected":
+    case "installed":
+      return doneButtonStyle;
+    case "installing":
+    case "removing":
+      return busyButtonStyle;
+  }
 }
+
+// ─── Component ─────────────────────────────────────────────────────
 
 export function GameCard({
   game,
-  isInstalled,
-  isUpdateAvailable = false,
+  installedVersion,
+  isBuiltIn,
   isPending,
   isUninstalling = false,
   onInstall,
@@ -132,158 +173,23 @@ export function GameCard({
   onSelect,
   isSelected = false,
 }: GameCardProps): React.JSX.Element {
-  // ── Derive button appearance ───────────────────────────────────
-  const renderAction = (): React.JSX.Element => {
-    // Uninstalling takes priority — show disabled "Removing..." text
-    if (isUninstalling) {
-      const style: CSSProperties = {
-        ...baseButtonStyle,
-        backgroundColor: "var(--color-surface-raised)",
-        color: "var(--color-text-muted)",
-        cursor: "wait",
-        opacity: 0.7,
-      };
-      return (
-        <div style={actionColumnStyle}>
-          <button type="button" style={style} disabled>
-            {"Removing\u2026"}
-          </button>
-        </div>
-      );
-    }
+  const { primary, showRemove } = getGameCardModel({
+    game,
+    installedVersion,
+    isBuiltIn,
+    isPending,
+    isUninstalling,
+    isSelected,
+    canSelect: onSelect !== undefined,
+    canUninstall: onUninstall !== undefined,
+  });
 
-    // Installing in progress
-    if (isPending) {
-      const style: CSSProperties = {
-        ...baseButtonStyle,
-        backgroundColor: "var(--color-surface-raised)",
-        color: "var(--color-text-muted)",
-        cursor: "wait",
-        opacity: 0.7,
-      };
-      return (
-        <div style={actionColumnStyle}>
-          <button type="button" style={style} disabled>
-            {"Installing\u2026"}
-          </button>
-        </div>
-      );
-    }
-
-    // Installed with update available
-    if (isInstalled && isUpdateAvailable) {
-      const updateStyle: CSSProperties = {
-        ...baseButtonStyle,
-        backgroundColor: "var(--color-accent)",
-        color: "#fff",
-      };
-      return (
-        <div style={actionColumnStyle}>
-          <button type="button" style={updateStyle} onClick={() => onInstall(game)}>
-            Update
-          </button>
-          {onUninstall && (
-            <button type="button" style={removeButtonStyle} onClick={onUninstall}>
-              Remove
-            </button>
-          )}
-        </div>
-      );
-    }
-
-    // Installed in lobby context — show Select / Selected button
-    if (isInstalled && onSelect) {
-      if (isSelected) {
-        const selectedStyle: CSSProperties = {
-          ...baseButtonStyle,
-          backgroundColor: "var(--color-success)",
-          color: "#fff",
-          cursor: "default",
-          opacity: 0.8,
-        };
-        return (
-          <div style={actionColumnStyle}>
-            <button type="button" style={selectedStyle} disabled>
-              {"Selected \u2713"}
-            </button>
-          </div>
-        );
-      }
-      const selectStyle: CSSProperties = {
-        ...baseButtonStyle,
-        backgroundColor: "var(--color-accent)",
-        color: "#fff",
-      };
-      return (
-        <div style={actionColumnStyle}>
-          <button type="button" style={selectStyle} onClick={onSelect}>
-            Select
-          </button>
-          {onUninstall && (
-            <button type="button" style={removeButtonStyle} onClick={onUninstall}>
-              Remove
-            </button>
-          )}
-        </div>
-      );
-    }
-
-    // Installed, no update
-    if (isInstalled) {
-      const installedStyle: CSSProperties = {
-        ...baseButtonStyle,
-        backgroundColor: "var(--color-success)",
-        color: "#fff",
-        cursor: "default",
-        opacity: 0.8,
-      };
-      return (
-        <div style={actionColumnStyle}>
-          <button type="button" style={installedStyle} disabled>
-            {"Installed \u2713"}
-          </button>
-          {onUninstall && (
-            <button type="button" style={removeButtonStyle} onClick={onUninstall}>
-              Remove
-            </button>
-          )}
-        </div>
-      );
-    }
-
-    // Selected in lobby — show "Selected ✓" regardless of install state
-    // (covers built-in games that may not appear in installedSlugs)
-    if (isSelected) {
-      const selectedStyle: CSSProperties = {
-        ...baseButtonStyle,
-        backgroundColor: "var(--color-success)",
-        color: "#fff",
-        cursor: "default",
-        opacity: 0.8,
-      };
-      return (
-        <div style={actionColumnStyle}>
-          <button type="button" style={selectedStyle} disabled>
-            {"Selected \u2713"}
-          </button>
-        </div>
-      );
-    }
-
-    // Not installed — "Get" button
-    const getStyle: CSSProperties = {
-      ...baseButtonStyle,
-      backgroundColor: "var(--color-accent)",
-      color: "#fff",
-    };
-    return (
-      <div style={actionColumnStyle}>
-        <button type="button" style={getStyle} onClick={() => onInstall(game)}>
-          Get
-        </button>
-      </div>
-    );
-  };
+  const onPrimary =
+    primary.kind === "get" || primary.kind === "update"
+      ? () => onInstall(game)
+      : primary.kind === "select"
+        ? onSelect
+        : undefined;
 
   return (
     <div style={cardStyle}>
@@ -291,7 +197,7 @@ export function GameCard({
         <span style={nameStyle}>{game.name}</span>
         <span style={descriptionStyle}>{game.description ?? "No description"}</span>
         <div style={metaRowStyle}>
-          <span style={badgeStyle}>{formatPlayerRange(game.players.min, game.players.max)}</span>
+          <span style={badgeStyle}>{formatPlayerRange(game.players)}</span>
           {(game.tags ?? []).map((tag) => (
             <span key={tag} style={tagStyle}>
               {tag}
@@ -300,7 +206,27 @@ export function GameCard({
         </div>
       </div>
 
-      {renderAction()}
+      <div style={actionColumnStyle}>
+        <button
+          type="button"
+          style={primaryButtonStyle(primary.kind)}
+          disabled={onPrimary === undefined}
+          aria-busy={primary.kind === "installing" || primary.kind === "removing"}
+          onClick={onPrimary}
+        >
+          {primary.label}
+        </button>
+        {showRemove && onUninstall && (
+          <button
+            type="button"
+            style={removeButtonStyle}
+            aria-label={`Remove ${game.name}`}
+            onClick={onUninstall}
+          >
+            Remove
+          </button>
+        )}
+      </div>
     </div>
   );
 }

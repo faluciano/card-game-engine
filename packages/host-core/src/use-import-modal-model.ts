@@ -4,8 +4,9 @@
 // overlay). Uses a discriminated union so illegal states are
 // unrepresentable; the renderers only map it to inputs and buttons.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
+import { describeError } from "./ruleset-hooks";
 import type { ImportResult } from "./use-ruleset-store";
 
 // ─── Types ─────────────────────────────────────────────────────────
@@ -61,6 +62,28 @@ export function resolveImportSlug(customSlug: string, suggestedSlug: string): st
   return customSlug.trim() || suggestedSlug;
 }
 
+/** Dialog state for an import callback that threw instead of returning a result. */
+export function importFailureToState(err: unknown): ImportModalState {
+  return { tag: "error", message: `Import failed: ${describeError(err)}` };
+}
+
+/**
+ * Runs an import callback and maps its outcome to dialog state. A thrown
+ * error becomes an `error` state rather than leaving the dialog `loading`
+ * with its close button disabled.
+ */
+async function settleImport(
+  run: () => Promise<ImportResult>,
+  toState: (result: ImportResult) => ImportModalState,
+): Promise<ImportModalState> {
+  try {
+    return toState(await run());
+  } catch (err) {
+    console.error("[ImportModal] Import threw:", err);
+    return importFailureToState(err);
+  }
+}
+
 // ─── Hook ──────────────────────────────────────────────────────────
 
 export interface ImportModalInput {
@@ -104,8 +127,13 @@ export function useImportModalModel({
   const [state, setState] = useState<ImportModalState>(IDLE_STATE);
   const [customSlug, setCustomSlug] = useState("");
 
+  // Lets an in-flight import notice the dialog was closed underneath it, so
+  // a late result does not leave a stale state for the next open.
+  const visibleRef = useRef(visible);
+
   // Reset when the modal closes.
   useEffect(() => {
+    visibleRef.current = visible;
     if (!visible) {
       setUrl("");
       setState(IDLE_STATE);
@@ -132,8 +160,11 @@ export function useImportModalModel({
     if (trimmed.length === 0) return;
 
     setState(LOADING_STATE);
-    const result = await onImport(trimmed);
-    setState(importResultToState(result, allSlugs));
+    const next = await settleImport(
+      () => onImport(trimmed),
+      (result) => importResultToState(result, allSlugs),
+    );
+    if (visibleRef.current) setState(next);
   }, [url, onImport, allSlugs]);
 
   const handleImportWithSlug = useCallback(async () => {
@@ -141,11 +172,13 @@ export function useImportModalModel({
 
     const slug = resolveImportSlug(customSlug, state.suggestedSlug);
     setState(LOADING_STATE);
-    const result = await onImportWithSlug(url.trim(), slug);
-    // A second duplicate is reported as a plain error here, as before.
-    setState(
-      result.ok ? { tag: "success", name: result.name } : { tag: "error", message: result.error },
+    const next = await settleImport(
+      () => onImportWithSlug(url.trim(), slug),
+      // A second duplicate is reported as a plain error here, as before.
+      (result) =>
+        result.ok ? { tag: "success", name: result.name } : { tag: "error", message: result.error },
     );
+    if (visibleRef.current) setState(next);
   }, [customSlug, url, onImportWithSlug, state]);
 
   const isLoading = state.tag === "loading";

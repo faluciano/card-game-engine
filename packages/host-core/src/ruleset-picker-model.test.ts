@@ -52,6 +52,7 @@ describe("buildRulesetItems", () => {
 describe("formatPlayerRange", () => {
   it("collapses equal bounds", () => {
     expect(formatPlayerRange({ min: 2, max: 2 })).toBe("2 players");
+    expect(formatPlayerRange({ min: 1, max: 1 })).toBe("1 player");
   });
 
   it("uses an en dash for ranges", () => {
@@ -139,11 +140,16 @@ describe("fetchCatalogRuleset", () => {
     await expect(fetchCatalogRuleset(game)).rejects.toThrow("HTTP 404");
   });
 
-  it("throws when the payload is not a ruleset", async () => {
+  it("throws with the formatted Zod issues when the payload is not a ruleset", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ nope: true }) })),
     );
-    await expect(fetchCatalogRuleset(game)).rejects.toThrow("Invalid ruleset format");
+    const err = await fetchCatalogRuleset(game).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    const message = (err as Error).message;
+    expect(message).toMatch(/^Validation failed: /);
+    // The field path from the schema failure must survive into the message.
+    expect(message).toContain("meta");
   });
 });

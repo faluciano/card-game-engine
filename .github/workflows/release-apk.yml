@@ -43,8 +43,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.4.2"
-
+          bun-version-file: package.json
 
       - uses: actions/setup-java@v6
         with:
@@ -61,10 +60,27 @@ jobs:
       - name: Derive version from release tag
         if: steps.tag.outputs.tag != ''
         run: |
+          set -euo pipefail
           TAG="${{ steps.tag.outputs.tag }}"
           VERSION="${TAG#v}"
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag '$TAG' is not vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          # Android versionCode must increase monotonically and stay below
+          # 2100000000. Three decimal digits each for MINOR and PATCH keep
+          # distinct versions distinct (the old MAJOR*10000+MINOR*100+PATCH
+          # collided once MINOR or PATCH reached 100). Every code under this
+          # formula (>= 2000000 for v2.x) exceeds every code the old formula
+          # ever produced (v2.10.4 was 21004; it is 2010004 here), so installed
+          # apps still see upgrades.
+          if [ "$MAJOR" -gt 2099 ] || [ "$MINOR" -gt 999 ] || [ "$PATCH" -gt 999 ]; then
+            echo "::error::Version $VERSION exceeds versionCode field ranges (MAJOR<=2099, MINOR<=999, PATCH<=999)"
+            exit 1
+          fi
+          VERSION_CODE=$((MAJOR * 1000000 + MINOR * 1000 + PATCH))
+          echo "versionName=$VERSION versionCode=$VERSION_CODE" >> "$GITHUB_STEP_SUMMARY"
           echo "VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           # Inject version into app.json so expo prebuild generates correct build.gradle
