@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Ruleset authoring guide
+    url: https://github.com/faluciano/card-game-engine/blob/main/docs/ruleset-authoring.md
+    about: Format specification and expression language reference for .cardgame.json files.

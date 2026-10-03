@@ -4,8 +4,8 @@ node_modules/
 # Build output
 dist/
 *.tsbuildinfo
-*.d.ts
-*.d.ts.map
+dist/**/*.d.ts
+dist/**/*.d.ts.map
 *.js.map
 scripts/*.js
 packages/client/vite.config.js
@@ -14,7 +14,6 @@ packages/host/vitest.config.js
 
 # Bun
 bun.lockb
-bunfig.toml
 
 # Environment
 .env

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.12/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -13,7 +13,7 @@
       "!**/.expo",
       "!**/node_modules",
       "!packages/host/src/www-manifest.json",
-      "!catalog.json",
+      "!packages/shared/src/schema/cardgame.v1.schema.json",
       "!bun.lock"
     ]
   },
@@ -38,7 +38,17 @@
         "noAutofocus": "off"
       },
       "style": {
-        "noNonNullAssertion": "off"
+        "noNonNullAssertion": "off",
+        "useImportType": "error",
+        "noEnum": "error",
+        "useFilenamingConvention": {
+          "level": "error",
+          "options": {
+            "strictCase": false,
+            "requireAscii": true,
+            "filenameCases": ["kebab-case", "PascalCase", "camelCase"]
+          }
+        }
       }
     }
   },
