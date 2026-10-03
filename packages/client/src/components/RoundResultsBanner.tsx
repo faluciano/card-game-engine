@@ -5,26 +5,13 @@
 
 import type React from "react";
 import type { CSSProperties } from "react";
+import { formatScore, getResultConfig } from "../lib/round-results.js";
 
 interface RoundResultsBannerProps {
   readonly result: number;
   readonly playerScore: number;
   readonly opponentScores: readonly { readonly label: string; readonly score: number }[];
   readonly onNewRound: () => void;
-}
-
-// ─── Result configuration ──────────────────────────────────────────
-
-interface ResultConfig {
-  readonly emoji: string;
-  readonly label: string;
-  readonly color: string;
-}
-
-function getResultConfig(result: number): ResultConfig {
-  if (result > 0) return { emoji: "🎉", label: "You Win!", color: "#4caf50" };
-  if (result < 0) return { emoji: "💔", label: "You Lose", color: "#f44336" };
-  return { emoji: "🤝", label: "Draw", color: "#ffc107" };
 }
 
 // ─── Styles ────────────────────────────────────────────────────────
@@ -84,10 +71,6 @@ const buttonStyle: CSSProperties = {
 };
 
 // ─── Component ─────────────────────────────────────────────────────
-
-function formatScore(label: string, score: number): string {
-  return `${label}: ${score}`;
-}
 
 export function RoundResultsBanner({
   result,

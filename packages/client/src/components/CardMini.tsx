@@ -8,6 +8,7 @@ import type React from "react";
 import { useCallback } from "react";
 import type { CSSProperties } from "react";
 import type { Card, CardInstanceId } from "@card-engine/shared";
+import { isRedSuit, suitSymbol } from "@card-engine/host-core/catalog";
 
 interface CardMiniProps {
   readonly card: Card | null;
@@ -20,15 +21,6 @@ interface CardMiniProps {
   /** Whether this card should be visually emphasized (e.g. top of discard pile). */
   readonly emphasized?: boolean;
 }
-
-const SUIT_SYMBOLS: Readonly<Record<string, string>> = {
-  hearts: "\u2665",
-  diamonds: "\u2666",
-  clubs: "\u2663",
-  spades: "\u2660",
-};
-
-const RED_SUITS: ReadonlySet<string> = new Set(["hearts", "diamonds"]);
 
 const baseCardStyle: CSSProperties = {
   width: 56,
@@ -104,9 +96,8 @@ export function CardMini({
     return <div role="img" style={faceDownStyle} aria-label="Face-down card" />;
   }
 
-  const isRed = RED_SUITS.has(card.suit);
-  const textColor = isRed ? "var(--color-card-red)" : "#1a1a2e";
-  const suitSymbol = SUIT_SYMBOLS[card.suit] ?? card.suit;
+  const textColor = isRedSuit(card.suit) ? "var(--color-card-red)" : "#1a1a2e";
+  const symbol = suitSymbol(card.suit);
 
   const isInteractive = onSelect !== undefined;
   const cardStyle: CSSProperties = {
@@ -139,7 +130,7 @@ export function CardMini({
       }
     >
       <span style={{ ...rankStyle, color: textColor }}>{card.rank}</span>
-      <span style={{ color: textColor }}>{suitSymbol}</span>
+      <span style={{ color: textColor }}>{symbol}</span>
     </div>
   );
 }

@@ -4,6 +4,7 @@
 import type React from "react";
 import type { CSSProperties } from "react";
 import type { PlayerView } from "@card-engine/shared";
+import { formatPhaseName } from "@card-engine/host-core/catalog";
 import { ActiveSuitBadge } from "./ActiveSuitBadge.js";
 
 interface GameInfoProps {
@@ -59,14 +60,6 @@ const turnIndicatorPulseStyle: CSSProperties = {
   ...turnIndicatorStyle,
   animation: "turnPulseNotify 1s ease-out, pulse 1.5s ease-in-out 1s infinite",
 };
-
-/**
- * Formats a phase name for display.
- * "player_turn" -> "Player Turn"
- */
-function formatPhaseName(phase: string): string {
-  return phase.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 export function GameInfo({ playerView, turnPulse = false }: GameInfoProps): React.JSX.Element {
   const { currentPhase, turnNumber, scores, isMyTurn, myPlayerId, stringVariables } = playerView;
