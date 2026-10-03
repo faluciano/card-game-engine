@@ -413,7 +413,7 @@ function handleDeclare(
     action.declaration,
     playerIndex,
     rt.phaseMachine,
-    action.params,
+    action.params ?? {},
   );
 
   let newState = applyEffects(state, effects, rt);

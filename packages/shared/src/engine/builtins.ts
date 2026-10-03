@@ -819,21 +819,18 @@ const getStrVarBuiltin: BuiltinFunction = (args, context) => {
  * Reads from the actionParams context provided by a declare action.
  * Booleans are returned as 1 (true) or 0 (false).
  *
- * Two distinct situations:
- *   - No `actionParams` in the context at all: this is an availability
- *     probe (e.g. `getValidActions` asking "could this action be taken?"),
- *     not a declare. Returns the sentinel 0 — the parameter counterpart of
- *     `played_card_index = -1` — so conditions like
- *     `get_param("rank") == 0 || ...` can mark the action generically available.
- *   - `actionParams` present but lacking `name`: the declare is missing a
- *     parameter its ruleset reads. Throws, naming the parameter.
+ * Throws when the parameter is missing, including during the availability
+ * check that `getValidActions` runs before a player has chosen anything.
+ * Conditions guard param-dependent logic with `is_availability_check() || ...`.
  */
 const getParamBuiltin: BuiltinFunction = (args, context) => {
   assertArgCount("get_param", args, 1);
   const name = requireString(args[0]!, "name");
   const params = context.actionParams;
   if (!params) {
-    return { kind: "number", value: 0 };
+    throw new ExpressionError(
+      `get_param: action parameter '${name}' read outside a declare action. Guard param-dependent conditions with is_availability_check()`,
+    );
   }
   const value = params[name];
   if (value === undefined) {
@@ -849,6 +846,16 @@ const getParamBuiltin: BuiltinFunction = (args, context) => {
     return { kind: "number", value };
   }
   return { kind: "string", value };
+};
+
+/**
+ * is_availability_check() — True while `getValidActions` decides whether to
+ * offer an action, before the player has chosen any parameters. False when
+ * validating or executing a submitted action.
+ */
+const isAvailabilityCheckBuiltin: BuiltinFunction = (args, context) => {
+  assertArgCount("is_availability_check", args, 0);
+  return context.isAvailabilityCheck === true ? EVAL_TRUE : EVAL_FALSE;
 };
 
 // ─── Pattern Matching Query Builtins ───────────────────────────────
@@ -1395,6 +1402,7 @@ export function registerAllBuiltins(): void {
   registerBuiltin("get_var", getVarBuiltin);
   registerBuiltin("get_str_var", getStrVarBuiltin);
   registerBuiltin("get_param", getParamBuiltin);
+  registerBuiltin("is_availability_check", isAvailabilityCheckBuiltin);
   registerBuiltin("count_sets", countSetsBuiltin);
   registerBuiltin("max_set_size", maxSetSizeBuiltin);
   registerBuiltin("has_flush", hasFlushBuiltin);

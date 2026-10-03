@@ -114,6 +114,12 @@ export interface EvalContext {
   };
   /** Parameters passed from a declare action, readable via the get_param() builtin. */
   readonly actionParams?: Readonly<Record<string, string | number | boolean>>;
+  /**
+   * True while `getValidActions` decides whether to offer an action at all,
+   * before any player has chosen parameters. Readable via the
+   * is_availability_check() builtin.
+   */
+  readonly isAvailabilityCheck?: boolean;
 }
 
 /**
