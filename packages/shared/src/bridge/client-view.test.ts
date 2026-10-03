@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { createHostInitialState, hostReducer } from "../host-reducer";
-import { createHostClientView } from "../client-view";
-import type { HostGameState } from "../host-state";
-import type { Card, CardGameRuleset, CardInstanceId } from "../../types/index";
+import { createHostInitialState, hostReducer } from "./host-reducer";
+import { createHostClientView } from "./client-view";
+import type { HostGameState } from "./host-state";
+import type { Card, CardGameRuleset, CardInstanceId } from "../types/index";
 
 /**
  * These tests are the guarantee behind server-side projection: a player's
