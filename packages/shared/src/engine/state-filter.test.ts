@@ -371,16 +371,17 @@ describe("state-filter", () => {
     });
 
     describe("unknown rule", () => {
-      it("hides all cards as conservative default", () => {
+      it("throws instead of silently hiding every card", () => {
         const cards = [ACE_SPADES, KING_HEARTS];
         const state = stateWithZone("mystery", cards, {
           kind: "partial",
           rule: "some_future_rule",
         });
-        const view = createPlayerView(state, makePlayerId("p1"));
 
-        expect(view.zones.mystery!.cards).toEqual([null, null]);
-        expect(view.zones.mystery!.cardCount).toBe(2);
+        expect(() => createPlayerView(state, makePlayerId("p1"))).toThrow(
+          'Unknown partial visibility rule "some_future_rule". ' +
+            "Supported rules: first_card_only, last_card_only, face_up_only",
+        );
       });
     });
   });
