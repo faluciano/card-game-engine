@@ -364,7 +364,7 @@ describe("Action Validator", () => {
       expect(disabled).toHaveLength(1);
     });
 
-    it("disables action when condition throws ExpressionError", () => {
+    it("propagates an ExpressionError from a condition instead of disabling the action", () => {
       const brokenPhase: PhaseDefinition = {
         name: "broken",
         kind: "turn_based",
@@ -386,9 +386,9 @@ describe("Action Validator", () => {
         ruleset: makeMinimalRuleset([brokenPhase]),
       });
 
-      const actions = getValidActions(state, makePlayerId("p1"), brokenMachine);
-      expect(actions).toHaveLength(1);
-      expect(actions[0]!.enabled).toBe(false);
+      expect(() => getValidActions(state, makePlayerId("p1"), brokenMachine)).toThrow(
+        `Unknown function: 'nonexistent_func' (in expression: "nonexistent_func()")`,
+      );
     });
 
     it("returns empty array for actions in second player's turn when it's first player's turn", () => {
@@ -672,13 +672,62 @@ describe("Action Validator", () => {
         );
         expect(notHeld.valid).toBe(false);
 
-        // Without params, get_param() yields 0 and the condition cannot evaluate
+        // Without params, the condition's get_param("rank") fails and the
+        // rejection reason names both the missing parameter and the expression
         const missing = validateAction(
           state,
           { kind: "declare", playerId: makePlayerId("p1"), declaration: "ask" },
           askMachine,
         );
         expect(missing.valid).toBe(false);
+        if (!missing.valid) {
+          expect(missing.reason).toContain("Action condition failed to evaluate");
+          expect(missing.reason).toContain("action parameter 'rank' was not provided");
+          expect(missing.reason).toContain('has_card_matching_rank("hand", get_param("rank"))');
+        }
+      });
+
+      it("treats get_param() as the 0 sentinel when probing availability via getValidActions", () => {
+        const askPhase: PhaseDefinition = {
+          name: "player_turns",
+          kind: "turn_based",
+          actions: [{ name: "ask", label: "Ask", condition: 'get_param("rank") == 0', effect: [] }],
+          transitions: [],
+          turnOrder: "clockwise",
+        };
+        const state = makeGameState(makeDefaultZones(), {
+          ruleset: makeMinimalRuleset([askPhase]),
+        });
+
+        const actions = getValidActions(state, makePlayerId("p1"), new PhaseMachine([askPhase]));
+        expect(actions).toEqual([{ actionName: "ask", label: "Ask", enabled: true }]);
+      });
+
+      it("rejects with the evaluator's message when a declare condition fails at runtime", () => {
+        const brokenPhase: PhaseDefinition = {
+          name: "player_turns",
+          kind: "turn_based",
+          actions: [
+            { name: "go", label: "Go", condition: 'card_count("nowhere") > 0', effect: [] },
+          ],
+          transitions: [],
+          turnOrder: "clockwise",
+        };
+        const state = makeGameState(makeDefaultZones(), {
+          ruleset: makeMinimalRuleset([brokenPhase]),
+        });
+
+        const result = validateAction(
+          state,
+          { kind: "declare", playerId: makePlayerId("p1"), declaration: "go" },
+          new PhaseMachine([brokenPhase]),
+        );
+        expect(result).toEqual({
+          valid: false,
+          reason:
+            "Action condition failed to evaluate: Unknown zone: 'nowhere' " +
+            '(in expression: "card_count("nowhere") > 0")',
+        });
       });
 
       it("allows declare in all_players phase regardless of turn", () => {
@@ -1312,6 +1361,31 @@ describe("Action Validator", () => {
       const indices = getPlayableCardIndices(state, state.ruleset, 0);
 
       expect(indices).toEqual([]);
+    });
+
+    it("propagates an ExpressionError from the play_card condition", () => {
+      const brokenPhase: PhaseDefinition = {
+        name: "play_turn",
+        kind: "turn_based",
+        actions: [
+          {
+            name: "play_card",
+            label: "Play Card",
+            condition: 'card_count("nowhere") > 0',
+            effect: [],
+          },
+        ],
+        transitions: [],
+        turnOrder: "clockwise",
+      };
+      const state = makeGameState(
+        { "hand:0": makeZone("hand:0", [makeCard("A", "Hearts")]) },
+        { currentPhase: "play_turn", ruleset: makeMinimalRuleset([brokenPhase]) },
+      );
+
+      expect(() => getPlayableCardIndices(state, state.ruleset, 0)).toThrow(
+        "Unknown zone: 'nowhere'",
+      );
     });
 
     it("returns all indices when play_card has no condition", () => {

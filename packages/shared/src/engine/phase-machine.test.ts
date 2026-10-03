@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { PhaseMachine } from "./phase-machine";
 import { registerAllBuiltins } from "./builtins";
 import {
@@ -252,6 +252,20 @@ describe("PhaseMachine", () => {
     });
   });
 
+  // ── findPhase ──
+
+  describe("findPhase", () => {
+    it("returns the phase definition by name", () => {
+      const machine = new PhaseMachine(ALL_PHASES);
+      expect(machine.findPhase("deal")).toBe(machine.getPhase("deal"));
+    });
+
+    it("returns undefined for an unknown phase name instead of throwing", () => {
+      const machine = new PhaseMachine(ALL_PHASES);
+      expect(machine.findPhase("nonexistent")).toBeUndefined();
+    });
+  });
+
   // ── evaluateTransitions ──
 
   describe("evaluateTransitions", () => {
@@ -382,9 +396,7 @@ describe("PhaseMachine", () => {
       expect(() => machine.evaluateTransitions(state)).toThrow('Unknown phase: "nonexistent"');
     });
 
-    it("treats ExpressionError as condition-not-met and logs a warning", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
+    it("propagates an ExpressionError from a transition condition", () => {
       const phaseWithBadCondition: PhaseDefinition = {
         name: "bad_cond",
         kind: "turn_based",
@@ -400,11 +412,10 @@ describe("PhaseMachine", () => {
       const machine = new PhaseMachine([phaseWithBadCondition, target]);
       const state = makeGameState({}, { currentPhase: "bad_cond" });
 
-      const result = machine.evaluateTransitions(state);
-      expect(result).toEqual({ kind: "stay" });
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("failed to evaluate"));
-
-      warnSpy.mockRestore();
+      expect(() => machine.evaluateTransitions(state)).toThrow(ExpressionError);
+      expect(() => machine.evaluateTransitions(state)).toThrow(
+        `Unknown identifier: 'totally_unknown_identifier_xyz' (in expression: "totally_unknown_identifier_xyz")`,
+      );
     });
 
     it("evaluates expression-based conditions against game state", () => {
@@ -764,9 +775,7 @@ describe("PhaseMachine", () => {
       );
     });
 
-    it("treats ExpressionError in global transitions as condition-not-met", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
+    it("propagates an ExpressionError from a global transition condition", () => {
       const phases: PhaseDefinition[] = [
         {
           name: "playing",
@@ -785,11 +794,9 @@ describe("PhaseMachine", () => {
       const machine = new PhaseMachine(phases, globalTransitions);
       const state = makeGameState({}, { currentPhase: "playing" });
 
-      const result = machine.evaluateTransitions(state);
-      expect(result).toEqual({ kind: "stay" });
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Global transition condition"));
-
-      warnSpy.mockRestore();
+      expect(() => machine.evaluateTransitions(state)).toThrow(
+        `Unknown identifier: 'totally_unknown_identifier_abc' (in expression: "totally_unknown_identifier_abc")`,
+      );
     });
   });
 });

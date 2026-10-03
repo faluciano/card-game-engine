@@ -5,7 +5,6 @@
 
 import type {
   Card,
-  CardGameAction,
   CardGameState,
   FilteredZoneState,
   PlayerId,
@@ -15,6 +14,26 @@ import type {
   ZoneVisibility,
 } from "../types/index";
 import { getValidActions } from "./action-validator";
+
+// ─── Partial Visibility Rules ──────────────────────────────────────
+
+/**
+ * The `partial` visibility rules this filter implements. The Zod ruleset
+ * schema uses this list as its enum so unsupported rules are rejected at
+ * load time instead of silently hiding every card mid-game.
+ */
+export const PARTIAL_VISIBILITY_RULES = [
+  "first_card_only",
+  "last_card_only",
+  "face_up_only",
+] as const;
+
+/** A supported `partial` visibility rule name. */
+export type PartialVisibilityRule = (typeof PARTIAL_VISIBILITY_RULES)[number];
+
+function isPartialVisibilityRule(rule: string): rule is PartialVisibilityRule {
+  return (PARTIAL_VISIBILITY_RULES as readonly string[]).includes(rule);
+}
 
 /**
  * Resolves the effective visibility for a zone, accounting for
@@ -61,36 +80,20 @@ function getPublicVarNames(
 }
 
 /**
- * Filters numeric variables to only include those named in publicVariables.
- * If publicVariables is undefined, all variables pass through (backward compatible).
+ * Filters a variable record to only the names listed in `publicVariables`.
+ * If `publicVariables` is undefined, every entry passes through
+ * (backward-compatible expose-all behavior).
  */
-function filterVariables(
-  variables: Readonly<Record<string, number>>,
+function filterPublicVariables<T extends number | string>(
+  variables: Readonly<Record<string, T>>,
   publicVariables: readonly string[] | undefined,
-): Readonly<Record<string, number>> {
+): Readonly<Record<string, T>> {
   if (!publicVariables) return variables;
-  const filtered: Record<string, number> = {};
+  const filtered: Record<string, T> = {};
   for (const name of publicVariables) {
-    if (name in variables) {
-      filtered[name] = variables[name]!;
-    }
-  }
-  return filtered;
-}
-
-/**
- * Filters string variables to only include those named in publicVariables.
- * If publicVariables is undefined, all variables pass through (backward compatible).
- */
-function filterStringVariables(
-  variables: Readonly<Record<string, string>>,
-  publicVariables: readonly string[] | undefined,
-): Readonly<Record<string, string>> {
-  if (!publicVariables) return variables;
-  const filtered: Record<string, string> = {};
-  for (const name of publicVariables) {
-    if (name in variables) {
-      filtered[name] = variables[name]!;
+    const value = variables[name];
+    if (value !== undefined) {
+      filtered[name] = value;
     }
   }
   return filtered;
@@ -123,7 +126,9 @@ export function createPlayerView(state: CardGameState, playerId: PlayerId): Play
     );
   }
 
-  const validActions = getValidActions(state, playerId);
+  const enabledActionNames: readonly string[] = getValidActions(state, playerId)
+    .filter((a) => a.enabled)
+    .map((a) => a.actionName);
 
   // Remap engine-internal score keys (player:N, result:N) to PlayerId keys
   // so client components can look up scores by player.id directly.
@@ -156,12 +161,13 @@ export function createPlayerView(state: CardGameState, playerId: PlayerId): Play
     currentPhase: state.currentPhase,
     isMyTurn: isPlayerActive(state, playerIndex),
     myPlayerId: playerId,
-    validActions: validActions
-      .filter((a) => a.enabled)
-      .map((a) => a.actionName as CardGameAction["kind"]),
+    // These are phase action NAMES ("hit", "stand", ...), not CardGameAction
+    // kinds. The cast is a known lie kept visible here until
+    // PlayerView.validActions (types/state.ts) becomes `readonly string[]`.
+    validActions: enabledActionNames as unknown as PlayerView["validActions"],
     scores: remappedScores,
-    variables: filterVariables(state.variables, publicVars),
-    stringVariables: filterStringVariables(state.stringVariables, publicVars),
+    variables: filterPublicVariables(state.variables, publicVars),
+    stringVariables: filterPublicVariables(state.stringVariables, publicVars),
     turnNumber: state.turnNumber,
     ui: state.ruleset.ui,
   };
@@ -208,9 +214,19 @@ function filterZone(
 /**
  * Applies a partial visibility rule to a card array.
  * Returns cards with hidden positions replaced by null.
- * Unknown rules default to fully hidden (conservative).
+ *
+ * @throws {Error} on a rule name that is not in `PARTIAL_VISIBILITY_RULES`.
+ *   The schema rejects unknown rules at load time, so reaching this means
+ *   the state was built from an unparsed ruleset — fail loud rather than
+ *   quietly hiding every card.
  */
 function applyPartialRule(cards: readonly Card[], rule: string): readonly (Card | null)[] {
+  if (!isPartialVisibilityRule(rule)) {
+    throw new Error(
+      `Unknown partial visibility rule "${rule}". Supported rules: ${PARTIAL_VISIBILITY_RULES.join(", ")}`,
+    );
+  }
+
   switch (rule) {
     case "first_card_only":
       return cards.map((card, i) => (i === 0 ? card : null));
@@ -220,9 +236,5 @@ function applyPartialRule(cards: readonly Card[], rule: string): readonly (Card 
 
     case "face_up_only":
       return cards.map((card) => (card.faceUp ? card : null));
-
-    default:
-      // Unknown rule — hide everything as a conservative default
-      return cards.map(() => null);
   }
 }

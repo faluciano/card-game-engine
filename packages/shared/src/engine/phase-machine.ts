@@ -4,7 +4,7 @@
 // allowed actions, and conditional transitions to other phases.
 
 import type { CardGameState, PhaseAction, PhaseDefinition, PhaseTransition } from "../types/index";
-import { evaluateCondition, ExpressionError, type EvalContext } from "./expression-evaluator";
+import { evaluateCondition, type EvalContext } from "./expression-evaluator";
 
 /** The result of evaluating a phase transition. */
 export type TransitionResult =
@@ -34,9 +34,14 @@ export class PhaseMachine {
     this.globalTransitions = globalTransitions;
   }
 
+  /** Returns the phase definition for the given name, or undefined if none exists. */
+  findPhase(name: string): PhaseDefinition | undefined {
+    return this.phasesByName.get(name);
+  }
+
   /** Returns the phase definition for the given name, or throws. */
   getPhase(name: string): PhaseDefinition {
-    const phase = this.phasesByName.get(name);
+    const phase = this.findPhase(name);
     if (!phase) {
       throw new Error(`Unknown phase: "${name}"`);
     }
@@ -47,67 +52,59 @@ export class PhaseMachine {
    * Evaluates all transitions for the current phase against game state.
    * Returns the first matching transition, or "stay" if none match.
    *
-   * Transitions are evaluated in declaration order — the first `when`
-   * condition that evaluates to `true` wins.
+   * Transitions are evaluated in declaration order — phase-specific ones
+   * first, then global ones — and the first `when` condition that evaluates
+   * to `true` wins.
+   *
+   * Conditions are parse-checked when the ruleset is loaded, so an
+   * `ExpressionError` here is a genuine runtime failure (unknown zone,
+   * type mismatch, ...) and propagates to the caller instead of being
+   * downgraded to "not met".
+   *
+   * @throws {Error} if a transition targets an undeclared phase.
+   * @throws {ExpressionError} if a `when` condition fails to evaluate.
    */
   evaluateTransitions(state: CardGameState): TransitionResult {
     const phase = this.getPhase(state.currentPhase);
     const context: EvalContext = { state };
 
-    // 1. Evaluate phase-specific transitions first
-    for (const transition of phase.transitions) {
-      // Validate that the target phase exists before evaluating the condition.
-      // Fail fast: a misconfigured ruleset should be caught immediately.
-      if (!this.phasesByName.has(transition.to)) {
-        throw new Error(
-          `Phase "${state.currentPhase}" has a transition to unknown phase: "${transition.to}"`,
-        );
-      }
+    const phaseResult = this.firstMatchingTransition(
+      phase.transitions,
+      context,
+      (to) => `Phase "${state.currentPhase}" has a transition to unknown phase: "${to}"`,
+    );
+    if (phaseResult) return phaseResult;
 
-      try {
-        const conditionMet = evaluateCondition(transition.when, context);
-        if (conditionMet) {
-          return { kind: "advance", nextPhase: transition.to };
-        }
-      } catch (error) {
-        // ExpressionErrors from unresolvable conditions mean the condition
-        // isn't met — log a warning and continue to the next transition.
-        if (error instanceof ExpressionError) {
-          console.warn(
-            `Phase "${state.currentPhase}": transition condition "${transition.when}" ` +
-              `failed to evaluate: ${error.message}. Treating as not met.`,
-          );
-          continue;
-        }
-        // Re-throw non-expression errors (programming bugs, etc.)
-        throw error;
-      }
-    }
-
-    // 2. Evaluate global transitions (fallback after phase-specific ones)
-    for (const transition of this.globalTransitions) {
-      if (!this.phasesByName.has(transition.to)) {
-        throw new Error(`Global transition targets unknown phase: "${transition.to}"`);
-      }
-
-      try {
-        const conditionMet = evaluateCondition(transition.when, context);
-        if (conditionMet) {
-          return { kind: "advance", nextPhase: transition.to };
-        }
-      } catch (error) {
-        if (error instanceof ExpressionError) {
-          console.warn(
-            `Global transition condition "${transition.when}" ` +
-              `failed to evaluate: ${error.message}. Treating as not met.`,
-          );
-          continue;
-        }
-        throw error;
-      }
-    }
+    const globalResult = this.firstMatchingTransition(
+      this.globalTransitions,
+      context,
+      (to) => `Global transition targets unknown phase: "${to}"`,
+    );
+    if (globalResult) return globalResult;
 
     return { kind: "stay" };
+  }
+
+  /**
+   * Walks `transitions` in order and returns an "advance" result for the
+   * first one whose condition holds, or undefined if none do.
+   * Validates each target phase before evaluating its condition — a
+   * misconfigured ruleset should be caught immediately.
+   */
+  private firstMatchingTransition(
+    transitions: readonly PhaseTransition[],
+    context: EvalContext,
+    unknownTargetMessage: (to: string) => string,
+  ): TransitionResult | undefined {
+    for (const transition of transitions) {
+      if (!this.phasesByName.has(transition.to)) {
+        throw new Error(unknownTargetMessage(transition.to));
+      }
+      if (evaluateCondition(transition.when, context)) {
+        return { kind: "advance", nextPhase: transition.to };
+      }
+    }
+    return undefined;
   }
 
   /**
