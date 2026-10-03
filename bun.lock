@@ -14,6 +14,7 @@
       "name": "@card-engine/client",
       "version": "0.1.0",
       "dependencies": {
+        "@card-engine/host-core": "workspace:*",
         "@card-engine/shared": "workspace:*",
         "@couch-kit/client": "0.16.0",
         "react": "19.2.3",
@@ -25,6 +26,7 @@
         "@vitejs/plugin-react-swc": "^4.3.3",
         "typescript": "~7.0.2",
         "vite": "^8.3.2",
+        "vitest": "^5.0.3",
       },
     },
     "packages/display": {
