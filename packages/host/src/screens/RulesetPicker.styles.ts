@@ -94,6 +94,13 @@ export const styles = StyleSheet.create({
   deleteButtonFocused: {
     borderColor: colors.danger,
   },
+  deleteButtonConfirming: {
+    backgroundColor: colors.danger,
+    borderColor: colors.danger,
+  },
+  deleteLabelConfirming: {
+    color: colors.textBright,
+  },
   deleteLabel: {
     color: colors.danger,
     fontSize: 14,

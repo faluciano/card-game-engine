@@ -63,6 +63,9 @@ export function RulesetPicker(): React.JSX.Element {
                 onSelect={model.selectRuleset}
                 isFirst={index === 0}
                 onDelete={model.deleteHandlerFor(item)}
+                deleteLabel={model.deleteLabelFor(item)}
+                isConfirmingDelete={model.confirmingDeleteKey === item.key}
+                onCancelDelete={model.cancelDelete}
               />
             ))}
           </View>
@@ -95,11 +98,17 @@ const RulesetCard = React.memo(function RulesetCard({
   onSelect,
   isFirst,
   onDelete,
+  deleteLabel,
+  isConfirmingDelete,
+  onCancelDelete,
 }: {
   readonly item: RulesetItem;
   readonly onSelect: (ruleset: CardGameRuleset) => void;
   readonly isFirst: boolean;
   readonly onDelete?: () => void;
+  readonly deleteLabel: string;
+  readonly isConfirmingDelete: boolean;
+  readonly onCancelDelete: (item: RulesetItem) => void;
 }): React.JSX.Element {
   const [bodyFocused, setBodyFocused] = useState(false);
   const { meta } = item.ruleset;
@@ -128,12 +137,17 @@ const RulesetCard = React.memo(function RulesetCard({
       </Pressable>
       {onDelete != null && (
         <TVPressable
-          style={styles.deleteButton}
+          style={[styles.deleteButton, isConfirmingDelete && styles.deleteButtonConfirming]}
           focusedStyle={styles.deleteButtonFocused}
           onPress={onDelete}
-          accessibilityLabel={`Delete ${meta.name}`}
+          onBlur={() => onCancelDelete(item)}
+          accessibilityLabel={
+            isConfirmingDelete ? `Press again to delete ${meta.name}` : `Delete ${meta.name}`
+          }
         >
-          <Text style={styles.deleteLabel}>DELETE</Text>
+          <Text style={[styles.deleteLabel, isConfirmingDelete && styles.deleteLabelConfirming]}>
+            {deleteLabel}
+          </Text>
         </TVPressable>
       )}
     </View>
