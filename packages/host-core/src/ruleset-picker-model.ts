@@ -53,9 +53,8 @@ export function buildRulesetItems(
 
 /** "2 players" or "2–6 players". */
 export function formatPlayerRange(players: { readonly min: number; readonly max: number }): string {
-  return players.min === players.max
-    ? `${players.min} players`
-    : `${players.min}–${players.max} players`;
+  if (players.min !== players.max) return `${players.min}–${players.max} players`;
+  return players.min === 1 ? "1 player" : `${players.min} players`;
 }
 
 // ─── Store ─────────────────────────────────────────────────────────

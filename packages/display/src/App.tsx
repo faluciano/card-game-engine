@@ -7,13 +7,7 @@ import {
   type HostGameState,
   type HostAction,
 } from "@card-engine/shared";
-import {
-  BUILT_IN_INSTALLED,
-  colors,
-  useInstalledSlugs,
-  useRulesetInstaller,
-  useRulesetUninstaller,
-} from "@card-engine/host-core";
+import { colors, useRulesetSync } from "@card-engine/host-core";
 import { ScreenRouter } from "./ScreenRouter.js";
 import { rulesetStore } from "./storage/web-ruleset-store.js";
 
@@ -46,9 +40,7 @@ export function App(): React.JSX.Element {
 
   // Host-side ruleset orchestration (seeds built-ins, handles install/uninstall
   // requested by phones) — the same hooks the Android TV host runs.
-  useInstalledSlugs(rulesetStore, display.dispatch, BUILT_IN_INSTALLED);
-  useRulesetInstaller(rulesetStore, state.pendingInstall, display.dispatch, BUILT_IN_INSTALLED);
-  useRulesetUninstaller(rulesetStore, state.pendingUninstall, display.dispatch, BUILT_IN_INSTALLED);
+  useRulesetSync(rulesetStore, state, display.dispatch);
 
   const joinUrl =
     CONTROLLER_URL && roomId

@@ -52,6 +52,7 @@ describe("buildRulesetItems", () => {
 describe("formatPlayerRange", () => {
   it("collapses equal bounds", () => {
     expect(formatPlayerRange({ min: 2, max: 2 })).toBe("2 players");
+    expect(formatPlayerRange({ min: 1, max: 1 })).toBe("1 player");
   });
 
   it("uses an en dash for ranges", () => {
