@@ -14,13 +14,15 @@
 
 import type { IPlayer } from "@couch-kit/core";
 import type { CardGameRuleset, CardGameState, PlayerId, PlayerView } from "../types/index";
+import type { PhaseMachine } from "../engine/phase-machine";
+import type { HostGameState, InstalledGame } from "./host-state";
 import { createPlayerView } from "../engine/state-filter";
 import {
   getValidActions,
   getPlayableCardIndices,
   type ValidAction,
 } from "../engine/action-validator";
-import type { HostGameState, InstalledGame } from "./host-state";
+import { getPhaseMachine } from "./engine-cache";
 
 /** Ruleset identity, without shipping the whole ruleset to every phone. */
 export interface RulesetSummary {
@@ -97,15 +99,22 @@ function projectScreen(screen: HostGameState["screen"]): ClientScreen {
 }
 
 /** Playable ids from the player's own hand, or empty when not applicable. */
-function playableCards(engineState: CardGameState, playerId: PlayerId): readonly string[] {
-  const playerIndex = engineState.players.findIndex((p) => p.id === playerId);
-  if (playerIndex === -1) return [];
-
+function playableCards(
+  engineState: CardGameState,
+  playerIndex: number,
+  phaseMachine: PhaseMachine,
+): readonly string[] {
   const handZone = engineState.zones[`hand:${playerIndex}`];
   if (!handZone) return [];
 
   const ids: string[] = [];
-  for (const index of getPlayableCardIndices(engineState, engineState.ruleset, playerIndex)) {
+  const indices = getPlayableCardIndices(
+    engineState,
+    engineState.ruleset,
+    playerIndex,
+    phaseMachine,
+  );
+  for (const index of indices) {
     const card = handZone.cards[index];
     if (card) ids.push(card.id);
   }
@@ -135,16 +144,23 @@ export function createHostClientView(state: HostGameState, playerId: string): Ho
   }
 
   // Someone the engine does not know (a spectator, or a phone that joined
-  // before the deal) gets no engine view rather than somebody else's.
+  // before the deal) gets no engine view rather than somebody else's. This
+  // is checked up front so any *other* projection error surfaces instead of
+  // being mistaken for "unknown player".
   const id = playerId as PlayerId;
-  try {
-    return {
-      ...base,
-      playerView: createPlayerView(engineState, id),
-      validActions: getValidActions(engineState, id),
-      playableCardIds: playableCards(engineState, id),
-    };
-  } catch {
+  const playerIndex = engineState.players.findIndex((p) => p.id === id);
+  if (playerIndex === -1) {
     return { ...base, playerView: null, validActions: [], playableCardIds: [] };
   }
+
+  // One cached phase machine per ruleset serves both validator calls.
+  // createPlayerView still derives its own enabled-action list internally:
+  // state-filter has no parameter for precomputed actions.
+  const phaseMachine = getPhaseMachine(engineState.ruleset);
+  return {
+    ...base,
+    playerView: createPlayerView(engineState, id),
+    validActions: getValidActions(engineState, id, phaseMachine),
+    playableCardIds: playableCards(engineState, playerIndex, phaseMachine),
+  };
 }
