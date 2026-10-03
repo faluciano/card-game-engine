@@ -5,63 +5,58 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+# Superseded PR pushes cancel the previous run. Pushes to main are never
+# cancelled: auto-release.yml waits on this workflow's conclusion, and a
+# cancelled run would silently skip the release for that commit.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: bunx biome ci .
+
   typecheck-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.4.2"
-
-      - uses: actions/cache@v6
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-
-
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - run: bun run typecheck
       - run: bun run build:client
       - run: bun run build:display
-      - run: bun run lint
 
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        package: [shared, host-core, host]
+        package: [shared, host-core, host, client]
+        include:
+          - package: shared
+            coverage: true
+          - package: host-core
+            coverage: true
     steps:
       - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.4.2"
-
-      - uses: actions/cache@v6
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-
-
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - name: Test ${{ matrix.package }}
-        run: bunx vitest run
+        run: >-
+          bunx vitest run
+          ${{ matrix.coverage && '--coverage --coverage.provider=v8 --coverage.reporter=text-summary' || '' }}
         working-directory: packages/${{ matrix.package }}
 
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.4.2"
-
-      - uses: actions/cache@v6
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-
-
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - run: bun run validate
+      - run: bun run schema:check
+      - run: bun run catalog
