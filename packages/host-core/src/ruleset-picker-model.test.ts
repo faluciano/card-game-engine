@@ -139,11 +139,16 @@ describe("fetchCatalogRuleset", () => {
     await expect(fetchCatalogRuleset(game)).rejects.toThrow("HTTP 404");
   });
 
-  it("throws when the payload is not a ruleset", async () => {
+  it("throws with the formatted Zod issues when the payload is not a ruleset", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ nope: true }) })),
     );
-    await expect(fetchCatalogRuleset(game)).rejects.toThrow("Invalid ruleset format");
+    const err = await fetchCatalogRuleset(game).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    const message = (err as Error).message;
+    expect(message).toMatch(/^Validation failed: /);
+    // The field path from the schema failure must survive into the message.
+    expect(message).toContain("meta");
   });
 });

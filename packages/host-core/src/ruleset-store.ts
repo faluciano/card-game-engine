@@ -30,3 +30,69 @@ export interface RulesetStore {
   /** Finds a stored ruleset by slug. Useful for duplicate detection. */
   getBySlug(slug: string): Promise<StoredRuleset | null>;
 }
+
+// ─── Errors ────────────────────────────────────────────────────────
+
+/**
+ * Thrown when a store's metadata index exists but cannot be parsed.
+ *
+ * Stores throw rather than treating a corrupt index as empty: an empty
+ * index would be rewritten by the next save and silently replace the
+ * whole library with a single entry. Throwing leaves the user's data on
+ * disk for recovery and lets the hooks surface the failure instead.
+ */
+export class RulesetStoreCorruptError extends Error {
+  constructor(
+    /** File URI or storage key of the corrupt index. */
+    public readonly source: string,
+    cause: unknown,
+  ) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    super(
+      `Ruleset library index at "${source}" is corrupt and was not overwritten: ${detail}. ` +
+        "Repair or remove it to continue installing rulesets.",
+    );
+    this.name = "RulesetStoreCorruptError";
+  }
+}
+
+/** Thrown when the storage backend refuses a write because it is full. */
+export class RulesetStoreQuotaError extends Error {
+  constructor(
+    /** Size of the rejected payload, in UTF-16 code units. */
+    public readonly payloadSize: number,
+  ) {
+    super(
+      `Ruleset storage is full: a ${payloadSize}-character write was rejected. ` +
+        "Remove an installed ruleset to free space.",
+    );
+    this.name = "RulesetStoreQuotaError";
+  }
+}
+
+/** True for the browser's `QuotaExceededError` in its DOMException and legacy forms. */
+export function isQuotaExceededError(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const { name, code } = err as { readonly name?: unknown; readonly code?: unknown };
+  // Firefox historically used NS_ERROR_DOM_QUOTA_REACHED; WebKit used code 22.
+  return name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED" || code === 22;
+}
+
+// ─── ID Generation ─────────────────────────────────────────────────
+
+/**
+ * Generates a UUID v4 for a stored ruleset. Prefers `crypto.randomUUID`;
+ * falls back to a `Math.random`-based v4 on runtimes without it (Hermes).
+ * Store IDs are opaque persistence keys, not gameplay randomness, so the
+ * seeded-PRNG rule does not apply here.
+ */
+export function generateRulesetId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}

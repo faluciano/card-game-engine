@@ -5,6 +5,12 @@
 
 import type { CardGameRuleset } from "@card-engine/shared";
 import type { RulesetStore, StoredRuleset } from "@card-engine/host-core";
+import {
+  RulesetStoreCorruptError,
+  RulesetStoreQuotaError,
+  generateRulesetId,
+  isQuotaExceededError,
+} from "@card-engine/host-core";
 
 export type { StoredRuleset };
 
@@ -19,15 +25,9 @@ type Index = Record<string, Entry>;
 
 const STORAGE_KEY = "card-engine:rulesets";
 
-function generateId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+/** An index must be a plain JSON object keyed by id. */
+function isIndex(value: unknown): value is Index {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -35,17 +35,39 @@ function generateId(): string {
  * host-core ruleset hooks work unchanged on the web display.
  */
 export class WebRulesetStore implements RulesetStore {
+  /**
+   * Reads the index. A missing key is an empty library; an unparseable one
+   * throws {@link RulesetStoreCorruptError} so a later save cannot overwrite
+   * the whole library with a single entry.
+   */
   private read(): Index {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === null) return {};
+
+    let parsed: unknown;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as Index) : {};
-    } catch {
-      return {};
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      throw new RulesetStoreCorruptError(STORAGE_KEY, err);
     }
+    if (!isIndex(parsed)) {
+      throw new RulesetStoreCorruptError(
+        STORAGE_KEY,
+        `expected an object keyed by id, got ${Array.isArray(parsed) ? "array" : typeof parsed}`,
+      );
+    }
+    return parsed;
   }
 
+  /** Writes the index, translating a full-storage failure into a descriptive error. */
   private write(index: Index): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(index));
+    const payload = JSON.stringify(index);
+    try {
+      localStorage.setItem(STORAGE_KEY, payload);
+    } catch (err) {
+      if (isQuotaExceededError(err)) throw new RulesetStoreQuotaError(payload.length);
+      throw err;
+    }
   }
 
   private toStored(id: string, e: Entry): StoredRuleset {
@@ -71,7 +93,7 @@ export class WebRulesetStore implements RulesetStore {
 
   async saveWithSlug(ruleset: CardGameRuleset, slugOverride: string): Promise<StoredRuleset> {
     const index = this.read();
-    const id = generateId();
+    const id = generateRulesetId();
     const now = Date.now();
     index[id] = { slug: slugOverride, ruleset, importedAt: now, lastPlayedAt: null };
     this.write(index);
