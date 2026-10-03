@@ -221,7 +221,7 @@ function startGame(
   seed: number = FIXED_SEED,
 ): { state: CardGameState; reducer: GameReducer; players: Player[] } {
   const players = makePlayers(playerCount);
-  const reducer = createReducer(ruleset, seed);
+  const reducer = createReducer(ruleset);
   const initial = createInitialState(ruleset, sid("test-session"), players, seed);
   const state = reducer(initial, { kind: "start_game" });
   return { state, reducer, players };
@@ -1167,7 +1167,7 @@ function startCrazyEightsGame(
     role: "player" as const,
     connected: true,
   }));
-  const reducer = createReducer(crazyEightsRuleset, seed);
+  const reducer = createReducer(crazyEightsRuleset);
   const initial = createInitialState(
     crazyEightsRuleset,
     sid("crazy-eights-test-session"),

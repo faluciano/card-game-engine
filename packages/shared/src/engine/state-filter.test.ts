@@ -97,6 +97,7 @@ function createMockState(overrides?: Partial<CardGameState>): CardGameState {
     stringVariables: {},
     actionLog: [],
     turnsTakenThisPhase: 0,
+    rngState: 0,
     turnDirection: 1,
     version: 1,
     ...overrides,

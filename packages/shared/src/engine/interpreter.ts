@@ -1,6 +1,12 @@
 // ─── Ruleset Interpreter ───────────────────────────────────────────
 // Transforms a static CardGameRuleset into runtime constructs:
-// a reducer function, initial state factory, and phase machine.
+// an engine (explicit apply + reducer), an initial state factory, and a
+// phase machine.
+//
+// Determinism: the engine holds no mutable state. The PRNG is rebuilt from
+// `state.rngState` on every call and the advanced state is written back, and
+// wall-clock reads go through an injectable `now`, so `(state, action)` always
+// yields the same result regardless of which engine instance applied it.
 
 import type {
   CardGameAction,
@@ -19,9 +25,24 @@ import type {
   ZoneDefinition,
   ZoneState,
 } from "../types/index";
+import type {
+  EffectDescription,
+  EffectKind,
+  IncVarParams,
+  MoveAllParams,
+  MoveRankParams,
+  PlayerIndexParams,
+  SetFaceUpParams,
+  SetStrVarParams,
+  SetVarParams,
+  TransferParams,
+  CollectTrickParams,
+  FlipTopParams,
+  ZoneParams,
+} from "./effects";
 import { getPresetDeck, type CardTemplate } from "../deck/presets";
 import { PhaseMachine } from "./phase-machine";
-import { registerAllBuiltins, type EffectDescription, type MutableEvalContext } from "./builtins";
+import { registerAllBuiltins, type MutableEvalContext } from "./builtins";
 import {
   evaluateCondition,
   evaluateExpression,
@@ -31,9 +52,55 @@ import {
 import { validateAction, executePhaseAction } from "./action-validator";
 import { createRng, generateSeed, type SeededRng } from "./prng";
 import { isHumanPlayer } from "./role-utils";
+import { EffectError, missingZoneError } from "./effects";
+import { nextPlayerIndex } from "./player-order";
 
 /** Maximum number of entries in the action log to prevent unbounded memory growth. */
 const MAX_ACTION_LOG_SIZE = 500;
+
+// ─── Public Types ──────────────────────────────────────────────────
+
+/** Injectable dependencies for the engine. Everything defaults to production values. */
+export interface ReducerOptions {
+  /** Clock used for action-log timestamps and status transitions. Defaults to `Date.now`. */
+  readonly now?: () => number;
+}
+
+/**
+ * Explicit outcome of applying an action. A rejection carries the reason so
+ * callers never have to infer it from referential equality or re-validate.
+ */
+export type ApplyResult =
+  | { readonly kind: "applied"; readonly state: CardGameState }
+  | { readonly kind: "rejected"; readonly reason: string };
+
+/** A ruleset bound to its runtime machinery. */
+export interface GameEngine {
+  readonly ruleset: CardGameRuleset;
+  /** Phase machine for this ruleset — share it with the action validators. */
+  readonly phaseMachine: PhaseMachine;
+  /** Applies an action, reporting rejections explicitly. */
+  readonly apply: (state: CardGameState, action: CardGameAction) => ApplyResult;
+  /** Reducer view of `apply`: a rejected action returns the input state unchanged. */
+  readonly reduce: GameReducer;
+}
+
+// ─── Runtime ───────────────────────────────────────────────────────
+
+/** Per-call runtime handed to every handler: phase machine, resumed PRNG, clock. */
+interface Runtime {
+  readonly phaseMachine: PhaseMachine;
+  readonly rng: SeededRng;
+  readonly now: () => number;
+}
+
+function applied(state: CardGameState): ApplyResult {
+  return { kind: "applied", state };
+}
+
+function rejected(reason: string): ApplyResult {
+  return { kind: "rejected", reason };
+}
 
 // ─── Variable Manifest Helpers ─────────────────────────────────────
 
@@ -61,7 +128,7 @@ function getInitialStringVariables(
   return result;
 }
 
-// ───────────────────────────────────────────────────────────────────
+// ─── State Helpers ─────────────────────────────────────────────────
 
 /** Appends an entry to the action log, capping at MAX_ACTION_LOG_SIZE. */
 function appendToLog(
@@ -72,6 +139,58 @@ function appendToLog(
   return newLog.length > MAX_ACTION_LOG_SIZE ? newLog.slice(-MAX_ACTION_LOG_SIZE) : newLog;
 }
 
+/** Bumps the version and records `action` in the log — the final step of every player action. */
+function commit(state: CardGameState, action: CardGameAction, now: () => number): CardGameState {
+  const version = state.version + 1;
+  return {
+    ...state,
+    version,
+    actionLog: appendToLog(state.actionLog, { action, timestamp: now(), version }),
+  };
+}
+
+/** Moves to `phaseName`, resetting the per-phase turn counter and bumping the version. */
+function enterPhase(state: CardGameState, phaseName: string): CardGameState {
+  return { ...state, currentPhase: phaseName, turnsTakenThisPhase: 0, version: state.version + 1 };
+}
+
+/** The fields a round reset rewrites; shared by the `reset_round` action and effect. */
+type RoundResetFields = Pick<
+  CardGameState,
+  | "currentPlayerIndex"
+  | "turnNumber"
+  | "turnsTakenThisPhase"
+  | "turnDirection"
+  | "scores"
+  | "variables"
+  | "stringVariables"
+>;
+
+/**
+ * Computes a fresh round: player index and direction reset, turn number
+ * bumped, scores cleared, variables back to their initial values — except
+ * `cumulative_score_*`, which persist across rounds.
+ */
+function resetRoundFields(
+  ruleset: CardGameRuleset,
+  variables: Readonly<Record<string, number>>,
+  turnNumber: number,
+): RoundResetFields {
+  const preserved: Record<string, number> = {};
+  for (const [key, value] of Object.entries(variables)) {
+    if (key.startsWith("cumulative_score_")) preserved[key] = value;
+  }
+  return {
+    currentPlayerIndex: 0,
+    turnNumber: turnNumber + 1,
+    turnsTakenThisPhase: 0,
+    turnDirection: 1,
+    scores: {},
+    variables: { ...getInitialVariables(ruleset.variables), ...preserved },
+    stringVariables: getInitialStringVariables(ruleset.variables),
+  };
+}
+
 // ─── createInitialState ────────────────────────────────────────────
 
 /**
@@ -79,6 +198,9 @@ function appendToLog(
  * Sets up the deck and zones per the ruleset, placing all cards in the
  * draw pile. Does NOT shuffle or deal — that happens when start_game
  * triggers the first automatic phase.
+ *
+ * The seed drives card instance IDs here and, via `rngState`, every
+ * shuffle for the rest of the game.
  */
 export function createInitialState(
   ruleset: CardGameRuleset,
@@ -123,98 +245,114 @@ export function createInitialState(
     actionLog: [],
     turnsTakenThisPhase: 0,
     version: 0,
+    // Gameplay randomness starts from the seed itself, independent of the
+    // card-ID stream above — the same sequence a reducer seeded with `seed`
+    // produced before RNG state moved into CardGameState, so seeded replays
+    // and fixtures stay valid.
+    rngState: seed >>> 0,
   };
 }
 
-// ─── createReducer ─────────────────────────────────────────────────
+// ─── createEngine / createReducer ──────────────────────────────────
 
 /**
- * Creates a pure reducer function bound to a specific ruleset.
- * The reducer handles all game actions according to the ruleset's
- * phases, rules, and transitions.
+ * Binds a ruleset to its phase machine and returns an engine whose `apply`
+ * reports rejections explicitly. One engine can safely serve any number of
+ * concurrent games: all per-game state lives in `CardGameState`.
  */
-export function createReducer(
-  ruleset: CardGameRuleset,
-  seed: number = generateSeed(),
-): GameReducer {
+export function createEngine(ruleset: CardGameRuleset, options: ReducerOptions = {}): GameEngine {
   // Ensure builtins are registered (idempotent)
   registerAllBuiltins();
 
   const phaseMachine = new PhaseMachine(ruleset.phases, ruleset.globalTransitions);
-  const rng = createRng(seed);
+  const now = options.now ?? Date.now;
 
-  return (state: CardGameState, action: CardGameAction): CardGameState => {
-    switch (action.kind) {
-      case "join":
-        return handleJoin(state, action);
-      case "leave":
-        return handleLeave(state, action);
-      case "start_game":
-        return handleStartGame(state, phaseMachine, rng);
-      case "declare":
-        return handleDeclare(state, action, phaseMachine, rng);
-      case "play_card":
-        return handlePlayCard(state, action, phaseMachine, rng);
-      case "draw_card":
-        return handleDrawCard(state, action, phaseMachine);
-      case "end_turn":
-        return handleEndTurn(state, action, phaseMachine, rng);
-      case "advance_phase":
-        return handleAdvancePhase(state, phaseMachine, rng);
-      case "step_phase":
-        return handleStepPhase(state, phaseMachine, rng);
-      case "reset_round":
-        return handleResetRound(state, phaseMachine, rng);
-    }
+  const apply = (state: CardGameState, action: CardGameAction): ApplyResult => {
+    const rng = createRng(state.rngState);
+    const result = dispatch(state, action, { phaseMachine, rng, now });
+    if (result.kind === "rejected") return result;
+    return applied({ ...result.state, rngState: rng.state });
   };
+
+  const reduce: GameReducer = (state, action) => {
+    const result = apply(state, action);
+    return result.kind === "applied" ? result.state : state;
+  };
+
+  return { ruleset, phaseMachine, apply, reduce };
+}
+
+/**
+ * Creates a pure reducer function bound to a specific ruleset.
+ * Rejected actions return the input state unchanged; use
+ * {@link createEngine} when the rejection reason is needed.
+ */
+export function createReducer(ruleset: CardGameRuleset, options?: ReducerOptions): GameReducer {
+  return createEngine(ruleset, options).reduce;
+}
+
+function dispatch(state: CardGameState, action: CardGameAction, rt: Runtime): ApplyResult {
+  switch (action.kind) {
+    case "join":
+      return handleJoin(state, action, rt);
+    case "leave":
+      return handleLeave(state, action, rt);
+    case "start_game":
+      return handleStartGame(state, rt);
+    case "declare":
+      return handleDeclare(state, action, rt);
+    case "play_card":
+      return handlePlayCard(state, action, rt);
+    case "draw_card":
+      return handleDrawCard(state, action, rt);
+    case "end_turn":
+      return handleEndTurn(state, action, rt);
+    case "advance_phase":
+      return handleAdvancePhase(state, rt);
+    case "step_phase":
+      return handleStepPhase(state, rt);
+    case "reset_round":
+      return handleResetRound(state, rt);
+  }
 }
 
 // ─── Action Handlers ───────────────────────────────────────────────
 
 /**
  * Handles a "join" action — adds a player or reconnects an existing one.
+ * Only legal while waiting for players: zones are laid out per player at
+ * creation time, so a mid-game joiner would have nowhere to hold cards.
  */
 function handleJoin(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "join" }>,
-): CardGameState {
+  rt: Runtime,
+): ApplyResult {
+  if (state.status.kind !== "waiting_for_players") {
+    return rejected(`Cannot join: game status is "${state.status.kind}"`);
+  }
+
   const existingIndex = state.players.findIndex((p) => p.id === action.playerId);
 
   if (existingIndex !== -1) {
     // Reconnect existing player
-    const updated = state.players.map((p, i) =>
+    const players = state.players.map((p, i) =>
       i === existingIndex ? { ...p, connected: true } : p,
     );
-    return {
-      ...state,
-      players: updated,
-      version: state.version + 1,
-      actionLog: appendToLog(state.actionLog, {
-        action,
-        timestamp: Date.now(),
-        version: state.version + 1,
-      }),
-    };
+    return applied(commit({ ...state, players }, action, rt.now));
   }
 
-  // Add new player
+  if (state.players.length >= state.ruleset.meta.players.max) {
+    return rejected(`Cannot join: game is full (${state.ruleset.meta.players.max} players)`);
+  }
+
   const newPlayer: Player = {
     id: action.playerId,
     name: action.name,
     role: "player",
     connected: true,
   };
-
-  return {
-    ...state,
-    players: [...state.players, newPlayer],
-    version: state.version + 1,
-    actionLog: appendToLog(state.actionLog, {
-      action,
-      timestamp: Date.now(),
-      version: state.version + 1,
-    }),
-  };
+  return applied(commit({ ...state, players: [...state.players, newPlayer] }, action, rt.now));
 }
 
 /**
@@ -224,58 +362,37 @@ function handleJoin(
 function handleLeave(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "leave" }>,
-): CardGameState {
+  rt: Runtime,
+): ApplyResult {
   const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
-  if (playerIndex === -1) return state;
+  if (playerIndex === -1) return rejected(`Player not found: ${action.playerId}`);
 
-  const updated = state.players.map((p, i) => (i === playerIndex ? { ...p, connected: false } : p));
-
-  return {
-    ...state,
-    players: updated,
-    version: state.version + 1,
-    actionLog: appendToLog(state.actionLog, {
-      action,
-      timestamp: Date.now(),
-      version: state.version + 1,
-    }),
-  };
+  const players = state.players.map((p, i) => (i === playerIndex ? { ...p, connected: false } : p));
+  return applied(commit({ ...state, players }, action, rt.now));
 }
 
 /**
  * Handles a "start_game" action — transitions from waiting to in_progress,
  * then runs automatic phases (e.g., deal).
  */
-function handleStartGame(
-  state: CardGameState,
-  phaseMachine: PhaseMachine,
-  rng: SeededRng,
-): CardGameState {
-  // Guard: must be waiting for players
+function handleStartGame(state: CardGameState, rt: Runtime): ApplyResult {
   if (state.status.kind !== "waiting_for_players") {
-    return state;
+    return rejected(`Cannot start: game status is "${state.status.kind}"`);
   }
 
-  // Check minimum player count
-  if (state.players.length < state.ruleset.meta.players.min) {
-    return state;
+  const { min } = state.ruleset.meta.players;
+  if (state.players.length < min) {
+    return rejected(`Cannot start: need at least ${min} players, have ${state.players.length}`);
   }
 
-  let newState: CardGameState = {
-    ...state,
-    status: { kind: "in_progress", startedAt: Date.now() },
-    version: state.version + 1,
-    actionLog: appendToLog(state.actionLog, {
-      action: { kind: "start_game" },
-      timestamp: Date.now(),
-      version: state.version + 1,
-    }),
-  };
+  const started = commit(
+    { ...state, status: { kind: "in_progress", startedAt: rt.now() } },
+    { kind: "start_game" },
+    rt.now,
+  );
 
   // Run automatic phases (e.g., deal phase in blackjack)
-  newState = runAutomaticPhases(newState, phaseMachine, rng);
-
-  return newState;
+  return applied(runAutomaticPhases(started, rt));
 }
 
 /**
@@ -284,11 +401,10 @@ function handleStartGame(
 function handleDeclare(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "declare" }>,
-  phaseMachine: PhaseMachine,
-  rng: SeededRng,
-): CardGameState {
-  const validation = validateAction(state, action, phaseMachine);
-  if (!validation.valid) return state;
+  rt: Runtime,
+): ApplyResult {
+  const validation = validateAction(state, action, rt.phaseMachine);
+  if (!validation.valid) return rejected(validation.reason);
 
   const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
 
@@ -296,30 +412,15 @@ function handleDeclare(
     state,
     action.declaration,
     playerIndex,
-    phaseMachine,
+    rt.phaseMachine,
     action.params,
   );
 
-  let newState = applyEffects(state, effects, rng);
+  let newState = applyEffects(state, effects, rt);
+  newState = maybeAutoEndTurn(newState, state, effects, playerIndex, rt.phaseMachine);
+  newState = commit(newState, action, rt.now);
 
-  // ── Auto-end turn via phase expression ──────────────────────────
-  newState = maybeAutoEndTurn(newState, state, effects, playerIndex, phaseMachine);
-
-  // Bump version and log
-  newState = {
-    ...newState,
-    version: newState.version + 1,
-    actionLog: appendToLog(newState.actionLog, {
-      action,
-      timestamp: Date.now(),
-      version: newState.version + 1,
-    }),
-  };
-
-  // Check transitions after the action
-  newState = checkTransitionsAndRunAuto(newState, phaseMachine, rng);
-
-  return newState;
+  return applied(checkTransitionsAndRunAuto(newState, rt));
 }
 
 /**
@@ -330,11 +431,10 @@ function handleDeclare(
 function handlePlayCard(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "play_card" }>,
-  phaseMachine: PhaseMachine,
-  rng: SeededRng,
-): CardGameState {
-  const validation = validateAction(state, action, phaseMachine);
-  if (!validation.valid) return state;
+  rt: Runtime,
+): ApplyResult {
+  const validation = validateAction(state, action, rt.phaseMachine);
+  if (!validation.valid) return rejected(validation.reason);
 
   // ── Move the card between zones ────────────────────────────────
   const zones = { ...state.zones };
@@ -342,55 +442,36 @@ function handlePlayCard(
   const toZone = zones[action.toZone]!;
 
   const cardIndex = fromZone.cards.findIndex((c) => c.id === action.cardId);
-  if (cardIndex === -1) return state;
+  if (cardIndex === -1) {
+    return rejected(`Card ${action.cardId} is not in zone "${action.fromZone}"`);
+  }
 
   const card = fromZone.cards[cardIndex]!;
-  const newFromCards = fromZone.cards.filter((_, i) => i !== cardIndex);
-  const newToCards = [card, ...toZone.cards];
-
-  zones[action.fromZone] = { ...fromZone, cards: newFromCards };
-  zones[action.toZone] = { ...toZone, cards: newToCards };
+  zones[action.fromZone] = { ...fromZone, cards: fromZone.cards.filter((_, i) => i !== cardIndex) };
+  zones[action.toZone] = { ...toZone, cards: [card, ...toZone.cards] };
 
   let newState: CardGameState = { ...state, zones };
 
   // ── Execute phase action effects (if "play_card" action exists) ─
   const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
-
-  let phase: PhaseDefinition | undefined;
-  try {
-    phase = phaseMachine.getPhase(state.currentPhase);
-  } catch {
-    phase = undefined;
-  }
-
-  const playCardAction = phase?.actions.find((a) => a.name === "play_card");
+  const playCardAction = findPhase(rt.phaseMachine, state.currentPhase)?.actions.find(
+    (a) => a.name === "play_card",
+  );
 
   if (playCardAction) {
-    const effects = executePhaseAction(newState, "play_card", playerIndex, phaseMachine);
-
-    newState = applyEffects(newState, effects, rng);
-
-    // ── Auto-end turn via phase expression ──────────────────────────
-    newState = maybeAutoEndTurn(newState, state, effects, playerIndex, phaseMachine);
+    const effects = executePhaseAction(newState, "play_card", playerIndex, rt.phaseMachine);
+    newState = applyEffects(newState, effects, rt);
+    newState = maybeAutoEndTurn(newState, state, effects, playerIndex, rt.phaseMachine);
   }
 
-  // Bump version and log
-  newState = {
-    ...newState,
-    version: newState.version + 1,
-    actionLog: appendToLog(newState.actionLog, {
-      action,
-      timestamp: Date.now(),
-      version: newState.version + 1,
-    }),
-  };
+  newState = commit(newState, action, rt.now);
 
   // Check transitions after the action
   if (playCardAction) {
-    newState = checkTransitionsAndRunAuto(newState, phaseMachine, rng);
+    newState = checkTransitionsAndRunAuto(newState, rt);
   }
 
-  return newState;
+  return applied(newState);
 }
 
 /**
@@ -399,10 +480,10 @@ function handlePlayCard(
 function handleDrawCard(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "draw_card" }>,
-  phaseMachine: PhaseMachine,
-): CardGameState {
-  const validation = validateAction(state, action, phaseMachine);
-  if (!validation.valid) return state;
+  rt: Runtime,
+): ApplyResult {
+  const validation = validateAction(state, action, rt.phaseMachine);
+  if (!validation.valid) return rejected(validation.reason);
 
   const zones = { ...state.zones };
   const fromZone = zones[action.fromZone]!;
@@ -414,16 +495,7 @@ function handleDrawCard(
   zones[action.fromZone] = { ...fromZone, cards: fromCards };
   zones[action.toZone] = { ...toZone, cards: [...toZone.cards, ...drawnCards] };
 
-  return {
-    ...state,
-    zones,
-    version: state.version + 1,
-    actionLog: appendToLog(state.actionLog, {
-      action,
-      timestamp: Date.now(),
-      version: state.version + 1,
-    }),
-  };
+  return applied(commit({ ...state, zones }, action, rt.now));
 }
 
 /**
@@ -432,54 +504,36 @@ function handleDrawCard(
 function handleEndTurn(
   state: CardGameState,
   action: Extract<CardGameAction, { kind: "end_turn" }>,
-  phaseMachine: PhaseMachine,
-  rng: SeededRng,
-): CardGameState {
-  const validation = validateAction(state, action, phaseMachine);
-  if (!validation.valid) return state;
+  rt: Runtime,
+): ApplyResult {
+  const validation = validateAction(state, action, rt.phaseMachine);
+  if (!validation.valid) return rejected(validation.reason);
 
-  const count = state.players.length;
-  const nextPlayerIndex =
-    (((state.currentPlayerIndex + state.turnDirection) % count) + count) % count;
-
-  let newState: CardGameState = {
-    ...state,
-    currentPlayerIndex: nextPlayerIndex,
-    turnsTakenThisPhase: state.turnsTakenThisPhase + 1,
-    version: state.version + 1,
-    actionLog: appendToLog(state.actionLog, {
-      action,
-      timestamp: Date.now(),
-      version: state.version + 1,
-    }),
-  };
+  const newState = commit(
+    {
+      ...state,
+      currentPlayerIndex: nextPlayerIndex(
+        state.currentPlayerIndex,
+        state.turnDirection,
+        state.players.length,
+      ),
+      turnsTakenThisPhase: state.turnsTakenThisPhase + 1,
+    },
+    action,
+    rt.now,
+  );
 
   // Check transitions (e.g., all_players_done triggers phase change)
-  newState = checkTransitionsAndRunAuto(newState, phaseMachine, rng);
-
-  return newState;
+  return applied(checkTransitionsAndRunAuto(newState, rt));
 }
 
 /**
  * Handles an "advance_phase" internal action.
  */
-function handleAdvancePhase(
-  state: CardGameState,
-  phaseMachine: PhaseMachine,
-  rng: SeededRng,
-): CardGameState {
-  const transition = phaseMachine.evaluateTransitions(state);
-  if (transition.kind === "stay") return state;
-
-  let newState: CardGameState = {
-    ...state,
-    currentPhase: transition.nextPhase,
-    turnsTakenThisPhase: 0,
-    version: state.version + 1,
-  };
-
-  newState = runAutomaticPhases(newState, phaseMachine, rng);
-  return newState;
+function handleAdvancePhase(state: CardGameState, rt: Runtime): ApplyResult {
+  const next = followTransition(state, rt);
+  if (!next) return rejected(`No transition available from phase "${state.currentPhase}"`);
+  return applied(next);
 }
 
 /**
@@ -490,76 +544,36 @@ function handleAdvancePhase(
  * following automatic phases run to completion.
  *
  * Used by the host to pace sequences (e.g., a dealer drawing one card at a
- * time) without blocking the pure reducer. No-ops for non-automatic phases
- * or phases without an `onStep` hook.
+ * time) without blocking the pure reducer. Rejected for non-automatic
+ * phases or phases without an `onStep` hook.
  */
-function handleStepPhase(
-  state: CardGameState,
-  phaseMachine: PhaseMachine,
-  rng: SeededRng,
-): CardGameState {
-  if (!phaseMachine.isAutomaticPhase(state.currentPhase)) return state;
-
-  const phase = phaseMachine.getPhase(state.currentPhase);
-  if (!phase.onStep || phase.onStep.length === 0) return state;
-
-  const ctx: MutableEvalContext = {
-    state,
-    effects: [],
-    applyEffectsToState: (s, effs) => applyEffects(s, effs, rng),
-  };
-  for (const expression of phase.onStep) {
-    evaluateExpression(expression, ctx);
-  }
-  const stepped = applyEffects(ctx.state, ctx.effects, rng);
-
-  const transition = phaseMachine.evaluateTransitions(stepped);
-  if (transition.kind === "stay") {
-    return { ...stepped, version: stepped.version + 1 };
+function handleStepPhase(state: CardGameState, rt: Runtime): ApplyResult {
+  if (!rt.phaseMachine.isAutomaticPhase(state.currentPhase)) {
+    return rejected(`Phase "${state.currentPhase}" is not automatic`);
   }
 
-  const advanced: CardGameState = {
-    ...stepped,
-    currentPhase: transition.nextPhase,
-    turnsTakenThisPhase: 0,
-    version: stepped.version + 1,
-  };
-  return runAutomaticPhases(advanced, phaseMachine, rng);
+  const phase = rt.phaseMachine.getPhase(state.currentPhase);
+  if (!phase.onStep || phase.onStep.length === 0) {
+    return rejected(`Phase "${state.currentPhase}" has no onStep hook`);
+  }
+
+  const stepped = runHook(state, phase.onStep, rt);
+
+  const next = followTransition(stepped, rt);
+  return applied(next ?? { ...stepped, version: stepped.version + 1 });
 }
 
 /**
  * Handles a "reset_round" internal action.
  */
-function handleResetRound(
-  state: CardGameState,
-  phaseMachine: PhaseMachine,
-  rng: SeededRng,
-): CardGameState {
-  const firstPhase = state.ruleset.phases[0]!.name;
-
-  // Preserve cumulative_score_* variables across round resets
-  const preserved: Record<string, number> = {};
-  for (const [key, value] of Object.entries(state.variables)) {
-    if (key.startsWith("cumulative_score_")) {
-      preserved[key] = value;
-    }
-  }
-
-  let newState: CardGameState = {
+function handleResetRound(state: CardGameState, rt: Runtime): ApplyResult {
+  const newState: CardGameState = {
     ...state,
-    currentPhase: firstPhase,
-    currentPlayerIndex: 0,
-    turnNumber: state.turnNumber + 1,
-    turnsTakenThisPhase: 0,
-    turnDirection: 1,
-    scores: {},
-    variables: { ...getInitialVariables(state.ruleset.variables), ...preserved },
-    stringVariables: getInitialStringVariables(state.ruleset.variables),
+    ...resetRoundFields(state.ruleset, state.variables, state.turnNumber),
+    currentPhase: state.ruleset.phases[0]!.name,
     version: state.version + 1,
   };
-
-  newState = runAutomaticPhases(newState, phaseMachine, rng);
-  return newState;
+  return applied(runAutomaticPhases(newState, rt));
 }
 
 // ─── Automatic Phase Execution ─────────────────────────────────────
@@ -567,85 +581,70 @@ function handleResetRound(
 /** Safety limit for automatic phase loops to prevent infinite loops. */
 const MAX_PHASE_ITERATIONS = 50;
 
+/** Looks up a phase, returning undefined (instead of throwing) when the name is unknown. */
+function findPhase(phaseMachine: PhaseMachine, name: string): PhaseDefinition | undefined {
+  try {
+    return phaseMachine.getPhase(name);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Evaluates a phase hook (`onEnter` / `onStep`) with an effect-flushing
+ * context, so `while()` loops see effects applied between iterations
+ * (e.g., drawn cards), then applies any remaining unflushed effects.
+ */
+function runHook(state: CardGameState, expressions: readonly string[], rt: Runtime): CardGameState {
+  const ctx: MutableEvalContext = {
+    state,
+    effects: [],
+    applyEffectsToState: (s, effs) => applyEffects(s, effs, rt),
+  };
+  for (const expression of expressions) {
+    evaluateExpression(expression, ctx);
+  }
+  return applyEffects(ctx.state, ctx.effects, rt);
+}
+
 /**
  * Runs automatic phases in sequence until a non-automatic phase is reached
  * or no transition is available.
  */
-function runAutomaticPhases(
-  state: CardGameState,
-  phaseMachine: PhaseMachine,
-  rng: SeededRng,
-): CardGameState {
+function runAutomaticPhases(state: CardGameState, rt: Runtime): CardGameState {
   let current = state;
-  let iterations = 0;
 
-  while (iterations < MAX_PHASE_ITERATIONS) {
-    if (!phaseMachine.isAutomaticPhase(current.currentPhase)) {
-      break;
-    }
+  for (let iterations = 0; iterations < MAX_PHASE_ITERATIONS; iterations++) {
+    if (!rt.phaseMachine.isAutomaticPhase(current.currentPhase)) break;
 
-    // Execute the automatic sequence with an effect-flushing callback.
-    // This allows `while()` loops to apply effects between iterations
-    // so condition re-evaluation sees updated state (e.g., drawn cards).
-    const phase = phaseMachine.getPhase(current.currentPhase);
+    const phase = rt.phaseMachine.getPhase(current.currentPhase);
     if (phase.onEnter && phase.onEnter.length > 0) {
-      const ctx: MutableEvalContext = {
-        state: current,
-        effects: [],
-        applyEffectsToState: (s, effs) => applyEffects(s, effs, rng),
-      };
-      for (const expression of phase.onEnter) {
-        evaluateExpression(expression, ctx);
-      }
-      // Apply any remaining unflushed effects
-      current = applyEffects(ctx.state, ctx.effects, rng);
+      current = runHook(current, phase.onEnter, rt);
     }
 
-    // Evaluate transitions
-    const transition = phaseMachine.evaluateTransitions(current);
-    if (transition.kind === "stay") {
-      break;
-    }
+    const transition = rt.phaseMachine.evaluateTransitions(current);
+    if (transition.kind === "stay") break;
 
-    // Advance to next phase
-    current = {
-      ...current,
-      currentPhase: transition.nextPhase,
-      turnsTakenThisPhase: 0,
-      version: current.version + 1,
-    };
-    iterations++;
+    current = enterPhase(current, transition.nextPhase);
   }
 
   return current;
 }
 
 /**
- * Checks transitions on current state, and if a phase change occurs,
- * runs automatic phases that follow.
+ * If a transition fires from the current phase, enters the next phase and
+ * runs any automatic phases that follow. Returns null when staying put.
  */
-function checkTransitionsAndRunAuto(
-  state: CardGameState,
-  phaseMachine: PhaseMachine,
-  rng: SeededRng,
-): CardGameState {
-  const transition = phaseMachine.evaluateTransitions(state);
-  if (transition.kind === "stay") {
-    return state;
-  }
-
-  let newState: CardGameState = {
-    ...state,
-    currentPhase: transition.nextPhase,
-    turnsTakenThisPhase: 0,
-    version: state.version + 1,
-  };
-
-  newState = runAutomaticPhases(newState, phaseMachine, rng);
-  return newState;
+function followTransition(state: CardGameState, rt: Runtime): CardGameState | null {
+  const transition = rt.phaseMachine.evaluateTransitions(state);
+  if (transition.kind === "stay") return null;
+  return runAutomaticPhases(enterPhase(state, transition.nextPhase), rt);
 }
 
-// ─── Effect Application ────────────────────────────────────────────
+/** {@link followTransition}, returning the input state unchanged when staying. */
+function checkTransitionsAndRunAuto(state: CardGameState, rt: Runtime): CardGameState {
+  return followTransition(state, rt) ?? state;
+}
 
 /**
  * Evaluates the auto-end-turn condition for the current phase.
@@ -659,12 +658,8 @@ function maybeAutoEndTurn(
   playerIndex: number,
   phaseMachine: PhaseMachine,
 ): CardGameState {
-  let phase: PhaseDefinition;
-  try {
-    phase = phaseMachine.getPhase(state.currentPhase);
-  } catch {
-    return state;
-  }
+  const phase = findPhase(phaseMachine, state.currentPhase);
+  if (!phase) return state;
 
   const { autoEndTurnCondition } = phase;
   if (
@@ -674,13 +669,13 @@ function maybeAutoEndTurn(
   ) {
     const ctx: EvalContext = { state, playerIndex };
     if (evaluateCondition(autoEndTurnCondition, ctx)) {
-      // Apply end_turn directly via a mini-draft to avoid exposing StateDraft
-      const count = state.players.length;
-      const nextIndex =
-        (((state.currentPlayerIndex + state.turnDirection) % count) + count) % count;
       return {
         ...state,
-        currentPlayerIndex: nextIndex,
+        currentPlayerIndex: nextPlayerIndex(
+          state.currentPlayerIndex,
+          state.turnDirection,
+          state.players.length,
+        ),
         turnsTakenThisPhase: state.turnsTakenThisPhase + 1,
       };
     }
@@ -692,29 +687,82 @@ function maybeAutoEndTurn(
 
 /**
  * Mutable draft of CardGameState used internally during effect application.
- * Each sub-object (zones, variables, scores, stringVariables) is lazily cloned
- * on first mutation, so effects that don't touch a category pay zero cost.
- * The draft is NOT exposed outside applyEffects — the public API stays immutable.
+ * Structurally a CardGameState (so evaluators can read it directly), with the
+ * fields effects modify made writable. Sub-objects (zones, variables, scores,
+ * stringVariables) are cloned lazily on first mutation via {@link Draft}.
  */
-interface StateDraft {
-  // Writable copies of state fields (cloned lazily via ensure* helpers)
+interface StateDraft
+  extends Omit<
+    CardGameState,
+    | "zones"
+    | "scores"
+    | "variables"
+    | "stringVariables"
+    | "currentPlayerIndex"
+    | "turnsTakenThisPhase"
+    | "turnDirection"
+    | "turnNumber"
+    | "status"
+  > {
   zones: Record<string, ZoneState>;
   scores: Record<string, number>;
   variables: Record<string, number>;
   stringVariables: Record<string, string>;
-  // Scalar fields — cheap to copy, always writable on the draft
   currentPlayerIndex: number;
   turnsTakenThisPhase: number;
   turnDirection: 1 | -1;
   turnNumber: number;
   status: GameStatus;
-  // Readonly references to fields that effects never modify
-  readonly sessionId: CardGameState["sessionId"];
-  readonly ruleset: CardGameState["ruleset"];
-  readonly players: CardGameState["players"];
-  readonly actionLog: CardGameState["actionLog"];
-  readonly currentPhase: CardGameState["currentPhase"];
-  readonly version: CardGameState["version"];
+}
+
+/** A state draft plus copy-on-write accessors for its record fields. */
+interface Draft {
+  readonly state: StateDraft;
+  /** Writable zones map, cloned from the source state on first call. */
+  zones(): Record<string, ZoneState>;
+  scores(): Record<string, number>;
+  variables(): Record<string, number>;
+  stringVariables(): Record<string, string>;
+}
+
+function createDraft(source: CardGameState): Draft {
+  const state: StateDraft = { ...source };
+  let zonesCloned = false;
+  let scoresCloned = false;
+  let variablesCloned = false;
+  let stringVariablesCloned = false;
+
+  return {
+    state,
+    zones() {
+      if (!zonesCloned) {
+        state.zones = { ...source.zones };
+        zonesCloned = true;
+      }
+      return state.zones;
+    },
+    scores() {
+      if (!scoresCloned) {
+        state.scores = { ...source.scores };
+        scoresCloned = true;
+      }
+      return state.scores;
+    },
+    variables() {
+      if (!variablesCloned) {
+        state.variables = { ...source.variables };
+        variablesCloned = true;
+      }
+      return state.variables;
+    },
+    stringVariables() {
+      if (!stringVariablesCloned) {
+        state.stringVariables = { ...source.stringVariables };
+        stringVariablesCloned = true;
+      }
+      return state.stringVariables;
+    },
+  };
 }
 
 /**
@@ -725,139 +773,69 @@ interface StateDraft {
 function applyEffects(
   state: CardGameState,
   effects: readonly EffectDescription[],
-  rng: SeededRng,
+  rt: Runtime,
 ): CardGameState {
   if (effects.length === 0) return state;
 
-  // Create a mutable draft — one shallow copy of the top-level state.
-  // Sub-objects (zones, variables, scores, stringVariables) are cloned lazily
-  // on first mutation via the ensure* helpers.
-  const draft: StateDraft = {
-    sessionId: state.sessionId,
-    ruleset: state.ruleset,
-    status: state.status,
-    players: state.players,
-    zones: state.zones,
-    currentPhase: state.currentPhase,
-    currentPlayerIndex: state.currentPlayerIndex,
-    turnNumber: state.turnNumber,
-    turnDirection: state.turnDirection,
-    scores: state.scores,
-    variables: state.variables,
-    stringVariables: state.stringVariables,
-    actionLog: state.actionLog,
-    turnsTakenThisPhase: state.turnsTakenThisPhase,
-    version: state.version,
-  };
-
-  // Track which sub-objects have been cloned to avoid double-cloning
-  let zonesCloned = false;
-  let scoresCloned = false;
-  let variablesCloned = false;
-  let stringVariablesCloned = false;
-
-  function ensureZones(): Record<string, ZoneState> {
-    if (!zonesCloned) {
-      draft.zones = { ...state.zones };
-      zonesCloned = true;
-    }
-    return draft.zones;
-  }
-
-  function ensureScores(): Record<string, number> {
-    if (!scoresCloned) {
-      draft.scores = { ...state.scores };
-      scoresCloned = true;
-    }
-    return draft.scores;
-  }
-
-  function ensureVariables(): Record<string, number> {
-    if (!variablesCloned) {
-      draft.variables = { ...state.variables };
-      variablesCloned = true;
-    }
-    return draft.variables;
-  }
-
-  function ensureStringVariables(): Record<string, string> {
-    if (!stringVariablesCloned) {
-      draft.stringVariables = { ...state.stringVariables };
-      stringVariablesCloned = true;
-    }
-    return draft.stringVariables;
-  }
-
+  const draft = createDraft(state);
   for (const effect of effects) {
-    applySingleEffect(
-      draft,
-      effect,
-      rng,
-      ensureZones,
-      ensureScores,
-      ensureVariables,
-      ensureStringVariables,
-    );
+    applySingleEffect(draft, effect, rt);
   }
+  return draft.state;
+}
 
-  return draft as unknown as CardGameState;
+function assertNever(value: never): never {
+  throw new Error(`Unknown effect: ${JSON.stringify(value)}`);
 }
 
 /**
  * Dispatches a single effect description to the appropriate handler.
- * Mutates the draft in place — returns void.
+ * Mutates the draft in place. Exhaustive: an effect kind without a case
+ * is a compile error, and an unknown kind at runtime throws.
  */
-function applySingleEffect(
-  draft: StateDraft,
-  effect: EffectDescription,
-  rng: SeededRng,
-  ensureZones: () => Record<string, ZoneState>,
-  ensureScores: () => Record<string, number>,
-  ensureVariables: () => Record<string, number>,
-  ensureStringVariables: () => Record<string, string>,
-): void {
+function applySingleEffect(draft: Draft, effect: EffectDescription, rt: Runtime): void {
   switch (effect.kind) {
     case "shuffle":
-      applyShuffleEffect(draft, effect.params, rng, ensureZones);
+      applyShuffleEffect(draft, effect.params, rt.rng);
       return;
     case "deal":
-      applyDealEffect(draft, effect.params, ensureZones);
+      applyDealEffect(draft, effect.params);
       return;
     case "draw":
-      applyDrawEffect(draft, effect.params, ensureZones);
+      applyDrawEffect(draft, effect.params);
       return;
     case "set_face_up":
-      applySetFaceUpEffect(draft, effect.params, ensureZones);
+      applySetFaceUpEffect(draft, effect.params);
       return;
     case "reveal_all":
-      applyRevealAllEffect(draft, effect.params, ensureZones);
+      applyRevealAllEffect(draft, effect.params);
       return;
     case "end_turn":
       applyEndTurnEffect(draft);
       return;
     case "calculate_scores":
-      applyCalculateScoresEffect(draft, ensureScores);
+      applyCalculateScoresEffect(draft);
       return;
     case "determine_winners":
-      applyDetermineWinnersEffect(draft, ensureScores);
+      applyDetermineWinnersEffect(draft);
       return;
     case "collect_all_to":
-      applyCollectAllToEffect(draft, effect.params, ensureZones);
+      applyCollectAllToEffect(draft, effect.params);
       return;
     case "reset_round":
       applyResetRoundEffect(draft);
       return;
     case "move_top":
-      applyMoveTopEffect(draft, effect.params, ensureZones);
+      applyMoveTopEffect(draft, effect.params);
       return;
     case "flip_top":
-      applyFlipTopEffect(draft, effect.params, ensureZones);
+      applyFlipTopEffect(draft, effect.params);
       return;
     case "move_all":
-      applyMoveAllEffect(draft, effect.params, ensureZones);
+      applyMoveAllEffect(draft, effect.params);
       return;
     case "move_rank":
-      applyMoveRankEffect(draft, effect.params, ensureZones);
+      applyMoveRankEffect(draft, effect.params);
       return;
     case "reverse_turn_order":
       applyReverseTurnOrderEffect(draft);
@@ -869,29 +847,48 @@ function applySingleEffect(
       applySetNextPlayerEffect(draft, effect.params);
       return;
     case "set_var":
-      applySetVarEffect(draft, effect.params, ensureVariables);
+      applySetVarEffect(draft, effect.params);
       return;
     case "set_str_var":
-      applySetStrVarEffect(draft, effect.params, ensureStringVariables);
+      applySetStrVarEffect(draft, effect.params);
       return;
     case "inc_var":
-      applyIncVarEffect(draft, effect.params, ensureVariables);
+      applyIncVarEffect(draft, effect.params);
       return;
     case "collect_trick":
-      applyCollectTrickEffect(draft, effect.params, ensureZones);
+      applyCollectTrickEffect(draft, effect.params);
       return;
     case "set_lead_player":
-      applySetLeadPlayerEffect(draft, effect.params, ensureVariables);
+      applySetLeadPlayerEffect(draft, effect.params);
       return;
     case "end_game":
-      applyEndGameEffect(draft);
+      applyEndGameEffect(draft, rt.now);
       return;
     case "accumulate_scores":
-      applyAccumulateScoresEffect(draft, ensureVariables);
+      applyAccumulateScoresEffect(draft);
       return;
     default:
-      // Unknown effects are ignored — forward compatible
-      return;
+      assertNever(effect);
+  }
+}
+
+// ─── Effect Guards ─────────────────────────────────────────────────
+
+/** Returns the named zone or throws an {@link EffectError} naming the effect. */
+function requireZone(draft: Draft, kind: EffectKind, zoneName: string): ZoneState {
+  const zone = draft.state.zones[zoneName];
+  if (!zone) throw missingZoneError(kind, zoneName);
+  return zone;
+}
+
+/** Throws unless `playerIndex` addresses a seat at the table. */
+function requirePlayerIndex(draft: Draft, kind: EffectKind, playerIndex: number): void {
+  const count = draft.state.players.length;
+  if (!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex >= count) {
+    throw new EffectError(
+      `Effect "${kind}" received player index ${playerIndex}, but there are ${count} players`,
+      kind,
+    );
   }
 }
 
@@ -900,19 +897,9 @@ function applySingleEffect(
 /**
  * Shuffles all cards in a zone using the seeded RNG.
  */
-function applyShuffleEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-  rng: SeededRng,
-  ensureZones: () => Record<string, ZoneState>,
-): void {
-  const zoneName = params.zone as string;
-  const zone = draft.zones[zoneName];
-  if (!zone) return;
-
-  const zones = ensureZones();
-  const shuffled = rng.shuffle(zone.cards);
-  zones[zoneName] = { ...zone, cards: shuffled };
+function applyShuffleEffect(draft: Draft, params: ZoneParams, rng: SeededRng): void {
+  const zone = requireZone(draft, "shuffle", params.zone);
+  draft.zones()[params.zone] = { ...zone, cards: rng.shuffle(zone.cards) };
 }
 
 /**
@@ -921,34 +908,23 @@ function applyShuffleEffect(
  * moves `count` cards from the source.
  * Also handles non-per-player zones (e.g., "dealer_hand").
  */
-function applyDealEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureZones: () => Record<string, ZoneState>,
-): void {
-  const from = params.from as string;
-  const to = params.to as string;
-  const count = params.count as number;
-
-  const fromZone = draft.zones[from];
-  if (!fromZone) return;
-
-  const zones = ensureZones();
-  const fromCards = [...fromZone.cards];
+function applyDealEffect(draft: Draft, params: TransferParams): void {
+  const { from, to, count } = params;
+  const fromZone = requireZone(draft, "deal", from);
 
   // Find all per-player variants of the "to" zone, or the exact zone
-  const targetZones = Object.keys(zones).filter((name) => name === to || name.startsWith(`${to}:`));
+  const targetZones = Object.keys(draft.state.zones).filter(
+    (name) => name === to || name.startsWith(`${to}:`),
+  );
+  if (targetZones.length === 0) throw missingZoneError("deal", to);
 
-  // If no matching zones, return unchanged
-  if (targetZones.length === 0) return;
+  const zones = draft.zones();
+  const fromCards = [...fromZone.cards];
 
   for (const targetZone of targetZones) {
     const cardsToMove = fromCards.splice(0, count);
     const existing = zones[targetZone]!;
-    zones[targetZone] = {
-      ...existing,
-      cards: [...existing.cards, ...cardsToMove],
-    };
+    zones[targetZone] = { ...existing, cards: [...existing.cards, ...cardsToMove] };
   }
 
   zones[from] = { ...fromZone, cards: fromCards };
@@ -958,86 +934,65 @@ function applyDealEffect(
  * Draws cards from a source zone to a target zone for the current player.
  * Resolves per-player zone names if needed.
  */
-function applyDrawEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureZones: () => Record<string, ZoneState>,
-): void {
-  const from = params.from as string;
-  const to = params.to as string;
-  const count = params.count as number;
-
-  const fromZone = draft.zones[from];
-  if (!fromZone) return;
+function applyDrawEffect(draft: Draft, params: TransferParams): void {
+  const { from, to, count } = params;
+  const fromZone = requireZone(draft, "draw", from);
 
   // Resolve target zone — might be per-player
-  let targetZone = to;
-  if (!(targetZone in draft.zones)) {
-    const perPlayerName = `${to}:${draft.currentPlayerIndex}`;
-    if (perPlayerName in draft.zones) {
-      targetZone = perPlayerName;
-    }
-  }
+  const perPlayerName = `${to}:${draft.state.currentPlayerIndex}`;
+  const targetName = to in draft.state.zones ? to : perPlayerName;
+  const target = draft.state.zones[targetName];
+  if (!target) throw missingZoneError("draw", to);
 
-  const target = draft.zones[targetZone];
-  if (!target) return;
-
-  const zones = ensureZones();
+  const zones = draft.zones();
   const fromCards = [...fromZone.cards];
   const drawnCards = fromCards.splice(0, count);
 
   zones[from] = { ...fromZone, cards: fromCards };
-  zones[targetZone] = { ...target, cards: [...target.cards, ...drawnCards] };
+  zones[targetName] = { ...target, cards: [...target.cards, ...drawnCards] };
 }
 
 /**
  * Sets a specific card's faceUp property in a zone.
  */
-function applySetFaceUpEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureZones: () => Record<string, ZoneState>,
-): void {
-  const zoneName = params.zone as string;
-  const cardIndex = params.cardIndex as number;
-  const faceUp = params.faceUp as boolean;
+function applySetFaceUpEffect(draft: Draft, params: SetFaceUpParams): void {
+  const { zone: zoneName, cardIndex, faceUp } = params;
+  const zone = requireZone(draft, "set_face_up", zoneName);
+  if (cardIndex < 0 || cardIndex >= zone.cards.length) {
+    throw new EffectError(
+      `Effect "set_face_up" card index ${cardIndex} is out of range for zone "${zoneName}" (${zone.cards.length} cards)`,
+      "set_face_up",
+    );
+  }
 
-  const zone = draft.zones[zoneName];
-  if (!zone || cardIndex < 0 || cardIndex >= zone.cards.length) return;
-
-  const zones = ensureZones();
-  const updatedCards = zone.cards.map((card, i) => (i === cardIndex ? { ...card, faceUp } : card));
-
-  zones[zoneName] = { ...zone, cards: updatedCards };
+  draft.zones()[zoneName] = {
+    ...zone,
+    cards: zone.cards.map((card, i) => (i === cardIndex ? { ...card, faceUp } : card)),
+  };
 }
 
 /**
  * Sets all cards in a zone to faceUp: true.
  */
-function applyRevealAllEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureZones: () => Record<string, ZoneState>,
-): void {
-  const zoneName = params.zone as string;
-  const zone = draft.zones[zoneName];
-  if (!zone) return;
-
-  const zones = ensureZones();
-  const revealedCards = zone.cards.map((card) => ({ ...card, faceUp: true }));
-
-  zones[zoneName] = { ...zone, cards: revealedCards };
+function applyRevealAllEffect(draft: Draft, params: ZoneParams): void {
+  const zone = requireZone(draft, "reveal_all", params.zone);
+  draft.zones()[params.zone] = {
+    ...zone,
+    cards: zone.cards.map((card) => ({ ...card, faceUp: true })),
+  };
 }
 
 /**
- * Advances currentPlayerIndex to the next human player. Wraps around.
+ * Advances currentPlayerIndex to the next player. Wraps around.
  */
-function applyEndTurnEffect(draft: StateDraft): void {
-  const count = draft.players.length;
-  const nextIndex = (((draft.currentPlayerIndex + draft.turnDirection) % count) + count) % count;
-
-  draft.currentPlayerIndex = nextIndex;
-  draft.turnsTakenThisPhase = draft.turnsTakenThisPhase + 1;
+function applyEndTurnEffect(draft: Draft): void {
+  const { state } = draft;
+  state.currentPlayerIndex = nextPlayerIndex(
+    state.currentPlayerIndex,
+    state.turnDirection,
+    state.players.length,
+  );
+  state.turnsTakenThisPhase += 1;
 }
 
 /**
@@ -1047,12 +1002,11 @@ function applyEndTurnEffect(draft: StateDraft): void {
  */
 function buildNpcZoneMap(
   roleName: string,
-  zones: Readonly<Record<string, { readonly definition: { readonly owners: readonly string[] } }>>,
+  zones: Readonly<Record<string, ZoneState>>,
 ): Readonly<Record<string, string>> {
   const zoneMap: Record<string, string> = {};
   const prefix = `${roleName}_`;
-  for (const zoneName of Object.keys(zones)) {
-    const zone = zones[zoneName]!;
+  for (const [zoneName, zone] of Object.entries(zones)) {
     if (zone.definition.owners.includes(roleName)) {
       // Strip role prefix if present; otherwise use zone name as-is
       const baseKey = zoneName.startsWith(prefix) ? zoneName.substring(prefix.length) : zoneName;
@@ -1067,22 +1021,18 @@ function buildNpcZoneMap(
  * Evaluates `scoring.method` per human player and per NPC role.
  * Stores results as "player_score:N" for humans, "{role}_score" for NPCs.
  */
-function applyCalculateScoresEffect(
-  draft: StateDraft,
-  ensureScores: () => Record<string, number>,
-): void {
-  const { roles, scoring } = draft.ruleset;
-  const scores = ensureScores();
+function applyCalculateScoresEffect(draft: Draft): void {
+  const { state } = draft;
+  const { roles, scoring } = state.ruleset;
+  const scores = draft.scores();
 
   for (const role of roles) {
     if (role.isHuman) {
       // Score each human player
-      for (let i = 0; i < draft.players.length; i++) {
-        const player = draft.players[i]!;
-        if (!isHumanPlayer(player, roles)) continue;
+      for (let i = 0; i < state.players.length; i++) {
+        if (!isHumanPlayer(state.players[i]!, roles)) continue;
 
-        const ctx: EvalContext = { state: draft as unknown as CardGameState, playerIndex: i };
-        const result = evaluateExpression(scoring.method, ctx);
+        const result = evaluateExpression(scoring.method, { state, playerIndex: i });
         if (result.kind !== "number") {
           throw new Error(
             `scoring.method must return a number, got ${result.kind} for player ${i}`,
@@ -1092,11 +1042,8 @@ function applyCalculateScoresEffect(
       }
     } else {
       // Score each NPC role
-      const zoneMap = buildNpcZoneMap(role.name, draft.zones);
-      const ctx: EvalContext = {
-        state: draft as unknown as CardGameState,
-        roleOverride: { roleName: role.name, zoneMap },
-      };
+      const zoneMap = buildNpcZoneMap(role.name, state.zones);
+      const ctx: EvalContext = { state, roleOverride: { roleName: role.name, zoneMap } };
       const result = evaluateExpression(scoring.method, ctx);
       if (result.kind !== "number") {
         throw new Error(
@@ -1113,22 +1060,19 @@ function applyCalculateScoresEffect(
  * Evaluation order: bust → win → tie → loss (default).
  * Results stored as "result:N" where 1=win, 0=tie, -1=loss.
  */
-function applyDetermineWinnersEffect(
-  draft: StateDraft,
-  ensureScores: () => Record<string, number>,
-): void {
-  const { scoring, roles } = draft.ruleset;
-  const scores = ensureScores();
+function applyDetermineWinnersEffect(draft: Draft): void {
+  const { state } = draft;
+  const { scoring, roles } = state.ruleset;
+  const scores = draft.scores();
 
-  for (let i = 0; i < draft.players.length; i++) {
-    const player = draft.players[i]!;
-    if (!isHumanPlayer(player, roles)) continue;
+  for (let i = 0; i < state.players.length; i++) {
+    if (!isHumanPlayer(state.players[i]!, roles)) continue;
 
     const myScore = scores[`player_score:${i}`] ?? 0;
     const bindings: Record<string, EvalResult> = {
       my_score: { kind: "number", value: myScore },
     };
-    const ctx: EvalContext = { state: draft as unknown as CardGameState, playerIndex: i, bindings };
+    const ctx: EvalContext = { state, playerIndex: i, bindings };
 
     // Evaluation order: bust → win → tie → loss
     if (scoring.bustCondition && evaluateCondition(scoring.bustCondition, ctx)) {
@@ -1144,95 +1088,55 @@ function applyDetermineWinnersEffect(
 }
 
 /**
- * Collects all cards from all zones into the specified target zone.
+ * Collects all cards from all zones into the specified target zone,
+ * face-down. The target is checked before any source is emptied so a
+ * typo in the ruleset cannot make the deck vanish.
  */
-function applyCollectAllToEffect(
-  _draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureZones: () => Record<string, ZoneState>,
-): void {
-  const targetName = params.zone as string;
-  const zones = ensureZones();
+function applyCollectAllToEffect(draft: Draft, params: ZoneParams): void {
+  const targetName = params.zone;
+  const target = requireZone(draft, "collect_all_to", targetName);
+
+  const zones = draft.zones();
   const collected: Card[] = [];
 
-  // Gather all cards from all zones
   for (const [name, zone] of Object.entries(zones)) {
     if (name === targetName) continue;
     collected.push(...zone.cards.map((card) => ({ ...card, faceUp: false })));
     zones[name] = { ...zone, cards: [] };
   }
 
-  const target = zones[targetName];
-  if (target) {
-    zones[targetName] = {
-      ...target,
-      cards: [...target.cards, ...collected],
-    };
-  }
+  zones[targetName] = { ...target, cards: [...target.cards, ...collected] };
 }
 
 /**
  * Resets the round: clears scores, resets player index, increments turn.
  */
-function applyResetRoundEffect(draft: StateDraft): void {
-  // Preserve cumulative_score_* variables across round resets
-  const preserved: Record<string, number> = {};
-  for (const [key, value] of Object.entries(draft.variables)) {
-    if (key.startsWith("cumulative_score_")) {
-      preserved[key] = value;
-    }
-  }
-
-  draft.currentPlayerIndex = 0;
-  draft.turnNumber = draft.turnNumber + 1;
-  draft.turnsTakenThisPhase = 0;
-  draft.turnDirection = 1;
-  draft.scores = {};
-  draft.variables = { ...getInitialVariables(draft.ruleset.variables), ...preserved };
-  draft.stringVariables = getInitialStringVariables(draft.ruleset.variables);
+function applyResetRoundEffect(draft: Draft): void {
+  const { state } = draft;
+  Object.assign(state, resetRoundFields(state.ruleset, state.variables, state.turnNumber));
 }
 
 /**
  * Sets a custom variable to a specific value.
  */
-function applySetVarEffect(
-  _draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureVariables: () => Record<string, number>,
-): void {
-  const name = params.name as string;
-  const value = params.value as number;
-  const variables = ensureVariables();
-  variables[name] = value;
+function applySetVarEffect(draft: Draft, params: SetVarParams): void {
+  draft.variables()[params.name] = params.value;
 }
 
 /**
  * Sets a custom string variable to a specific value.
  */
-function applySetStrVarEffect(
-  _draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureStringVariables: () => Record<string, string>,
-): void {
-  const name = params.name as string;
-  const value = params.value as string;
-  const stringVars = ensureStringVariables();
-  stringVars[name] = value;
+function applySetStrVarEffect(draft: Draft, params: SetStrVarParams): void {
+  draft.stringVariables()[params.name] = params.value;
 }
 
 /**
  * Increments a custom variable by an amount.
  * If the variable doesn't exist yet, treats it as starting from 0.
  */
-function applyIncVarEffect(
-  _draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureVariables: () => Record<string, number>,
-): void {
-  const name = params.name as string;
-  const amount = params.amount as number;
-  const variables = ensureVariables();
-  variables[name] = (variables[name] ?? 0) + amount;
+function applyIncVarEffect(draft: Draft, params: IncVarParams): void {
+  const variables = draft.variables();
+  variables[params.name] = (variables[params.name] ?? 0) + params.amount;
 }
 
 /**
@@ -1240,169 +1144,128 @@ function applyIncVarEffect(
  * If the source zone has fewer cards than `count`, moves all available.
  * Preserves card state (faceUp, etc.).
  */
-function applyMoveTopEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureZones: () => Record<string, ZoneState>,
-): void {
-  const fromName = params.from as string;
-  const toName = params.to as string;
-  const count = params.count as number;
+function applyMoveTopEffect(draft: Draft, params: TransferParams): void {
+  const { from, to, count } = params;
+  const fromZone = requireZone(draft, "move_top", from);
+  const toZone = requireZone(draft, "move_top", to);
 
-  const fromZone = draft.zones[fromName];
-  const toZone = draft.zones[toName];
-  if (!fromZone || !toZone) return;
-
-  const zones = ensureZones();
+  const zones = draft.zones();
   const fromCards = [...fromZone.cards];
   const movedCards = fromCards.splice(0, count);
 
-  zones[fromName] = { ...fromZone, cards: fromCards };
-  zones[toName] = { ...toZone, cards: [...toZone.cards, ...movedCards] };
+  zones[from] = { ...fromZone, cards: fromCards };
+  zones[to] = { ...toZone, cards: [...toZone.cards, ...movedCards] };
 }
 
 /**
  * Flips the top N cards in a zone to faceUp = true.
  * If the zone has fewer cards than `count`, flips all.
  */
-function applyFlipTopEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureZones: () => Record<string, ZoneState>,
-): void {
-  const zoneName = params.zone as string;
-  const count = params.count as number;
-
-  const zone = draft.zones[zoneName];
-  if (!zone) return;
-
-  const zones = ensureZones();
-  const updatedCards = zone.cards.map((card, i) => (i < count ? { ...card, faceUp: true } : card));
-
-  zones[zoneName] = { ...zone, cards: updatedCards };
+function applyFlipTopEffect(draft: Draft, params: FlipTopParams): void {
+  const { zone: zoneName, count } = params;
+  const zone = requireZone(draft, "flip_top", zoneName);
+  draft.zones()[zoneName] = {
+    ...zone,
+    cards: zone.cards.map((card, i) => (i < count ? { ...card, faceUp: true } : card)),
+  };
 }
 
 /**
  * Moves ALL cards from one zone to another.
  * Cards retain their faceUp state.
  */
-function applyMoveAllEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureZones: () => Record<string, ZoneState>,
-): void {
-  const fromName = params.from as string;
-  const toName = params.to as string;
+function applyMoveAllEffect(draft: Draft, params: MoveAllParams): void {
+  const { from, to } = params;
+  const fromZone = requireZone(draft, "move_all", from);
+  const toZone = requireZone(draft, "move_all", to);
 
-  const fromZone = draft.zones[fromName];
-  const toZone = draft.zones[toName];
-  if (!fromZone || !toZone) return;
-
-  const zones = ensureZones();
-  zones[fromName] = { ...fromZone, cards: [] };
-  zones[toName] = { ...toZone, cards: [...toZone.cards, ...fromZone.cards] };
+  const zones = draft.zones();
+  zones[from] = { ...fromZone, cards: [] };
+  zones[to] = { ...toZone, cards: [...toZone.cards, ...fromZone.cards] };
 }
 
 /**
  * Moves every card with the given rank from one zone to another.
- * Cards keep their relative order and faceUp state. No-op if either
- * zone is missing or no card matches.
+ * Cards keep their relative order and faceUp state. No-op if no card
+ * matches (nothing is lost — the cards simply stay where they are).
  */
-function applyMoveRankEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureZones: () => Record<string, ZoneState>,
-): void {
-  const fromName = params.from as string;
-  const toName = params.to as string;
-  const rank = params.rank as string;
-
-  const fromZone = draft.zones[fromName];
-  const toZone = draft.zones[toName];
-  if (!fromZone || !toZone) return;
+function applyMoveRankEffect(draft: Draft, params: MoveRankParams): void {
+  const { from, to, rank } = params;
+  const fromZone = requireZone(draft, "move_rank", from);
+  const toZone = requireZone(draft, "move_rank", to);
 
   const matching = fromZone.cards.filter((card) => card.rank === rank);
   if (matching.length === 0) return;
   const remaining = fromZone.cards.filter((card) => card.rank !== rank);
 
-  const zones = ensureZones();
-  zones[fromName] = { ...fromZone, cards: remaining };
-  zones[toName] = { ...toZone, cards: [...toZone.cards, ...matching] };
+  const zones = draft.zones();
+  zones[from] = { ...fromZone, cards: remaining };
+  zones[to] = { ...toZone, cards: [...toZone.cards, ...matching] };
 }
 
 /**
  * Reverses the turn direction. Clockwise becomes counterclockwise and vice versa.
  */
-function applyReverseTurnOrderEffect(draft: StateDraft): void {
-  draft.turnDirection = draft.turnDirection === 1 ? -1 : 1;
+function applyReverseTurnOrderEffect(draft: Draft): void {
+  draft.state.turnDirection = draft.state.turnDirection === 1 ? -1 : 1;
 }
 
 /**
  * Skips the next player by advancing the current player index by one extra step
  * in the current turn direction.
  */
-function applySkipNextPlayerEffect(draft: StateDraft): void {
-  const count = draft.players.length;
-  const nextIndex = (((draft.currentPlayerIndex + draft.turnDirection) % count) + count) % count;
-  draft.currentPlayerIndex = nextIndex;
+function applySkipNextPlayerEffect(draft: Draft): void {
+  const { state } = draft;
+  state.currentPlayerIndex = nextPlayerIndex(
+    state.currentPlayerIndex,
+    state.turnDirection,
+    state.players.length,
+  );
 }
 
 /**
  * Sets the current player to a specific index.
  */
-function applySetNextPlayerEffect(draft: StateDraft, params: Record<string, unknown>): void {
-  const playerIndex = params.playerIndex as number;
-  if (playerIndex < 0 || playerIndex >= draft.players.length) return;
-  draft.currentPlayerIndex = playerIndex;
+function applySetNextPlayerEffect(draft: Draft, params: PlayerIndexParams): void {
+  requirePlayerIndex(draft, "set_next_player", params.playerIndex);
+  draft.state.currentPlayerIndex = params.playerIndex;
 }
 
 /**
  * Collects all cards from every `{prefix}:{N}` zone into a target zone.
  * Cards are set face-down (they go into a won pile, not displayed).
- * Source zones are emptied.
+ * Source zones are emptied — after the target has been verified to exist.
  */
-function applyCollectTrickEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureZones: () => Record<string, ZoneState>,
-): void {
-  const zonePrefix = params.zonePrefix as string;
-  const targetZoneName = params.targetZone as string;
-  const playerCount = draft.players.length;
+function applyCollectTrickEffect(draft: Draft, params: CollectTrickParams): void {
+  const { zonePrefix, targetZone: targetName } = params;
+  const target = requireZone(draft, "collect_trick", targetName);
 
-  const zones = ensureZones();
+  const sourceNames: string[] = [];
+  for (let i = 0; i < draft.state.players.length; i++) {
+    const name = `${zonePrefix}:${i}`;
+    if (name in draft.state.zones) sourceNames.push(name);
+  }
+  if (sourceNames.length === 0) throw missingZoneError("collect_trick", `${zonePrefix}:*`);
+
+  const zones = draft.zones();
   const collected: Card[] = [];
-
-  for (let i = 0; i < playerCount; i++) {
-    const zoneName = `${zonePrefix}:${i}`;
-    const zone = zones[zoneName];
-    if (!zone) continue;
+  for (const name of sourceNames) {
+    const zone = zones[name]!;
     collected.push(...zone.cards.map((card) => ({ ...card, faceUp: false })));
-    zones[zoneName] = { ...zone, cards: [] };
+    zones[name] = { ...zone, cards: [] };
   }
 
-  const target = zones[targetZoneName];
-  if (target) {
-    zones[targetZoneName] = {
-      ...target,
-      cards: [...target.cards, ...collected],
-    };
-  }
+  zones[targetName] = { ...target, cards: [...target.cards, ...collected] };
 }
 
 /**
  * Sets `variables.lead_player` to the given player index AND sets
  * `currentPlayerIndex` to that player, so the trick winner leads next.
  */
-function applySetLeadPlayerEffect(
-  draft: StateDraft,
-  params: Record<string, unknown>,
-  ensureVariables: () => Record<string, number>,
-): void {
-  const playerIndex = params.playerIndex as number;
-  const variables = ensureVariables();
-  variables.lead_player = playerIndex;
-  draft.currentPlayerIndex = playerIndex;
+function applySetLeadPlayerEffect(draft: Draft, params: PlayerIndexParams): void {
+  requirePlayerIndex(draft, "set_lead_player", params.playerIndex);
+  draft.variables().lead_player = params.playerIndex;
+  draft.state.currentPlayerIndex = params.playerIndex;
 }
 
 /**
@@ -1410,37 +1273,32 @@ function applySetLeadPlayerEffect(
  * The winnerId is derived from scores: the player with `result:N === 1`.
  * If no clear winner, winnerId is null.
  */
-function applyEndGameEffect(draft: StateDraft): void {
+function applyEndGameEffect(draft: Draft, now: () => number): void {
+  const { state } = draft;
   let winnerId: PlayerId | null = null;
 
-  for (let i = 0; i < draft.players.length; i++) {
-    if (draft.scores[`result:${i}`] === 1) {
-      winnerId = draft.players[i]!.id;
+  for (let i = 0; i < state.players.length; i++) {
+    if (state.scores[`result:${i}`] === 1) {
+      winnerId = state.players[i]!.id;
       break;
     }
   }
 
-  draft.status = {
-    kind: "finished",
-    finishedAt: Date.now(),
-    winnerId,
-  };
+  state.status = { kind: "finished", finishedAt: now(), winnerId };
 }
 
 /**
  * Accumulates each human player's round score into their cumulative score variable.
  * Reads scores["player_score:{i}"] and adds to variables["cumulative_score_{i}"].
  */
-function applyAccumulateScoresEffect(
-  draft: StateDraft,
-  ensureVariables: () => Record<string, number>,
-): void {
-  const variables = ensureVariables();
-  const { roles } = draft.ruleset;
+function applyAccumulateScoresEffect(draft: Draft): void {
+  const { state } = draft;
+  const variables = draft.variables();
+  const { roles } = state.ruleset;
 
-  for (let i = 0; i < draft.players.length; i++) {
-    if (!isHumanPlayer(draft.players[i]!, roles)) continue;
-    const roundScore = draft.scores[`player_score:${i}`] ?? 0;
+  for (let i = 0; i < state.players.length; i++) {
+    if (!isHumanPlayer(state.players[i]!, roles)) continue;
+    const roundScore = state.scores[`player_score:${i}`] ?? 0;
     const key = `cumulative_score_${i}`;
     variables[key] = (variables[key] ?? 0) + roundScore;
   }
@@ -1489,7 +1347,10 @@ function generateDeterministicId(rng: SeededRng): string {
 /**
  * Initializes all zones from the ruleset configuration.
  * Per-player zones (owned by a "per_player" role) are expanded into
- * `{name}:{playerIndex}` variants. All cards are placed in the draw pile.
+ * `{name}:{playerIndex}` variants, one per human player, where
+ * `playerIndex` is the player's index in `players` — the same index
+ * `current_player`, `trick_winner`, and the state filter use.
+ * All cards are placed in the draw pile.
  */
 function initializeZones(
   ruleset: CardGameRuleset,
@@ -1503,47 +1364,40 @@ function initializeZones(
     ruleset.roles.filter((r) => r.count === "per_player").map((r) => r.name),
   );
 
+  const humanIndices: number[] = [];
+  for (let i = 0; i < players.length; i++) {
+    if (isHumanPlayer(players[i]!, ruleset.roles)) humanIndices.push(i);
+  }
+
   for (const zoneConfig of ruleset.zones) {
     const isPerPlayer = zoneConfig.owners.some((o) => perPlayerRoles.has(o));
+    const names = isPerPlayer
+      ? humanIndices.map((i) => `${zoneConfig.name}:${i}`)
+      : [zoneConfig.name];
 
-    if (isPerPlayer) {
-      // Create one zone per human player
-      const humanPlayers = players.filter((p) => isHumanPlayer(p, ruleset.roles));
-      for (let i = 0; i < humanPlayers.length; i++) {
-        const name = `${zoneConfig.name}:${i}`;
-        const definition: ZoneDefinition = {
-          name,
-          visibility: zoneConfig.visibility,
-          owners: zoneConfig.owners,
-          maxCards: zoneConfig.maxCards,
-          phaseOverrides: zoneConfig.phaseOverrides,
-        };
-        zones[name] = { definition, cards: [] };
-      }
-    } else {
+    for (const name of names) {
       const definition: ZoneDefinition = {
-        name: zoneConfig.name,
+        name,
         visibility: zoneConfig.visibility,
         owners: zoneConfig.owners,
         maxCards: zoneConfig.maxCards,
         phaseOverrides: zoneConfig.phaseOverrides,
       };
-      zones[zoneConfig.name] = { definition, cards: [] };
+      zones[name] = { definition, cards: [] };
     }
   }
 
-  // Put all cards in the draw pile
-  const drawPile = zones.draw_pile;
-  if (drawPile) {
-    zones.draw_pile = { ...drawPile, cards: [...allCards] };
-  } else {
-    // Fallback: find first ownerless zone
-    const ownerless = Object.entries(zones).find(([_, z]) => z.definition.owners.length === 0);
-    if (ownerless) {
-      const [name, zone] = ownerless;
-      zones[name] = { ...zone, cards: [...allCards] };
-    }
+  // Put all cards in the draw pile, or the first ownerless zone as a fallback
+  const deckZoneName =
+    "draw_pile" in zones
+      ? "draw_pile"
+      : Object.keys(zones).find((name) => zones[name]!.definition.owners.length === 0);
+  if (deckZoneName === undefined) {
+    throw new Error(
+      `Ruleset "${ruleset.meta.slug}" has no "draw_pile" zone and no ownerless zone to hold the deck`,
+    );
   }
+  zones[deckZoneName] = { ...zones[deckZoneName]!, cards: [...allCards] };
 
   return zones;
 }
