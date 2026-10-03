@@ -7,15 +7,31 @@
 // The reducer stays pure — all I/O happens here. Each hook takes the
 // store instance so the TV host (expo-file-system) and the browser display
 // (localStorage) share this code unchanged.
+//
+// Every hook returns a `RulesetHookStatus` whose `error` is the last
+// failure (or null). HostAction has no failure variant, so pending state
+// is always cleared through SET_INSTALLED_SLUGS and the reason is
+// reported to the host UI through this return value.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { HostAction, HostGameState } from "@card-engine/shared";
 import type { RulesetStore, StoredRuleset } from "./ruleset-store";
+import { formatZodIssues } from "./format-zod-issues";
 
 /** A slug + version pair as carried in `HostGameState.installedSlugs`. */
 export interface InstalledSlug {
   readonly slug: string;
   readonly version: string;
+}
+
+/** Last failure reported by a ruleset hook, or null when its last run succeeded. */
+export interface RulesetHookStatus {
+  readonly error: string | null;
+}
+
+/** Human-readable message for an unknown thrown value. */
+export function describeError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /**
@@ -38,19 +54,35 @@ export function mergeSlugs(
  * Loads installed rulesets (slug + version) from the store on mount,
  * merges in built-in rulesets, and dispatches SET_INSTALLED_SLUGS so
  * all clients see which games are available on the host.
+ *
+ * If the store cannot be read, the built-in list is dispatched instead so
+ * the host still boots with its bundled games, and `error` carries why.
  */
 export function useInstalledSlugs(
   store: RulesetStore,
   dispatch: (action: HostAction) => void,
   builtInInstalled: readonly InstalledSlug[],
-): void {
+): RulesetHookStatus {
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadSlugs(): Promise<void> {
-      const rulesets = await store.list();
-      if (cancelled) return;
-      dispatch({ type: "SET_INSTALLED_SLUGS", slugs: mergeSlugs(builtInInstalled, rulesets) });
+      try {
+        const rulesets = await store.list();
+        if (cancelled) return;
+        setError(null);
+        dispatch({ type: "SET_INSTALLED_SLUGS", slugs: mergeSlugs(builtInInstalled, rulesets) });
+      } catch (err) {
+        if (cancelled) return;
+        console.error(
+          "[InstalledSlugs] Could not read the ruleset library; falling back to built-ins:",
+          err,
+        );
+        setError(describeError(err));
+        dispatch({ type: "SET_INSTALLED_SLUGS", slugs: [...builtInInstalled] });
+      }
     }
 
     void loadSlugs();
@@ -59,6 +91,8 @@ export function useInstalledSlugs(
       cancelled = true;
     };
   }, [store, dispatch, builtInInstalled]);
+
+  return { error };
 }
 
 /**
@@ -66,6 +100,10 @@ export function useInstalledSlugs(
  * a client requests an install. If the slug already exists, deletes
  * the old entry first (enabling seamless updates). Dispatches updated
  * slugs after saving.
+ *
+ * Every outcome — success, schema rejection, or I/O failure — ends with a
+ * SET_INSTALLED_SLUGS dispatch so `pendingInstall` is cleared and phones
+ * never stay on "Installing…". Failures are exposed through `error`.
  *
  * Uses the standard React async effect cleanup pattern: if
  * `pendingInstall` changes while a previous install is in-flight,
@@ -77,10 +115,13 @@ export function useRulesetInstaller(
   pendingInstall: HostGameState["pendingInstall"],
   dispatch: (action: HostAction) => void,
   builtInInstalled: readonly InstalledSlug[],
-): void {
+): RulesetHookStatus {
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!pendingInstall) return;
 
+    const { ruleset, slug } = pendingInstall;
     let aborted = false;
 
     // Refresh the full slug + version list from the store.
@@ -90,16 +131,30 @@ export function useRulesetInstaller(
       dispatch({ type: "SET_INSTALLED_SLUGS", slugs: mergeSlugs(builtInInstalled, rulesets) });
     }
 
-    async function install(): Promise<void> {
+    // Clears pendingInstall even when the store itself cannot be read.
+    async function clearPending(): Promise<void> {
       try {
-        const { ruleset, slug } = pendingInstall!;
+        await refresh();
+      } catch (err) {
+        if (aborted) return;
+        console.error("[RulesetInstaller] Could not re-read the library after a failure:", err);
+        dispatch({ type: "SET_INSTALLED_SLUGS", slugs: [...builtInInstalled] });
+      }
+    }
 
+    async function install(): Promise<void> {
+      setError(null);
+      try {
         // Validate before saving (defense in depth — client already validated).
         // Loaded on demand so Zod stays off the display/host startup path.
         const { safeParseRuleset } = await import("@card-engine/shared/schema");
+        if (aborted) return;
         const result = safeParseRuleset(ruleset);
         if (!result.success) {
-          console.warn("[RulesetInstaller] Invalid ruleset, skipping:", result.error);
+          const message = `Ruleset "${slug}" was rejected: ${formatZodIssues(result.error.issues)}`;
+          console.warn("[RulesetInstaller]", message);
+          setError(message);
+          await clearPending();
           return;
         }
 
@@ -119,13 +174,8 @@ export function useRulesetInstaller(
       } catch (err) {
         if (aborted) return;
         console.error("[RulesetInstaller] Install failed:", err);
-        // Re-read actual state from the store to clear pendingInstall without data loss
-        try {
-          await refresh();
-        } catch {
-          // Last resort: dispatch built-in list to clear pending state
-          dispatch({ type: "SET_INSTALLED_SLUGS", slugs: [...builtInInstalled] });
-        }
+        setError(`Could not install "${slug}": ${describeError(err)}`);
+        await clearPending();
       }
     }
 
@@ -135,19 +185,22 @@ export function useRulesetInstaller(
       aborted = true;
     };
   }, [store, pendingInstall, dispatch, builtInInstalled]);
+
+  return { error };
 }
 
 /**
  * Watches `state.pendingUninstall` and removes the ruleset from the store
  * when a client requests an uninstall. Dispatches updated slug list
- * after deletion.
+ * after deletion; failures are exposed through `error`.
  */
 export function useRulesetUninstaller(
   store: RulesetStore,
   pendingUninstall: HostGameState["pendingUninstall"],
   dispatch: (action: HostAction) => void,
   builtInInstalled: readonly InstalledSlug[],
-): void {
+): RulesetHookStatus {
+  const [error, setError] = useState<string | null>(null);
   const uninstallingRef = useRef(false);
 
   useEffect(() => {
@@ -155,6 +208,7 @@ export function useRulesetUninstaller(
     if (uninstallingRef.current) return;
 
     uninstallingRef.current = true;
+    const slug = pendingUninstall;
 
     // Refresh the full slug + version list from the store.
     async function refresh(): Promise<void> {
@@ -163,22 +217,27 @@ export function useRulesetUninstaller(
     }
 
     async function uninstall(): Promise<void> {
+      setError(null);
       try {
-        const existing = await store.getBySlug(pendingUninstall!);
+        const existing = await store.getBySlug(slug);
         if (existing) {
           await store.delete(existing.id);
         } else {
-          console.warn("[RulesetUninstaller] Not found:", pendingUninstall);
+          console.warn("[RulesetUninstaller] Not found:", slug);
         }
 
         await refresh();
       } catch (err) {
         console.error("[RulesetUninstaller] Uninstall failed:", err);
+        setError(`Could not remove "${slug}": ${describeError(err)}`);
         // Refresh list even on error to clear pendingUninstall
         try {
           await refresh();
-        } catch {
-          // Last resort: dispatch built-in list to clear pending state
+        } catch (refreshErr) {
+          console.error(
+            "[RulesetUninstaller] Could not re-read the library after a failure:",
+            refreshErr,
+          );
           dispatch({ type: "SET_INSTALLED_SLUGS", slugs: [...builtInInstalled] });
         }
       } finally {
@@ -188,4 +247,6 @@ export function useRulesetUninstaller(
 
     void uninstall();
   }, [store, pendingUninstall, dispatch, builtInInstalled]);
+
+  return { error };
 }

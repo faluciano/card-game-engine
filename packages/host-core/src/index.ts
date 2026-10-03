@@ -32,7 +32,9 @@ export {
   useRulesetInstaller,
   useRulesetUninstaller,
   mergeSlugs,
+  describeError,
   type InstalledSlug,
+  type RulesetHookStatus,
 } from "./ruleset-hooks";
 export {
   useRulesetStore,
