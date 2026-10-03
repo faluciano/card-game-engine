@@ -14,3 +14,18 @@ const PER_PLAYER_SEPARATOR = ":";
 export function perPlayerZone(base: string, index: number): string {
   return `${base}${PER_PLAYER_SEPARATOR}${index}`;
 }
+
+/**
+ * Returns the player index that owns a per-player zone name, or null for a
+ * shared zone (one without a numeric "{base}:{index}" suffix).
+ *
+ * @example zoneOwnerIndex("hand:2") // 2
+ * @example zoneOwnerIndex("discard") // null
+ */
+export function zoneOwnerIndex(zoneName: string): number | null {
+  const separatorIndex = zoneName.lastIndexOf(PER_PLAYER_SEPARATOR);
+  if (separatorIndex === -1) return null;
+  const suffix = zoneName.slice(separatorIndex + 1);
+  if (!/^\d+$/.test(suffix)) return null;
+  return Number(suffix);
+}

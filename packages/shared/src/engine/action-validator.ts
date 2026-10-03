@@ -13,7 +13,7 @@ import {
 import { PhaseMachine } from "./phase-machine";
 import type { MutableEvalContext, EffectDescription } from "./builtins";
 import { registerAllBuiltins } from "./builtins";
-import { perPlayerZone } from "./zone-names";
+import { perPlayerZone, zoneOwnerIndex } from "./zone-names";
 
 /** Shared success result — validation results are immutable, so one instance suffices. */
 const VALID: ActionValidationResult = { valid: true };
@@ -293,8 +293,10 @@ function validateDeclareAction(
 }
 
 /**
- * Validates a "play_card" action: player exists, turn check, card exists,
- * and if a "play_card" phase action is defined, its condition is met.
+ * Validates a "play_card" action: player exists, turn check, the phase
+ * defines a "play_card" action, the card comes from the player's own hand
+ * and lands in a shared zone or one of their own, and the phase action's
+ * condition (if any) is met.
  */
 function validatePlayCard(
   state: CardGameState,
@@ -303,6 +305,19 @@ function validatePlayCard(
 ): ActionValidationResult {
   const turnCheck = validatePlayerTurn(state, action.playerId, machine);
   if (!turnCheck.valid) return turnCheck;
+
+  // validatePlayerTurn above already rejected unknown phases.
+  const phase = machine.findPhase(state.currentPhase)!;
+  if (phase.kind === "automatic") {
+    return { valid: false, reason: "Cannot act during automatic phase" };
+  }
+  const playCardAction = phase.actions.find((a) => a.name === "play_card");
+  if (!playCardAction) {
+    return {
+      valid: false,
+      reason: `Action 'play_card' not available in phase '${state.currentPhase}'`,
+    };
+  }
 
   // Verify the card exists in fromZone
   const fromZone = state.zones[action.fromZone];
@@ -323,13 +338,19 @@ function validatePlayCard(
     return { valid: false, reason: `Zone '${action.toZone}' not found` };
   }
 
-  // If the current phase has a "play_card" action with a condition, validate it
-  // (validatePlayerTurn above already rejected unknown phases).
-  const playCardAction = machine
-    .findPhase(state.currentPhase)
-    ?.actions.find((a) => a.name === "play_card");
-  if (playCardAction?.condition) {
-    const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
+  // Cards come from the player's own hand — the zone play_card conditions
+  // index into via played_card_index — and land in a shared zone or another
+  // of their own, never another player's.
+  const playerIndex = state.players.findIndex((p) => p.id === action.playerId);
+  if (action.fromZone !== perPlayerZone("hand", playerIndex)) {
+    return { valid: false, reason: `Cannot play a card from zone '${action.fromZone}'` };
+  }
+  const toOwner = zoneOwnerIndex(action.toZone);
+  if (toOwner !== null && toOwner !== playerIndex) {
+    return { valid: false, reason: `Cannot play a card into zone '${action.toZone}'` };
+  }
+
+  if (playCardAction.condition) {
     // Compute the index of the played card in fromZone for per-card validation
     const cardIndex = fromZone.cards.findIndex((c) => c.id === action.cardId);
     const ctx: EvalContext = {

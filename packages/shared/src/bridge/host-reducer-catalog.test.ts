@@ -453,16 +453,24 @@ describe("catalog actions (host reducer)", () => {
       expect(next).toBe(state);
     });
 
-    it("does not block regular game actions", () => {
+    it("blocks raw end_turn sent via GAME_ACTION", () => {
       const state = makeGameTableState();
       const action: HostAction = {
         type: "GAME_ACTION",
         action: internalAction("end_turn"),
       };
-      // end_turn is not blocked by the guard — it reaches the engine reducer
-      // The stub engine state may cause an error, but the guard itself should not block it
       const next = hostReducer(state, action);
-      expect(next).toBeDefined();
+      expect(next).toBe(state);
+    });
+
+    it("blocks raw draw_card sent via GAME_ACTION", () => {
+      const state = makeGameTableState();
+      const action: HostAction = {
+        type: "GAME_ACTION",
+        action: internalAction("draw_card"),
+      };
+      const next = hostReducer(state, action);
+      expect(next).toBe(state);
     });
   });
 

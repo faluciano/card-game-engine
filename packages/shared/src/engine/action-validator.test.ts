@@ -133,6 +133,12 @@ const SCORING_PHASE: PhaseDefinition = {
 
 const ALL_PHASES = [DEAL_PHASE, PLAYER_TURNS_PHASE, ALL_PLAYERS_PHASE, SCORING_PHASE];
 
+/** `player_turns` plus an unconditional `play_card` action. */
+const PLAY_TURNS_PHASE: PhaseDefinition = {
+  ...PLAYER_TURNS_PHASE,
+  actions: [...PLAYER_TURNS_PHASE.actions, { name: "play_card", label: "Play Card", effect: [] }],
+};
+
 function makeMinimalRuleset(phases: readonly PhaseDefinition[] = ALL_PHASES): CardGameRuleset {
   return {
     meta: {
@@ -220,6 +226,16 @@ function makeDefaultZones(): Record<string, ZoneState> {
     hand: makeZone("hand", [makeCard("10", "hearts"), makeCard("5", "spades")]),
     dealer_hand: makeZone("dealer_hand", [makeCard("K", "clubs"), makeCard("8", "hearts")]),
     discard: makeZone("discard", []),
+  };
+}
+
+/** Default zones with the hand stored per player ("hand:0", "hand:1"), as play_card expects. */
+function makePlayZones(): Record<string, ZoneState> {
+  const { hand, ...rest } = makeDefaultZones();
+  return {
+    ...rest,
+    "hand:0": makeZone("hand:0", hand!.cards),
+    "hand:1": makeZone("hand:1", [makeCard("2", "clubs")]),
   };
 }
 
@@ -849,9 +865,11 @@ describe("Action Validator", () => {
     });
 
     describe("play_card action", () => {
+      const playMachine = new PhaseMachine([PLAY_TURNS_PHASE]);
+
       it("validates a valid play_card action", () => {
-        const zones = makeDefaultZones();
-        const cardId = zones.hand.cards[0]!.id;
+        const zones = makePlayZones();
+        const cardId = zones["hand:0"]!.cards[0]!.id;
         const state = makeGameState(zones);
 
         const result = validateAction(
@@ -860,18 +878,18 @@ describe("Action Validator", () => {
             kind: "play_card",
             playerId: makePlayerId("p1"),
             cardId,
-            fromZone: "hand",
+            fromZone: "hand:0",
             toZone: "discard",
           },
-          machine,
+          playMachine,
         );
 
         expect(result.valid).toBe(true);
       });
 
       it("rejects play_card from unknown player", () => {
-        const zones = makeDefaultZones();
-        const cardId = zones.hand.cards[0]!.id;
+        const zones = makePlayZones();
+        const cardId = zones["hand:0"]!.cards[0]!.id;
         const state = makeGameState(zones);
 
         const result = validateAction(
@@ -880,10 +898,10 @@ describe("Action Validator", () => {
             kind: "play_card",
             playerId: makePlayerId("unknown"),
             cardId,
-            fromZone: "hand",
+            fromZone: "hand:0",
             toZone: "discard",
           },
-          machine,
+          playMachine,
         );
 
         expect(result.valid).toBe(false);
@@ -893,8 +911,8 @@ describe("Action Validator", () => {
       });
 
       it("rejects play_card when not player's turn (turn_based)", () => {
-        const zones = makeDefaultZones();
-        const cardId = zones.hand.cards[0]!.id;
+        const zones = makePlayZones();
+        const cardId = zones["hand:0"]!.cards[0]!.id;
         const state = makeGameState(zones, { currentPlayerIndex: 0 });
 
         const result = validateAction(
@@ -903,10 +921,10 @@ describe("Action Validator", () => {
             kind: "play_card",
             playerId: makePlayerId("p2"),
             cardId,
-            fromZone: "hand",
+            fromZone: "hand:0",
             toZone: "discard",
           },
-          machine,
+          playMachine,
         );
 
         expect(result.valid).toBe(false);
@@ -916,7 +934,7 @@ describe("Action Validator", () => {
       });
 
       it("rejects play_card when card not in fromZone", () => {
-        const state = makeGameState(makeDefaultZones());
+        const state = makeGameState(makePlayZones());
 
         const result = validateAction(
           state,
@@ -924,10 +942,10 @@ describe("Action Validator", () => {
             kind: "play_card",
             playerId: makePlayerId("p1"),
             cardId: makeCardId("nonexistent"),
-            fromZone: "hand",
+            fromZone: "hand:0",
             toZone: "discard",
           },
-          machine,
+          playMachine,
         );
 
         expect(result.valid).toBe(false);
@@ -937,7 +955,7 @@ describe("Action Validator", () => {
       });
 
       it("rejects play_card when fromZone does not exist", () => {
-        const state = makeGameState(makeDefaultZones());
+        const state = makeGameState(makePlayZones());
 
         const result = validateAction(
           state,
@@ -948,7 +966,7 @@ describe("Action Validator", () => {
             fromZone: "nonexistent_zone",
             toZone: "discard",
           },
-          machine,
+          playMachine,
         );
 
         expect(result.valid).toBe(false);
@@ -958,8 +976,8 @@ describe("Action Validator", () => {
       });
 
       it("rejects play_card when toZone does not exist", () => {
-        const zones = makeDefaultZones();
-        const cardId = zones.hand.cards[0]!.id;
+        const zones = makePlayZones();
+        const cardId = zones["hand:0"]!.cards[0]!.id;
         const state = makeGameState(zones);
 
         const result = validateAction(
@@ -968,16 +986,102 @@ describe("Action Validator", () => {
             kind: "play_card",
             playerId: makePlayerId("p1"),
             cardId,
-            fromZone: "hand",
+            fromZone: "hand:0",
             toZone: "nonexistent_zone",
           },
-          machine,
+          playMachine,
         );
 
         expect(result.valid).toBe(false);
         if (!result.valid) {
           expect(result.reason).toContain("Zone 'nonexistent_zone' not found");
         }
+      });
+
+      it("rejects play_card when the phase defines no play_card action", () => {
+        const zones = makePlayZones();
+        const cardId = zones["hand:0"]!.cards[0]!.id;
+        const state = makeGameState(zones);
+
+        const result = validateAction(
+          state,
+          {
+            kind: "play_card",
+            playerId: makePlayerId("p1"),
+            cardId,
+            fromZone: "hand:0",
+            toZone: "discard",
+          },
+          machine,
+        );
+
+        expect(result).toEqual({
+          valid: false,
+          reason: "Action 'play_card' not available in phase 'player_turns'",
+        });
+      });
+
+      it("rejects play_card from another player's hand", () => {
+        const zones = makePlayZones();
+        const cardId = zones["hand:1"]!.cards[0]!.id;
+        const state = makeGameState(zones);
+
+        const result = validateAction(
+          state,
+          {
+            kind: "play_card",
+            playerId: makePlayerId("p1"),
+            cardId,
+            fromZone: "hand:1",
+            toZone: "discard",
+          },
+          playMachine,
+        );
+
+        expect(result).toEqual({ valid: false, reason: "Cannot play a card from zone 'hand:1'" });
+      });
+
+      it("rejects play_card from a shared zone", () => {
+        const zones = makePlayZones();
+        const cardId = zones.draw_pile!.cards[0]!.id;
+        const state = makeGameState(zones);
+
+        const result = validateAction(
+          state,
+          {
+            kind: "play_card",
+            playerId: makePlayerId("p1"),
+            cardId,
+            fromZone: "draw_pile",
+            toZone: "discard",
+          },
+          playMachine,
+        );
+
+        expect(result).toEqual({
+          valid: false,
+          reason: "Cannot play a card from zone 'draw_pile'",
+        });
+      });
+
+      it("rejects play_card into another player's zone", () => {
+        const zones = makePlayZones();
+        const cardId = zones["hand:0"]!.cards[0]!.id;
+        const state = makeGameState(zones);
+
+        const result = validateAction(
+          state,
+          {
+            kind: "play_card",
+            playerId: makePlayerId("p1"),
+            cardId,
+            fromZone: "hand:0",
+            toZone: "hand:1",
+          },
+          playMachine,
+        );
+
+        expect(result).toEqual({ valid: false, reason: "Cannot play a card into zone 'hand:1'" });
       });
     });
 
@@ -1315,8 +1419,8 @@ describe("Action Validator", () => {
 
     it("validatePlayCard rejects when play_card condition is false", () => {
       const pcMachine = new PhaseMachine([PLAY_CARD_PHASE_COND_FALSE]);
-      const zones = makeDefaultZones();
-      const card = zones.hand!.cards[0]!;
+      const zones = makePlayZones();
+      const card = zones["hand:0"]!.cards[0]!;
       const state = makeGameState(zones, {
         currentPhase: "play_turn",
         variables: { cards_played: 0 },
@@ -1326,7 +1430,7 @@ describe("Action Validator", () => {
         kind: "play_card",
         playerId: makePlayerId("p1"),
         cardId: card.id,
-        fromZone: "hand",
+        fromZone: "hand:0",
         toZone: "discard",
       };
 
@@ -1336,8 +1440,8 @@ describe("Action Validator", () => {
 
     it("validatePlayCard passes when play_card action has no condition", () => {
       const pcMachine = new PhaseMachine([PLAY_CARD_PHASE_NO_COND]);
-      const zones = makeDefaultZones();
-      const card = zones.hand!.cards[0]!;
+      const zones = makePlayZones();
+      const card = zones["hand:0"]!.cards[0]!;
       const state = makeGameState(zones, {
         currentPhase: "play_turn",
         variables: { cards_played: 0 },
@@ -1347,7 +1451,7 @@ describe("Action Validator", () => {
         kind: "play_card",
         playerId: makePlayerId("p1"),
         cardId: card.id,
-        fromZone: "hand",
+        fromZone: "hand:0",
         toZone: "discard",
       };
 
@@ -1357,8 +1461,8 @@ describe("Action Validator", () => {
 
     it("validatePlayCard passes when play_card condition is true", () => {
       const pcMachine = new PhaseMachine([PLAY_CARD_PHASE_COND_TRUE]);
-      const zones = makeDefaultZones();
-      const card = zones.hand!.cards[0]!;
+      const zones = makePlayZones();
+      const card = zones["hand:0"]!.cards[0]!;
       const state = makeGameState(zones, {
         currentPhase: "play_turn",
         variables: { cards_played: 0 },
@@ -1368,7 +1472,7 @@ describe("Action Validator", () => {
         kind: "play_card",
         playerId: makePlayerId("p1"),
         cardId: card.id,
-        fromZone: "hand",
+        fromZone: "hand:0",
         toZone: "discard",
       };
 

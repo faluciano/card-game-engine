@@ -28,18 +28,16 @@ function generateSessionId(): GameSessionId {
 }
 
 /**
- * Engine actions a client may send through GAME_ACTION. Everything else is
- * host-only: phase pacing (`advance_phase`, `step_phase`, `reset_round`) is
- * driven by the host orchestrator, and the roster/lifecycle actions
- * (`join`, `leave`, `start_game`) are owned by CouchKit and START_GAME — a
- * client sending them could impersonate or add players.
+ * Engine actions a client may send through GAME_ACTION: playing a card and
+ * declaring one of the phase's named actions — both checked against the
+ * ruleset. Everything else is host-only: phase pacing (`advance_phase`,
+ * `step_phase`, `reset_round`) is driven by the host orchestrator; the
+ * roster/lifecycle actions (`join`, `leave`, `start_game`) are owned by
+ * CouchKit and START_GAME — a client sending them could impersonate or add
+ * players; and raw `draw_card` / `end_turn` would let a client draw from any
+ * zone or skip its turn outside the ruleset's actions.
  */
-const CLIENT_ACTION_KINDS: ReadonlySet<CardGameAction["kind"]> = new Set([
-  "play_card",
-  "draw_card",
-  "declare",
-  "end_turn",
-]);
+const CLIENT_ACTION_KINDS: ReadonlySet<CardGameAction["kind"]> = new Set(["play_card", "declare"]);
 
 /** Host-only engine actions, dispatched via their own HostAction types. */
 type InternalActionKind = "advance_phase" | "step_phase" | "reset_round";
