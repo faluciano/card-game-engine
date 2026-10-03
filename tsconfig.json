@@ -22,9 +22,6 @@
       "path": "packages/host-core"
     },
     {
-      "path": "packages/host"
-    },
-    {
       "path": "packages/client"
     },
     {

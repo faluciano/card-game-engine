@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 // ─── Build Catalog ─────────────────────────────────────────────────
 // CLI script that reads all validated rulesets and produces catalog.json
-// at the repo root. Only includes rulesets that pass schema validation.
+// at the repo root. Only includes rulesets that pass schema validation, and
+// exits non-zero if any ruleset had to be skipped.
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -92,8 +93,14 @@ async function main(): Promise<void> {
   console.log();
   console.log(`Cataloged ${games.length} game(s) to catalog.json`);
   if (skipped > 0) {
-    console.warn(`Skipped ${skipped} invalid ruleset(s).`);
+    // The catalog was still written so the valid games ship, but an invalid
+    // ruleset in the repo is a bug: fail the build so CI surfaces it.
+    console.error(`Skipped ${skipped} invalid ruleset(s); run \`bun run validate\` for details.`);
+    process.exit(1);
   }
 }
 
-main();
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});

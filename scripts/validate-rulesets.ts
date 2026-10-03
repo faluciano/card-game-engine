@@ -62,4 +62,7 @@ async function main(): Promise<void> {
   console.log(`All ${files.length} ruleset(s) passed validation.`);
 }
 
-main();
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});
