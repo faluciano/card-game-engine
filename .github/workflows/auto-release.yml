@@ -1,32 +1,41 @@
 name: Auto Release
 
-# Every merge to main is released automatically. The version bump is derived
-# from Conventional Commit messages since the last tag:
+# Every merge to main is released automatically once CI has passed for it.
+# The version bump is derived from Conventional Commit messages since the
+# last tag:
 #   - feat!: / BREAKING CHANGE  -> major
 #   - feat:                     -> minor
 #   - anything else (fix, chore, docs, refactor, ...) -> patch
-# Then the APK is built and attached to the GitHub release.
+# A draft release is created first, the APK is built and attached to it, and
+# only then is the release published (which also creates the tag). A failed
+# APK build therefore never leaves a published release without an APK; the
+# draft is deleted so the next merge can retry with the same version.
 #
 # Add "[skip release]" to a commit subject to opt a merge out of releasing.
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    # Only ship when packages or app code change. Pipeline/CI config, docs,
-    # and other non-shipping files don't warrant a new APK release. A commit
-    # that touches both an ignored file and code still releases.
-    paths-ignore:
-      - ".github/**"
-      - "**/*.md"
-      - "docs/**"
-      - "LICENSE"
-      - ".gitignore"
 
 permissions:
   contents: write
 
+# Releases are serialised and never cancelled: two merges in quick succession
+# release one after the other, each seeing the previous tag.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
 jobs:
   prepare:
+    # Only a green CI run of a push to main releases. PR runs of CI also
+    # complete, but their head_branch is the PR branch and event is
+    # pull_request.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     outputs:
       released: ${{ steps.release.outputs.released }}
@@ -34,40 +43,57 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      - name: Compute next version and release
+      - name: Compute next version and create draft release
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
+
+          skip() {
+            echo "$1" >> "$GITHUB_STEP_SUMMARY"
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
 
           # Skip if explicitly opted out.
           SUBJECT=$(git log -1 --format='%s')
           if printf '%s' "$SUBJECT" | grep -qiE '\[skip release\]|\[no release\]'; then
-            echo "Commit opted out of release ('$SUBJECT'); skipping." >> "$GITHUB_STEP_SUMMARY"
-            echo "released=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            skip "Commit opted out of release ('$SUBJECT'); skipping."
           fi
 
           # Skip if HEAD is already tagged (e.g. a re-run).
           if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
-            echo "HEAD is already tagged; skipping." >> "$GITHUB_STEP_SUMMARY"
-            echo "released=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            skip "HEAD is already tagged; skipping."
           fi
 
           LATEST=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+
+          # Only ship when packages or app code changed since the last
+          # release. Pipeline/CI config, docs, and other non-shipping files
+          # don't warrant a new APK. (workflow_run has no paths filter, so
+          # this replaces the old `paths-ignore`.)
+          if [ -n "$LATEST" ]; then
+            SHIPPING=$(git diff --name-only "$LATEST" HEAD \
+              | grep -vE '^(\.github/|docs/|LICENSE$|\.gitignore$|\.editorconfig$)' \
+              | grep -vE '\.md$' || true)
+            if [ -z "$SHIPPING" ]; then
+              skip "Only non-shipping files changed since $LATEST (docs, CI config); skipping."
+            fi
+          fi
+
           if [ -z "$LATEST" ]; then
             RANGE="HEAD"
             BASE="v0.0.0"
-            CHANGES=$(git log --format='- %s (%h)' HEAD | head -50)
           else
             RANGE="${LATEST}..HEAD"
             BASE="$LATEST"
-            CHANGES=$(git log --format='- %s (%h)' "${LATEST}..HEAD")
           fi
+          CHANGES=$(git log --format='- %s (%h)' "$RANGE" | head -200)
 
           # Determine bump type from Conventional Commit messages. Match commit
           # *subjects* for the type/"!" prefix and commit *footers* for a
@@ -93,9 +119,38 @@ jobs:
 
           echo "Releasing $NEXT ($BUMP bump from $BASE)." >> "$GITHUB_STEP_SUMMARY"
 
-          NOTES=$(printf 'Automated release on merge to main (%s bump).\n\n## Changes\n%s' "$BUMP" "$CHANGES")
+          # Group the notes by Conventional Commit type.
+          BREAKING='^- [a-z]+(\([^)]*\))?!:'
+          FEAT='^- feat(\([^)]*\))?:'
+          FIX='^- fix(\([^)]*\))?:'
+          BREAKING_LINES=$(grep -E "$BREAKING" <<< "$CHANGES" || true)
+          REST=$(grep -vE "$BREAKING" <<< "$CHANGES" || true)
+          FEAT_LINES=$(grep -E "$FEAT" <<< "$REST" || true)
+          REST=$(grep -vE "$FEAT" <<< "$REST" || true)
+          FIX_LINES=$(grep -E "$FIX" <<< "$REST" || true)
+          OTHER_LINES=$(grep -vE "$FIX" <<< "$REST" || true)
+
+          NOTES=$(printf 'Automated release on merge to main (%s bump from %s).' "$BUMP" "$BASE")
+          append_section() {
+            if [ -n "$2" ]; then
+              NOTES=$(printf '%s\n\n### %s\n%s' "$NOTES" "$1" "$2")
+            fi
+          }
+          append_section "Breaking changes" "$BREAKING_LINES"
+          append_section "Features" "$FEAT_LINES"
+          append_section "Fixes" "$FIX_LINES"
+          append_section "Other changes" "$OTHER_LINES"
+
+          # A draft left behind by an earlier failed run would collide; a
+          # draft has no tag, so deleting it is safe.
+          if [ "$(gh release view "$NEXT" --json isDraft -q .isDraft 2>/dev/null || true)" = "true" ]; then
+            echo "Deleting stale draft release $NEXT."
+            gh release delete "$NEXT" --yes
+          fi
+
           gh release create "$NEXT" \
-            --target "${{ github.sha }}" \
+            --draft \
+            --target "$HEAD_SHA" \
             --title "$NEXT" \
             --notes "$NOTES"
 
@@ -110,3 +165,35 @@ jobs:
     uses: ./.github/workflows/release-apk.yml
     with:
       tag: ${{ needs.prepare.outputs.tag }}
+
+  publish:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --draft=false --latest
+          echo "Published $TAG." >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    needs: [prepare, build]
+    if: failure() && needs.prepare.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete draft release after failed APK build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$(gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null || true)" = "true" ]; then
+            gh release delete "$TAG" --yes
+            echo "APK build failed; deleted draft release $TAG." >> "$GITHUB_STEP_SUMMARY"
+          fi
