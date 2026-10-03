@@ -11,5 +11,5 @@
     "verbatimModuleSyntax": false
   },
   "include": ["src"],
-  "references": [{ "path": "../shared" }]
+  "references": [{ "path": "../shared" }, { "path": "../host-core" }]
 }

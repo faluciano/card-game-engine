@@ -868,10 +868,10 @@ Declare variables using the top-level `variables` field. Each key maps to a
 ```json
 {
   "variables": {
-    "score_0": { "initial": 0, "public": true },
-    "score_1": { "initial": 0, "public": true },
-    "current_suit": { "initial": "none" },
-    "round": { "initial": 1 }
+    "score_0": { "type": "number", "initial": 0, "public": true },
+    "score_1": { "type": "number", "initial": 0, "public": true },
+    "current_suit": { "type": "string", "initial": "none" },
+    "round": { "type": "number", "initial": 1 }
   }
 }
 ```
@@ -880,13 +880,14 @@ A `VariableDefinition` has:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `initial` | `number \| string` | Yes | The starting value. Determines the variable type (numeric or string). |
+| `type` | `"number" \| "string"` | Yes | The variable's type. Discriminates the definition. |
+| `initial` | `number \| string` | Yes | The starting value. Must match `type` (a number for `"number"`, a string for `"string"`). |
 | `public` | `boolean` | No | If `true`, the variable is included in `PlayerView`. Defaults to `false`. |
 
-**Numeric variables** (where `initial` is a number) are read with `get_var(name)`,
+**Numeric variables** (`"type": "number"`) are read with `get_var(name)`,
 written with `set_var(name, value)` and `inc_var(name, amount)`.
 
-**String variables** (where `initial` is a string) are read with `get_str_var(name)`,
+**String variables** (`"type": "string"`) are read with `get_str_var(name)`,
 written with `set_str_var(name, value)`.
 
 > **Migration note:** The former `initialVariables`, `initialStringVariables`,
@@ -929,7 +930,7 @@ Custom variables are useful for tracking game state that isn't captured by zones
 
 ```json
 "variables": {
-  "running_total": { "initial": 0, "public": true }
+  "running_total": { "type": "number", "initial": 0, "public": true }
 }
 ```
 
@@ -967,9 +968,9 @@ make a variable visible to all players, set `"public": true` in its definition:
 ```json
 {
   "variables": {
-    "score": { "initial": 0, "public": true },
-    "round": { "initial": 1, "public": true },
-    "internal_counter": { "initial": 0 }
+    "score": { "type": "number", "initial": 0, "public": true },
+    "round": { "type": "number", "initial": 1, "public": true },
+    "internal_counter": { "type": "number", "initial": 0 }
   }
 }
 ```
@@ -993,13 +994,13 @@ If no `variables` are defined, the variables map is empty `{}`.
 
 ### String Variables
 
-String variables are declared in the same `variables` manifest by using a
-string for the `initial` value:
+String variables are declared in the same `variables` manifest with
+`"type": "string"` and a string `initial` value:
 
 ```json
 "variables": {
-  "active_suit": { "initial": "" },
-  "current_suit": { "initial": "none", "public": true }
+  "active_suit": { "type": "string", "initial": "" },
+  "current_suit": { "type": "string", "initial": "none", "public": true }
 }
 ```
 
@@ -1443,7 +1444,11 @@ try {
 ### JSON Schema (Static / Editor Integration)
 
 A JSON Schema (draft-07) is also available for editor autocompletion and
-pre-commit validation:
+inline validation. It is generated from the Zod schema (`bun run
+schema:generate`) and CI checks it never drifts (`bun run schema:check`).
+The Zod schema remains the source of truth: `bun run validate` and the
+engine use Zod, and the JSON Schema cannot express cross-field checks such
+as `players.min <= players.max`.
 
 ```
 packages/shared/src/schema/cardgame.v1.schema.json
@@ -1627,8 +1632,8 @@ Trick-taking games typically use three per-player zone types:
 
 ```json
 "variables": {
-  "lead_player": { "initial": 0 },
-  "tricks_played": { "initial": 0 }
+  "lead_player": { "type": "number", "initial": 0 },
+  "tricks_played": { "type": "number", "initial": 0 }
 }
 ```
 
@@ -1709,9 +1714,9 @@ To enable trump suits, set a `trump_suit` variable:
 
 ```json
 "variables": {
-  "lead_player": { "initial": 0 },
-  "trump_suit_code": { "initial": 0 },
-  "tricks_played": { "initial": 0 }
+  "lead_player": { "type": "number", "initial": 0 },
+  "trump_suit_code": { "type": "number", "initial": 0 },
+  "tricks_played": { "type": "number", "initial": 0 }
 }
 ```
 

@@ -1,0 +1,50 @@
+name: Bug report
+description: Something in the engine, host, display, or controller misbehaves.
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Engine (packages/shared)
+        - Host core (packages/host-core)
+        - TV host app (packages/host)
+        - Browser display (packages/display)
+        - Phone controller (packages/client)
+        - Ruleset / schema
+        - CI / tooling
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include error messages verbatim where possible.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Load ruleset ...
+        2. Play action ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: e.g. v2.10.4 or a commit SHA
+  - type: textarea
+    id: ruleset
+    attributes:
+      label: Minimal ruleset (if relevant)
+      description: Paste the smallest `.cardgame.json` that reproduces the issue.
+      render: json

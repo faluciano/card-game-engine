@@ -34,7 +34,7 @@ The TV runs the authoritative game engine: it loads the ruleset, advances the FS
 - **Hidden information** — per-player state filtering via `createPlayerView` with per-variable `public` visibility
 - **Security hardening** — internal actions (`advance_phase`, `reset_round`) blocked from client submissions, action log capped at 500 entries
 - **Zod schema validation** — rulesets are validated against a strict schema at load time
-- **2 deck presets + custom decks** — `standard52`, `standard54`, plus fully custom card lists
+- **2 deck presets + custom decks** — `standard_52`, `standard_54`, plus fully custom card lists
 
 ## Project Structure
 
@@ -57,8 +57,10 @@ card-game-engine/
 │                                              (Vite + React + CouchKit display,
 │                                              via a Cloudflare Workers relay)
 ├── rulesets/          .cardgame.json rule files
+├── scripts/           Bun CLI scripts (validate, catalog, schema, APK)
 ├── package.json       Bun monorepo root (workspaces)
-└── tsconfig.json      composite TS project references
+└── tsconfig.json      composite TS project references (the host is
+                       type-checked separately with its own TypeScript 5.9)
 ```
 
 | Package | Runtime | Key Dependencies |
@@ -73,7 +75,7 @@ card-game-engine/
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) >= 1.2.19
+- [Bun](https://bun.sh/) 1.4.2 (pinned by `packageManager` in `package.json`)
 - Android TV device or emulator (for running the host)
 - Modern browser (for client development)
 
@@ -95,14 +97,15 @@ bun run dev:client
 
 ### Testing
 
-Tests live in the shared and host packages and use Vitest:
+Tests use Vitest. Run them from each package directory:
 
 ```sh
-cd packages/shared
-bunx vitest run
+cd packages/shared    && bunx vitest run
+cd packages/host-core && bunx vitest run
+cd packages/host      && bunx vitest run
 ```
 
-The shared and host suites cover the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation and meta fields, player views, game phases, integration scenarios) and the host package (storage, importers). The client and display packages are verified via `tsc` type-checking and Vite production builds. Current test counts are listed in [Project Status](#project-status).
+The shared suite covers the engine core (expression evaluator, builtins, interpreter, PRNG, schema validation and meta fields, player views, game phases, integration scenarios); host-core covers catalog fetching, URL import, install hooks, and the screen models; host covers storage and file import. The display package is verified via `tsc` type-checking and a Vite production build.
 
 ### Build and Deploy
 
@@ -115,11 +118,11 @@ bun run build:android
 This is a shorthand that bundles the client assets and launches the Expo Android build. You can also run the steps individually:
 
 ```sh
-bun run build:client       # TypeScript check + Vite production build
+bun run build:client       # Vite production build (type-check with `bun run typecheck`)
 bun run bundle:client      # Bundle client dist into the host's Android assets
 ```
 
-Type-check every package (`tsc -b packages/client packages/host-core` covers shared via project references, then the display and host packages):
+Type-check every package (`tsc -b packages/client packages/host-core` covers shared via project references, then `scripts/`, the display, and the host with its pinned TypeScript 5.9):
 
 ```sh
 bun run typecheck
@@ -130,15 +133,17 @@ bun run typecheck
 | Command | Description |
 |---------|-------------|
 | `bun run dev:client` | Start the client Vite dev server with HMR |
-| `bun run build:client` | TypeScript check + Vite production build |
+| `bun run build:client` | Vite production build of the controller |
 | `bun run bundle:client` | Bundle client dist into host's Android assets |
 | `bun run build:android` | Bundle client + Expo Android build |
-| `bun run typecheck` | Type-check client and host-core (+ shared via references), display, and host |
-| `bun run typecheck:host` | Type-check the host package only |
+| `bun run typecheck` | Type-check client and host-core (+ shared via references), scripts, display, and host |
+| `bun run typecheck:host` | Type-check the host package only (its own TypeScript 5.9) |
 | `bun run dev:display` | Start the browser display dev server |
-| `bun run build:display` | Build the browser display |
+| `bun run build:display` | Vite production build of the browser display |
 | `bun run lint` | Biome lint and format check (`bun run format` to fix) |
-| `bun run validate` | Validate all rulesets against the JSON Schema |
+| `bun run validate` | Validate all rulesets against the Zod schema |
+| `bun run schema:generate` | Regenerate `cardgame.v1.schema.json` (editor JSON Schema) from the Zod schema |
+| `bun run schema:check` | Fail if the JSON Schema has drifted from the Zod schema |
 | `bun run catalog` | Generate `catalog.json` from all rulesets' metadata |
 
 ## Rulesets
@@ -159,7 +164,7 @@ See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format
 
 ## Project Status
 
-All four implementation phases are **complete**. Test counts as of this writing: shared 839, host-core 37, host 25 (run `bunx vitest run` in each package for the current numbers).
+All four implementation phases are **complete**. Run `bunx vitest run` in each package for current test counts.
 
 | Phase | Status |
 |-------|--------|

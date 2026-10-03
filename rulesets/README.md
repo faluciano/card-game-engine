@@ -33,7 +33,7 @@ From the project root:
 
 | Command | Description |
 |---------|-------------|
-| `bun run validate` | Validates all rulesets against the JSON Schema and Zod schema |
+| `bun run validate` | Validates all rulesets against the Zod schema (the engine's parse boundary) |
 | `bun run catalog` | Generates `catalog.json` from all rulesets' metadata |
 
 ## Creating Your Own
@@ -50,10 +50,10 @@ A ruleset file requires these top-level sections:
 | `scoring` | How to calculate and compare scores |
 | `ui` | Layout and visual hints for renderers |
 
-Optional sections: `variables` (unified variable manifest — each key maps to `{ initial, public? }`), `globalTransitions` (fallback phase transitions evaluated when no phase-specific transition matches).
+Optional sections: `variables` (unified variable manifest — each key maps to `{ type: "number" | "string", initial, public? }`, where `initial` must match `type`), `globalTransitions` (fallback phase transitions evaluated when no phase-specific transition matches).
 
 Zone visibility is configured per-zone via the `visibility` field on each zone definition, with optional `phaseOverrides` for phase-specific visibility changes.
 
 For the full format specification, expression language reference, and annotated examples, see the **[Ruleset Authoring Guide](../docs/ruleset-authoring.md)**.
 
-Validate your ruleset against the JSON Schema at `packages/shared/src/schema/cardgame.v1.schema.json`.
+Run `bun run validate` to check your ruleset against the Zod schema. For editor autocompletion, point your file's `$schema` at `packages/shared/src/schema/cardgame.v1.schema.json`, which is generated from the Zod schema.

@@ -1,0 +1,31 @@
+name: Ruleset request
+description: Propose a card game to add to rulesets/ or a feature a ruleset needs.
+labels: ["ruleset"]
+body:
+  - type: input
+    id: game
+    attributes:
+      label: Game
+      placeholder: e.g. Rummy, Spades, Uno-style shedding game
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: Rules summary
+      description: Players, deck, turn structure, win condition. A link to a rules reference is welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: gaps
+    attributes:
+      label: Engine features needed
+      description: >-
+        Anything the expression language or builtins cannot express today
+        (see docs/ruleset-authoring.md). Leave blank if unsure.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to author the `.cardgame.json` for this game.

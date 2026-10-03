@@ -152,7 +152,7 @@ card-game-engine/
     shared/         Pure TS engine, zero framework deps
       src/
         types/        Branded types, discriminated unions, state interfaces
-        schema/       Zod validation — the parse boundary — and the JSON Schema
+        schema/       Zod validation — the parse boundary — and the generated JSON Schema
         deck/         Deck presets and card instantiation
         engine/       Reducer, interpreter, expression evaluator, builtins, PRNG
     host-core/      Framework-light host logic shared by host and display
@@ -166,12 +166,15 @@ Data flows in one direction: a `.cardgame.json` ruleset is parsed at the boundar
 
 ## Testing Requirements
 
-All engine logic must have tests. The test suite currently has 419 tests across 8 files.
+All engine logic must have tests. Suites live next to the source (`*.test.ts`) in `shared`, `host-core`, `host`, and `client`.
 
 **Run tests:**
 
 ```bash
-cd packages/shared && bunx vitest run
+cd packages/shared    && bunx vitest run
+cd packages/host-core && bunx vitest run
+cd packages/host      && bunx vitest run
+cd packages/client    && bunx vitest run
 ```
 
 **Watch mode:**
@@ -229,13 +232,13 @@ cd packages/shared && bunx vitest
       return myCustomDeck();
     ```
 
-4. Add the new preset string to the Zod schema in `schema/validation.ts`.
+4. Add the new preset string to the Zod schema in `schema/validation.ts`, then run `bun run schema:generate` to regenerate `cardgame.v1.schema.json` (never edit that file by hand; CI runs `bun run schema:check`).
 
 ### Writing a new ruleset
 
 1. Create `rulesets/your-game.cardgame.json`.
 2. Follow the format described in `docs/ruleset-authoring.md`.
-3. Validate the ruleset programmatically with `parseRuleset()` or `safeParseRuleset()`.
+3. Validate it with `bun run validate` (or programmatically with `parseRuleset()` / `safeParseRuleset()`).
 4. Write an integration test similar to the ones in `integration.test.ts` that runs a full game sequence.
 
 ## Commit Messages
@@ -257,17 +260,30 @@ Keep messages concise. Focus on **why** the change was made, not a line-by-line 
 
 1. Create a feature branch from `main`.
 2. Make your changes, following the 5 Laws and testing requirements above.
-3. Ensure all tests pass:
+3. Ensure lint passes (`bun run format` fixes most issues):
 
     ```bash
-    cd packages/shared && bunx vitest run
+    bun run lint
     ```
 
-4. Ensure types check (`tsc -b packages/client packages/host-core` covers shared via project references, then display and host):
+4. Ensure types check (`tsc -b packages/client packages/host-core` covers shared via project references, then scripts, display, and host):
 
     ```bash
     bun run typecheck
     ```
 
-5. One feature per PR. If your change touches multiple concerns, split it into separate pull requests.
-6. Provide a clear description of what the PR does and why. Link to any relevant issues.
+5. Ensure tests pass in every package you touched:
+
+    ```bash
+    cd packages/<pkg> && bunx vitest run
+    ```
+
+6. Ensure rulesets still validate and the JSON Schema is in sync:
+
+    ```bash
+    bun run validate
+    bun run schema:check
+    ```
+
+7. One feature per PR. If your change touches multiple concerns, split it into separate pull requests.
+8. Provide a clear description of what the PR does and why. Link to any relevant issues. The PR template's checklist mirrors these steps.

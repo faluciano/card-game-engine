@@ -93,7 +93,7 @@ sequenceDiagram
 
 ## Transient Flag Pattern
 
-The reducer is **pure** — no side effects allowed. File I/O happens in host-side React hooks that observe transient flags in state:
+The reducer is **pure** — no side effects allowed. File I/O happens in React hooks (shared by the TV host and the browser display via `packages/host-core/src/ruleset-hooks.ts`) that observe transient flags in state:
 
 ```mermaid
 stateDiagram-v2
@@ -140,7 +140,7 @@ On TV app launch, `useInstalledSlugs` reads all rulesets from disk and dispatche
 |----------|--------|-----|
 | Play an installed game (TV + phones on WiFi) | ✅ | Entirely local — CouchKit syncs over LAN |
 | TV boots with installed games | ✅ | Reads from disk, no internet needed |
-| Built-in rulesets (Blackjack) | ✅ | Bundled in APK at build time |
+| Built-in rulesets (Crazy Eights) | ✅ | Bundled at build time (`packages/host-core/src/built-in-rulesets.ts`) |
 | Browse catalog from phone | ❌ | Requires GitHub Pages fetch |
 | Install new game from phone | ❌ | Requires GitHub Pages for ruleset download |
 | Phone on WiFi but no internet | ⚠️ | Can connect to TV and play installed games, but cannot browse or install |
@@ -155,8 +155,8 @@ On TV app launch, `useInstalledSlugs` reads all rulesets from disk and dispatche
 | `packages/client/src/screens/CatalogScreen.tsx` | Full catalog browser (ruleset_picker status) |
 | `packages/client/src/screens/LobbyScreen.tsx` | Lobby catalog browser (lobby status) |
 | `packages/client/src/components/GameCard.tsx` | Install/update/remove UI |
-| `packages/host/src/hooks/useRulesetInstaller.ts` | Watches pendingInstall → file I/O |
-| `packages/host/src/hooks/useRulesetUninstaller.ts` | Watches pendingUninstall → file I/O |
-| `packages/host/src/hooks/useInstalledSlugs.ts` | Boot-time disk → state sync |
-| `packages/host/src/hooks/useRulesetStore.ts` | Reactive store for TV picker UI |
-| `packages/host/src/storage/file-ruleset-store.ts` | File-based CRUD on Android TV |
+| `packages/host-core/src/ruleset-hooks.ts` | `useRulesetInstaller` (pendingInstall → store I/O), `useRulesetUninstaller` (pendingUninstall → store I/O), `useInstalledSlugs` (boot-time store → state sync) |
+| `packages/host-core/src/use-ruleset-store.ts` | `useRulesetStore` — reactive store for the picker UI |
+| `packages/host-core/src/ruleset-store.ts` | `RulesetStore` interface the hooks write through |
+| `packages/host-core/src/built-in-rulesets.ts` | Rulesets bundled into the app (Crazy Eights) |
+| `packages/host/src/storage/file-ruleset-store.ts` | File-based `RulesetStore` on Android TV |
