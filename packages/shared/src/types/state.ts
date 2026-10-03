@@ -59,6 +59,13 @@ export interface CardGameState {
   readonly turnsTakenThisPhase: number;
   /** Monotonically increasing version for optimistic concurrency. */
   readonly version: number;
+  /**
+   * Current PRNG state (mulberry32 uint32). The reducer resumes the generator
+   * from here on every call and stores the advanced state back, so the same
+   * `(state, action)` always yields the same result regardless of reducer
+   * instance or call history.
+   */
+  readonly rngState: number;
 }
 
 // ─── Actions ───────────────────────────────────────────────────────

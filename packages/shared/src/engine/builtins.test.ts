@@ -142,6 +142,7 @@ function makeGameState(
     stringVariables: {},
     actionLog: [],
     turnsTakenThisPhase: 0,
+    rngState: 0,
     turnDirection: 1,
     version: 1,
     ...overrides,
@@ -1226,7 +1227,7 @@ describe("builtins", () => {
         ]);
         const players = makePlayers(1);
         const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
-        const reducer = createReducer(ruleset, FIXED_SEED);
+        const reducer = createReducer(ruleset);
 
         const result = reducer(state, { kind: "start_game" });
 
@@ -1244,7 +1245,7 @@ describe("builtins", () => {
         ]);
         const players = makePlayers(1);
         const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
-        const reducer = createReducer(ruleset, FIXED_SEED);
+        const reducer = createReducer(ruleset);
 
         const result = reducer(state, { kind: "start_game" });
 
@@ -1263,7 +1264,7 @@ describe("builtins", () => {
         ]);
         const players = makePlayers(1);
         const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
-        const reducer = createReducer(ruleset, FIXED_SEED);
+        const reducer = createReducer(ruleset);
 
         const result = reducer(state, { kind: "start_game" });
 
@@ -1285,7 +1286,7 @@ describe("builtins", () => {
         ]);
         const players = makePlayers(1);
         const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
-        const reducer = createReducer(ruleset, FIXED_SEED);
+        const reducer = createReducer(ruleset);
 
         const result = reducer(state, { kind: "start_game" });
 
@@ -1304,7 +1305,7 @@ describe("builtins", () => {
         ]);
         const players = makePlayers(1);
         const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
-        const reducer = createReducer(ruleset, FIXED_SEED);
+        const reducer = createReducer(ruleset);
 
         const result = reducer(state, { kind: "start_game" });
 
@@ -1326,7 +1327,7 @@ describe("builtins", () => {
         ]);
         const players = makePlayers(1);
         const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
-        const reducer = createReducer(ruleset, FIXED_SEED);
+        const reducer = createReducer(ruleset);
 
         const result = reducer(state, { kind: "start_game" });
 
@@ -1342,7 +1343,7 @@ describe("builtins", () => {
         ]);
         const players = makePlayers(1);
         const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
-        const reducer = createReducer(ruleset, FIXED_SEED);
+        const reducer = createReducer(ruleset);
 
         const result = reducer(state, { kind: "start_game" });
 
@@ -1362,7 +1363,7 @@ describe("builtins", () => {
         ]);
         const players = makePlayers(1);
         const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
-        const reducer = createReducer(ruleset, FIXED_SEED);
+        const reducer = createReducer(ruleset);
 
         const result = reducer(state, { kind: "start_game" });
 
@@ -1383,7 +1384,7 @@ describe("builtins", () => {
         ]);
         const players = makePlayers(1);
         const state = createInitialState(ruleset, makeSessionId("s1"), players, FIXED_SEED);
-        const reducer = createReducer(ruleset, FIXED_SEED);
+        const reducer = createReducer(ruleset);
 
         const result = reducer(state, { kind: "start_game" });
 
@@ -2643,6 +2644,7 @@ describe("builtins", () => {
         stringVariables: {},
         actionLog: [],
         turnsTakenThisPhase: 0,
+        rngState: 0,
         turnDirection: 1,
         version: 1,
         ...overrides,
@@ -3132,6 +3134,7 @@ describe("builtins", () => {
         stringVariables: {},
         actionLog: [],
         turnsTakenThisPhase: 0,
+        rngState: 0,
         turnDirection: 1,
         version: 1,
         ...overrides,

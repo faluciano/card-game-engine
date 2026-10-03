@@ -32,7 +32,7 @@ function loadWar() {
 
 function startGame(seed = FIXED_SEED): { state: CardGameState; reducer: GameReducer } {
   const ruleset = loadWar();
-  const reducer = createReducer(ruleset, seed);
+  const reducer = createReducer(ruleset);
   const initial = createInitialState(ruleset, "war-session" as GameSessionId, PLAYERS, seed);
   return { state: reducer(initial, { kind: "start_game" }), reducer };
 }

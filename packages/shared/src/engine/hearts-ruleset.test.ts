@@ -50,7 +50,7 @@ function startGame(seed = FIXED_SEED): {
   ruleset: CardGameRuleset;
 } {
   const ruleset = loadHearts();
-  const reducer = createReducer(ruleset, seed);
+  const reducer = createReducer(ruleset);
   const initial = createInitialState(ruleset, "hearts-session" as GameSessionId, PLAYERS, seed);
   return { state: reducer(initial, { kind: "start_game" }), reducer, ruleset };
 }

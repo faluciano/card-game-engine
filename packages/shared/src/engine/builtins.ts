@@ -14,19 +14,18 @@ import {
   EVAL_FALSE,
 } from "./expression-evaluator";
 import type { CardGameState, Card, CardValue, ZoneState } from "../types/index";
+import type { EffectDescription } from "./effects";
 import { isHumanPlayer } from "./role-utils";
 import { perPlayerZone } from "./zone-names";
 
 // ─── Effect Types ──────────────────────────────────────────────────
 
 /**
- * A description of a state-changing effect recorded by effect builtins.
- * The interpreter (task 1.14) applies these to produce new state.
+ * Effect builtins record {@link EffectDescription}s; the interpreter applies
+ * them. The union itself lives in `effects.ts` and is re-exported here so
+ * existing imports keep working.
  */
-export interface EffectDescription {
-  readonly kind: string;
-  readonly params: Record<string, unknown>;
-}
+export type { EffectDescription } from "./effects";
 
 /**
  * Extended evaluation context with a mutable effects array.

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { createHostInitialState, hostReducer } from "../host-reducer";
-import type { HostAction, HostGameState, InstalledGame } from "../host-state";
-import type { CardGameAction, CardGameRuleset, CardGameState } from "../../types/index";
+import { createHostInitialState, hostReducer } from "./host-reducer";
+import type { HostAction, HostGameState, InstalledGame } from "./host-state";
+import type { CardGameAction, CardGameRuleset, CardGameState } from "../types/index";
 
 // ─── Fixtures ──────────────────────────────────────────────────────
 

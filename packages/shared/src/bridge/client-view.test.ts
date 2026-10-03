@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { createHostInitialState, hostReducer } from "../host-reducer";
-import { createHostClientView } from "../client-view";
-import type { HostGameState } from "../host-state";
-import type { Card, CardGameRuleset, CardInstanceId } from "../../types/index";
+import { createHostInitialState, hostReducer } from "./host-reducer";
+import { createHostClientView, EMPTY_CLIENT_VIEW } from "./client-view";
+import type { HostGameState } from "./host-state";
+import type { Card, CardGameRuleset, CardInstanceId } from "../types/index";
 
 /**
  * These tests are the guarantee behind server-side projection: a player's
@@ -168,5 +168,29 @@ describe("createHostClientView", () => {
     const view = createHostClientView(state, "p1");
     expect(view.screen.tag).toBe("lobby");
     expect(view.playerView).toBeNull();
+  });
+});
+
+describe("EMPTY_CLIENT_VIEW", () => {
+  it("carries no game, players, or affordances", () => {
+    expect(EMPTY_CLIENT_VIEW.playerView).toBeNull();
+    expect(EMPTY_CLIENT_VIEW.players).toEqual({});
+    expect(EMPTY_CLIENT_VIEW.validActions).toEqual([]);
+    expect(EMPTY_CLIENT_VIEW.playableCardIds).toEqual([]);
+    expect(EMPTY_CLIENT_VIEW.actionError).toBeNull();
+  });
+
+  it("starts the controller on the picker with nothing pending", () => {
+    expect(EMPTY_CLIENT_VIEW.screen).toEqual({ tag: "ruleset_picker" });
+    expect(EMPTY_CLIENT_VIEW.installedSlugs).toEqual([]);
+    expect(EMPTY_CLIENT_VIEW.pendingInstall).toBeNull();
+    expect(EMPTY_CLIENT_VIEW.pendingUninstall).toBeNull();
+  });
+
+  it("matches the projection of a fresh host, apart from status", () => {
+    const { status: _emptyStatus, ...empty } = EMPTY_CLIENT_VIEW;
+    const { status: _freshStatus, ...fresh } = createHostClientView(createHostInitialState(), "p1");
+
+    expect(fresh).toEqual(empty);
   });
 });

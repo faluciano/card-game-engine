@@ -88,7 +88,7 @@ describe("all_players_done() gates a simultaneous phase", () => {
     "with %i human players, the phase advances only after every player declares",
     (playerCount) => {
       const ruleset = makeSimultaneousRuleset(playerCount);
-      const reducer = createReducer(ruleset, FIXED_SEED);
+      const reducer = createReducer(ruleset);
       const players = makePlayers(playerCount);
       let state = createInitialState(ruleset, "sim" as GameSessionId, players, FIXED_SEED);
 
@@ -122,7 +122,7 @@ describe("all_players_done() gates a simultaneous phase", () => {
 
   it("does not advance after a single declaration with 3 players", () => {
     const ruleset = makeSimultaneousRuleset(3);
-    const reducer = createReducer(ruleset, FIXED_SEED);
+    const reducer = createReducer(ruleset);
     const players = makePlayers(3);
     let state = createInitialState(ruleset, "sim-single" as GameSessionId, players, FIXED_SEED);
     state = reducer(state, { kind: "start_game" });

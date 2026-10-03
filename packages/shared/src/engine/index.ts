@@ -1,4 +1,13 @@
-export { createReducer, createInitialState, RulesetParseError } from "./interpreter";
+export {
+  createEngine,
+  createReducer,
+  createInitialState,
+  RulesetParseError,
+  type ApplyResult,
+  type GameEngine,
+  type ReducerOptions,
+} from "./interpreter";
+export { EffectError, type EffectKind } from "./effects";
 export {
   evaluateExpression,
   evaluateCondition,
