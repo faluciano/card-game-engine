@@ -102,7 +102,7 @@ export function getValidActions(
     // generically available (per-card filtering happens at play time).
     const bindings: Record<string, EvalResult> =
       action.name === "play_card" ? { played_card_index: { kind: "number", value: -1 } } : {};
-    const ctx: EvalContext = { state, playerIndex, bindings };
+    const ctx: EvalContext = { state, playerIndex, bindings, isAvailabilityCheck: true };
     // Conditions are parse-checked at ruleset load; an ExpressionError here
     // is a real runtime failure and propagates to the caller.
     const enabled = action.condition ? evaluateCondition(action.condition, ctx) : true;

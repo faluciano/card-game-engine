@@ -585,20 +585,20 @@ builtin:
 
 `get_param(name)` returns the value of the named parameter as a string or
 number. If the parameter is a boolean, it is returned as `1` (true) or `0`
-(false). If the parameter does not exist or no params were provided, it returns
-`0`.
+(false). If the parameter was not provided, it throws, and a submitted action
+that hits this is rejected with the parameter's name in the reason.
 
 Params are also visible to the action's `condition`, so a ruleset can reject an
 invalid choice before any effect runs. Because `getValidActions()` evaluates the
-condition *without* params (to decide whether to show the button at all), guard
-the param-dependent part with a `get_param(name) == 0` check — the same idea as
-the `played_card_index == -1` sentinel for `play_card`:
+condition before the player has chosen anything (to decide whether to show the
+button at all), guard the param-dependent part with `is_availability_check()`,
+which is true only during that check:
 
 ```json
 {
   "name": "ask",
   "label": "Ask for a rank",
-  "condition": "get_param(\"rank\") == 0 || has_card_matching_rank(current_player.hand, get_param(\"rank\"))",
+  "condition": "is_availability_check() || has_card_matching_rank(current_player.hand, get_param(\"rank\"))",
   "effect": ["set_str_var(\"asked_rank\", get_param(\"rank\"))"]
 }
 ```
@@ -712,7 +712,8 @@ for player 1, and so on.
 | `turn_direction()` | number | Returns the current turn direction: `1` (clockwise) or `-1` (counterclockwise). |
 | `get_var(name)` | number | Returns the value of a custom variable. Throws if the variable does not exist. |
 | `get_str_var(name)` | string | Returns the value of a string variable. Returns empty string `""` if the variable does not exist. |
-| `get_param(name)` | string\|number | Returns the value of an action parameter. Returns 0 if not found. Booleans as 1/0. |
+| `get_param(name)` | string\|number | Returns the value of an action parameter. Throws if it was not provided. Booleans as 1/0. |
+| `is_availability_check()` | boolean | True while the engine decides whether to offer an action, before parameters are chosen. Use it to guard `get_param` in conditions. |
 | `count_sets(zone, min_size)` | number | Count rank groups with at least min_size cards. |
 | `max_set_size(zone)` | number | Size of the largest rank group (e.g., 4 for four-of-a-kind). |
 | `has_flush(zone, min_size)` | boolean | True if any suit has at least min_size cards. |

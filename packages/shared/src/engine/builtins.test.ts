@@ -1976,17 +1976,51 @@ describe("builtins", () => {
       );
     });
 
-    it("returns the 0 sentinel when actionParams is undefined (availability probe)", () => {
+    it("throws when actionParams is undefined, pointing at is_availability_check", () => {
       const state = makeGameState({});
       const ctx = makeEvalContext(state);
-      const result = evaluateExpression('get_param("anything")', ctx);
-      expect(result).toEqual({ kind: "number", value: 0 });
+      expect(() => evaluateExpression('get_param("anything")', ctx)).toThrow(
+        "get_param: action parameter 'anything' read outside a declare action. Guard param-dependent conditions with is_availability_check()",
+      );
     });
 
     it("throws with wrong arg count", () => {
       const state = makeGameState({});
       const ctx = makeEvalContext(state);
       expect(() => evaluateExpression("get_param()", ctx)).toThrow("requires exactly 1 argument");
+    });
+  });
+
+  // ─── is_availability_check ─────────────────────────────────────────
+
+  describe("is_availability_check", () => {
+    it("is true when the context marks an availability check", () => {
+      const ctx = { ...makeEvalContext(makeGameState({})), isAvailabilityCheck: true };
+      expect(evaluateExpression("is_availability_check()", ctx)).toEqual({
+        kind: "boolean",
+        value: true,
+      });
+    });
+
+    it("is false for a submitted action", () => {
+      const ctx = { ...makeEvalContext(makeGameState({})), actionParams: {} };
+      expect(evaluateExpression("is_availability_check()", ctx)).toEqual({
+        kind: "boolean",
+        value: false,
+      });
+    });
+
+    it("works as a bare identifier because it is a query builtin", () => {
+      const ctx = { ...makeEvalContext(makeGameState({})), isAvailabilityCheck: true };
+      expect(evaluateExpression("is_availability_check", ctx)).toEqual({
+        kind: "boolean",
+        value: true,
+      });
+    });
+
+    it("throws when given arguments", () => {
+      const ctx = makeEvalContext(makeGameState({}));
+      expect(() => evaluateExpression("is_availability_check(1)", ctx)).toThrow();
     });
 
     it("throws with non-string argument", () => {

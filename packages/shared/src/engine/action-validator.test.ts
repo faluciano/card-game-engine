@@ -688,7 +688,58 @@ describe("Action Validator", () => {
         }
       });
 
-      it("treats get_param() as the 0 sentinel when probing availability via getValidActions", () => {
+      describe("guarding get_param with is_availability_check", () => {
+        const askPhase: PhaseDefinition = {
+          name: "player_turns",
+          kind: "turn_based",
+          actions: [
+            {
+              name: "ask",
+              label: "Ask",
+              condition: 'is_availability_check() || get_param("rank") == "7"',
+              effect: [],
+            },
+          ],
+          transitions: [],
+          turnOrder: "clockwise",
+        };
+        const machine = new PhaseMachine([askPhase]);
+        const makeState = () =>
+          makeGameState(makeDefaultZones(), { ruleset: makeMinimalRuleset([askPhase]) });
+
+        it("offers the action before any parameter is chosen", () => {
+          const actions = getValidActions(makeState(), makePlayerId("p1"), machine);
+          expect(actions).toEqual([{ actionName: "ask", label: "Ask", enabled: true }]);
+        });
+
+        it("accepts a declare whose parameter satisfies the condition", () => {
+          const result = validateAction(
+            makeState(),
+            {
+              kind: "declare",
+              playerId: makePlayerId("p1"),
+              declaration: "ask",
+              params: { rank: "7" },
+            },
+            machine,
+          );
+          expect(result).toEqual({ valid: true });
+        });
+
+        it("rejects a declare that omits the parameter, naming it in the reason", () => {
+          const result = validateAction(
+            makeState(),
+            { kind: "declare", playerId: makePlayerId("p1"), declaration: "ask" },
+            machine,
+          );
+          expect(result.valid).toBe(false);
+          expect(!result.valid && result.reason).toContain(
+            "action parameter 'rank' was not provided",
+          );
+        });
+      });
+
+      it("propagates an unguarded get_param from getValidActions", () => {
         const askPhase: PhaseDefinition = {
           name: "player_turns",
           kind: "turn_based",
@@ -700,8 +751,9 @@ describe("Action Validator", () => {
           ruleset: makeMinimalRuleset([askPhase]),
         });
 
-        const actions = getValidActions(state, makePlayerId("p1"), new PhaseMachine([askPhase]));
-        expect(actions).toEqual([{ actionName: "ask", label: "Ask", enabled: true }]);
+        expect(() =>
+          getValidActions(state, makePlayerId("p1"), new PhaseMachine([askPhase])),
+        ).toThrow("read outside a declare action");
       });
 
       it("rejects with the evaluator's message when a declare condition fails at runtime", () => {

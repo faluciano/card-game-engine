@@ -227,6 +227,22 @@ describe("Go Fish ruleset", () => {
       expect(ask(reducer, state, 0, rank, -1)).toBe(state);
     });
 
+    it("rejects an ask that omits the rank or target instead of recording a 0", () => {
+      const { state, reducer } = startGame(2);
+      const playerId = state.players[0]!.id;
+      const rank = state.zones["hand:0"]!.cards[0]!.rank;
+      expect(reducer(state, { kind: "declare", playerId, declaration: "ask" })).toBe(state);
+      expect(
+        reducer(state, { kind: "declare", playerId, declaration: "ask", params: { rank } }),
+      ).toBe(state);
+    });
+
+    it("offers the ask action before a rank and target are chosen", () => {
+      const { state } = startGame(2);
+      const ask = getValidActions(state, state.players[0]!.id).find((a) => a.actionName === "ask");
+      expect(ask?.enabled).toBe(true);
+    });
+
     it("rejects asks from a player whose turn it is not", () => {
       const { state, reducer } = startGame(2);
       const rank = state.zones["hand:1"]!.cards[0]!.rank;
