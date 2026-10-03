@@ -5,6 +5,7 @@ import {
   evaluateCondition,
   clearBuiltins,
   getRegisteredBuiltins,
+  registerBuiltin,
   ExpressionError,
   type EvalContext,
 } from "./expression-evaluator";
@@ -212,6 +213,58 @@ describe("builtins", () => {
 
     it("does not register while (handled as special form)", () => {
       expect(getRegisteredBuiltins()).not.toContain("while");
+    });
+
+    it("still installs the core set when a custom builtin was registered first", () => {
+      clearBuiltins();
+      registerBuiltin("my_custom", () => ({ kind: "number", value: 7 }));
+      registerAllBuiltins();
+
+      const names = getRegisteredBuiltins();
+      expect(names).toContain("my_custom");
+      expect(names).toContain("hand_value");
+      expect(names).toContain("end_turn");
+    });
+
+    it("re-installs the core set after clearBuiltins()", () => {
+      clearBuiltins();
+      expect(getRegisteredBuiltins()).toEqual([]);
+      registerAllBuiltins();
+      expect(getRegisteredBuiltins()).toContain("card_count");
+    });
+
+    it("is idempotent and does not clobber a later override of a core builtin", () => {
+      registerBuiltin("card_count", () => ({ kind: "number", value: 99 }));
+      registerAllBuiltins();
+
+      const state = makeGameState({});
+      expect(evaluateExpression('card_count("deck")', makeEvalContext(state))).toEqual({
+        kind: "number",
+        value: 99,
+      });
+    });
+  });
+
+  // ── Bare identifiers ──
+
+  describe("bare builtin identifiers", () => {
+    it("rejects a bare effect builtin without recording the effect", () => {
+      const ctx = makeMutableContext(makeGameState({}));
+      expect(() => evaluateExpression("end_turn", ctx)).toThrow(
+        "'end_turn' is an effect builtin and must be called with parentheses: 'end_turn()'",
+      );
+      expect(ctx.effects).toEqual([]);
+    });
+
+    it("records the effect when the effect builtin is called with parentheses", () => {
+      const ctx = makeMutableContext(makeGameState({}));
+      expect(evaluateExpression("end_turn()", ctx)).toEqual({ kind: "boolean", value: true });
+      expect(ctx.effects).toEqual([{ kind: "end_turn", params: {} }]);
+    });
+
+    it("still resolves a bare zero-arg query builtin as an implicit call", () => {
+      const ctx = makeEvalContext(makeGameState({}));
+      expect(evaluateExpression("all_hands_dealt", ctx)).toEqual({ kind: "boolean", value: true });
     });
   });
 
@@ -1906,14 +1959,23 @@ describe("builtins", () => {
       expect(result).toEqual({ kind: "number", value: 0 });
     });
 
-    it("returns 0 when param key is not found", () => {
+    it("throws naming the param when the key is not found", () => {
       const state = makeGameState({});
       const ctx = { ...makeEvalContext(state), actionParams: { other: 1 } };
-      const result = evaluateExpression('get_param("missing")', ctx);
-      expect(result).toEqual({ kind: "number", value: 0 });
+      expect(() => evaluateExpression('get_param("missing")', ctx)).toThrow(
+        "get_param: action parameter 'missing' was not provided. Provided parameters: other",
+      );
     });
 
-    it("returns 0 when actionParams is undefined", () => {
+    it("throws when actionParams is present but empty", () => {
+      const state = makeGameState({});
+      const ctx = { ...makeEvalContext(state), actionParams: {} };
+      expect(() => evaluateExpression('get_param("rank")', ctx)).toThrow(
+        "Provided parameters: (none)",
+      );
+    });
+
+    it("returns the 0 sentinel when actionParams is undefined (availability probe)", () => {
       const state = makeGameState({});
       const ctx = makeEvalContext(state);
       const result = evaluateExpression('get_param("anything")', ctx);

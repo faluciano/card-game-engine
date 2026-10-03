@@ -5,7 +5,7 @@
 
 import {
   registerBuiltin,
-  getRegisteredBuiltins,
+  getBuiltinRegistryGeneration,
   type BuiltinFunction,
   type EvalResult,
   type EvalContext,
@@ -15,6 +15,7 @@ import {
 } from "./expression-evaluator";
 import type { CardGameState, Card, CardValue, ZoneState } from "../types/index";
 import { isHumanPlayer } from "./role-utils";
+import { perPlayerZone } from "./zone-names";
 
 // ─── Effect Types ──────────────────────────────────────────────────
 
@@ -146,6 +147,51 @@ function assertArgCount(fnName: string, args: readonly EvalResult[], expected: n
   }
 }
 
+/**
+ * Validates that a builtin received no arguments.
+ */
+function assertNoArgs(fnName: string, args: readonly EvalResult[]): void {
+  if (args.length !== 0) {
+    throw new ExpressionError(`${fnName}() takes no arguments, got ${args.length}`);
+  }
+}
+
+/**
+ * Returns the card at `index` in `zone`, or throws an out-of-bounds error
+ * naming the calling builtin and zone.
+ */
+function getCardAt(fnName: string, zone: ZoneState, zoneName: string, index: number): Card {
+  const card = index >= 0 && index < zone.cards.length ? zone.cards[index] : undefined;
+  if (!card) {
+    throw new ExpressionError(
+      `${fnName}(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`,
+    );
+  }
+  return card;
+}
+
+/**
+ * Resolves the numeric value of a card's rank for ordering and comparison.
+ * For fixed values, returns `value`. For dual values, returns `high`.
+ */
+function resolveCardRankValue(
+  cardValues: Readonly<Record<string, CardValue>>,
+  rank: string,
+): number {
+  const cv = getCardValue(cardValues, rank);
+  return cv.kind === "fixed" ? cv.value : cv.high;
+}
+
+/**
+ * Crazy-Eights style match: does `card` match `topCard` by suit OR rank?
+ * A non-empty `active_suit` string variable (set by a wild card) replaces
+ * the top card's suit as the suit to match.
+ */
+function matchesTopBySuitOrRank(state: CardGameState, card: Card, topCard: Card): boolean {
+  const matchSuit = state.stringVariables.active_suit || topCard.suit;
+  return card.suit === matchSuit || card.rank === topCard.rank;
+}
+
 // ─── Pattern Matching Helpers ──────────────────────────────────────
 
 /**
@@ -185,6 +231,23 @@ function getCardNumericValues(
   if (cv.kind === "fixed") return [cv.value];
   // Dual-value: return both positions for straight detection
   return [cv.low, cv.high];
+}
+
+/**
+ * Collects the unique numeric rank positions present in `cards`, sorted
+ * ascending. Dual-value cards contribute both positions (Ace low and high).
+ */
+function sortedUniqueRankValues(
+  cards: readonly Card[],
+  cardValues: Readonly<Record<string, CardValue>>,
+): number[] {
+  const valueSet = new Set<number>();
+  for (const card of cards) {
+    for (const v of getCardNumericValues(card.rank, cardValues)) {
+      valueSet.add(v);
+    }
+  }
+  return [...valueSet].sort((a, b) => a - b);
 }
 
 /**
@@ -293,9 +356,7 @@ const cardCountBuiltin: BuiltinFunction = (args, context) => {
  * `end_turn` effect and reset when the phase changes.
  */
 const allPlayersDoneBuiltin: BuiltinFunction = (args, context) => {
-  if (args.length !== 0) {
-    throw new ExpressionError(`all_players_done() takes no arguments, got ${args.length}`);
-  }
+  assertNoArgs("all_players_done", args);
   const { state } = context;
   const humanPlayerCount = state.players.filter((p) =>
     isHumanPlayer(p, state.ruleset.roles),
@@ -308,9 +369,7 @@ const allPlayersDoneBuiltin: BuiltinFunction = (args, context) => {
  * The deal automatic sequence handles this.
  */
 const allHandsDealtBuiltin: BuiltinFunction = (args, _context) => {
-  if (args.length !== 0) {
-    throw new ExpressionError(`all_hands_dealt() takes no arguments, got ${args.length}`);
-  }
+  assertNoArgs("all_hands_dealt", args);
   return EVAL_TRUE;
 };
 
@@ -318,9 +377,7 @@ const allHandsDealtBuiltin: BuiltinFunction = (args, _context) => {
  * scores_calculated() — Sentinel: returns true.
  */
 const scoresCalculatedBuiltin: BuiltinFunction = (args, _context) => {
-  if (args.length !== 0) {
-    throw new ExpressionError(`scores_calculated() takes no arguments, got ${args.length}`);
-  }
+  assertNoArgs("scores_calculated", args);
   return EVAL_TRUE;
 };
 
@@ -328,9 +385,7 @@ const scoresCalculatedBuiltin: BuiltinFunction = (args, _context) => {
  * continue_game() — Sentinel: returns true (game continues by default).
  */
 const continueGameBuiltin: BuiltinFunction = (args, _context) => {
-  if (args.length !== 0) {
-    throw new ExpressionError(`continue_game() takes no arguments, got ${args.length}`);
-  }
+  assertNoArgs("continue_game", args);
   return EVAL_TRUE;
 };
 
@@ -366,14 +421,8 @@ const cardRankBuiltin: BuiltinFunction = (args, context) => {
   const zoneName = resolveZoneName(args[0]!);
   const index = requireNumber(args[1]!, "index");
   const zone = getZone(context.state, zoneName);
-  if (index < 0 || index >= zone.cards.length) {
-    throw new ExpressionError(
-      `card_rank(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`,
-    );
-  }
-  const card = zone.cards[index]!;
-  const cv = getCardValue(context.state.ruleset.deck.cardValues, card.rank);
-  const value = cv.kind === "fixed" ? cv.value : cv.high;
+  const card = getCardAt("card_rank", zone, zoneName, index);
+  const value = resolveCardRankValue(context.state.ruleset.deck.cardValues, card.rank);
   return { kind: "number", value };
 };
 
@@ -385,12 +434,7 @@ const cardSuitBuiltin: BuiltinFunction = (args, context) => {
   const zoneName = resolveZoneName(args[0]!);
   const index = requireNumber(args[1]!, "index");
   const zone = getZone(context.state, zoneName);
-  if (index < 0 || index >= zone.cards.length) {
-    throw new ExpressionError(
-      `card_suit(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`,
-    );
-  }
-  const card = zone.cards[index]!;
+  const card = getCardAt("card_suit", zone, zoneName, index);
   return { kind: "string", value: card.suit };
 };
 
@@ -402,12 +446,7 @@ const cardRankNameBuiltin: BuiltinFunction = (args, context) => {
   const zoneName = resolveZoneName(args[0]!);
   const index = requireNumber(args[1]!, "index");
   const zone = getZone(context.state, zoneName);
-  if (index < 0 || index >= zone.cards.length) {
-    throw new ExpressionError(
-      `card_rank_name(): index ${index} out of bounds for zone '${zoneName}' (${zone.cards.length} cards)`,
-    );
-  }
-  const card = zone.cards[index]!;
+  const card = getCardAt("card_rank_name", zone, zoneName, index);
   return { kind: "string", value: card.rank };
 };
 
@@ -434,9 +473,7 @@ const topCardRankBuiltin: BuiltinFunction = (args, context) => {
   if (zone.cards.length === 0) {
     throw new ExpressionError(`top_card_rank(): zone '${zoneName}' is empty`);
   }
-  const card = zone.cards[0]!;
-  const cv = getCardValue(context.state.ruleset.deck.cardValues, card.rank);
-  const value = cv.kind === "fixed" ? cv.value : cv.high;
+  const value = resolveCardRankValue(context.state.ruleset.deck.cardValues, zone.cards[0]!.rank);
   return { kind: "number", value };
 };
 
@@ -454,8 +491,7 @@ const maxCardRankBuiltin: BuiltinFunction = (args, context) => {
   const cardValues = context.state.ruleset.deck.cardValues;
   let max = -Infinity;
   for (const card of zone.cards) {
-    const cv = getCardValue(cardValues, card.rank);
-    const value = cv.kind === "fixed" ? cv.value : cv.high;
+    const value = resolveCardRankValue(cardValues, card.rank);
     if (value > max) {
       max = value;
     }
@@ -527,19 +563,12 @@ const cardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
   const targetZoneName = resolveZoneName(args[2]!);
   const handZone = getZone(context.state, handZoneName);
   const targetZone = getZone(context.state, targetZoneName);
-  if (cardIndex < 0 || cardIndex >= handZone.cards.length) {
-    throw new ExpressionError(
-      `card_matches_top(): index ${cardIndex} out of bounds for zone '${handZoneName}' (${handZone.cards.length} cards)`,
-    );
-  }
-  if (targetZone.cards.length === 0) {
+  const card = getCardAt("card_matches_top", handZone, handZoneName, cardIndex);
+  const topCard = targetZone.cards[0];
+  if (!topCard) {
     throw new ExpressionError(`card_matches_top(): target zone '${targetZoneName}' is empty`);
   }
-  const card = handZone.cards[cardIndex]!;
-  const topCard = targetZone.cards[0]!;
-  const activeSuit = context.state.stringVariables.active_suit ?? "";
-  const matchSuit = activeSuit || topCard.suit;
-  return card.suit === matchSuit || card.rank === topCard.rank ? EVAL_TRUE : EVAL_FALSE;
+  return matchesTopBySuitOrRank(context.state, card, topCard) ? EVAL_TRUE : EVAL_FALSE;
 };
 
 /**
@@ -556,11 +585,7 @@ const hasPlayableCardBuiltin: BuiltinFunction = (args, context) => {
     return EVAL_FALSE;
   }
   const topCard = targetZone.cards[0]!;
-  const activeSuit = context.state.stringVariables.active_suit ?? "";
-  const matchSuit = activeSuit || topCard.suit;
-  const found = handZone.cards.some(
-    (card) => card.suit === matchSuit || card.rank === topCard.rank,
-  );
+  const found = handZone.cards.some((card) => matchesTopBySuitOrRank(context.state, card, topCard));
   return found ? EVAL_TRUE : EVAL_FALSE;
 };
 
@@ -756,9 +781,7 @@ const setNextPlayerBuiltin: BuiltinFunction = (args, context) => {
  * turn_direction() — Returns the current turn direction as a number (1 or -1).
  */
 const turnDirectionBuiltin: BuiltinFunction = (args, context) => {
-  if (args.length !== 0) {
-    throw new ExpressionError(`turn_direction() takes no arguments, got ${args.length}`);
-  }
+  assertNoArgs("turn_direction", args);
   return { kind: "number", value: context.state.turnDirection };
 };
 
@@ -795,17 +818,31 @@ const getStrVarBuiltin: BuiltinFunction = (args, context) => {
 /**
  * get_param(name) — Returns the value of an action parameter.
  * Reads from the actionParams context provided by a declare action.
- * Returns 0 if the param doesn't exist or actionParams is undefined.
  * Booleans are returned as 1 (true) or 0 (false).
+ *
+ * Two distinct situations:
+ *   - No `actionParams` in the context at all: this is an availability
+ *     probe (e.g. `getValidActions` asking "could this action be taken?"),
+ *     not a declare. Returns the sentinel 0 — the parameter counterpart of
+ *     `played_card_index = -1` — so conditions like
+ *     `get_param("rank") == 0 || ...` can mark the action generically available.
+ *   - `actionParams` present but lacking `name`: the declare is missing a
+ *     parameter its ruleset reads. Throws, naming the parameter.
  */
 const getParamBuiltin: BuiltinFunction = (args, context) => {
   assertArgCount("get_param", args, 1);
   const name = requireString(args[0]!, "name");
   const params = context.actionParams;
-  if (!params || !(name in params)) {
+  if (!params) {
     return { kind: "number", value: 0 };
   }
-  const value = params[name]!;
+  const value = params[name];
+  if (value === undefined) {
+    const provided = Object.keys(params).join(", ") || "(none)";
+    throw new ExpressionError(
+      `get_param: action parameter '${name}' was not provided. Provided parameters: ${provided}`,
+    );
+  }
   if (typeof value === "boolean") {
     return { kind: "number", value: value ? 1 : 0 };
   }
@@ -876,17 +913,7 @@ const hasStraightBuiltin: BuiltinFunction = (args, context) => {
   const zoneName = resolveZoneName(args[0]!);
   const length = requireNumber(args[1]!, "length");
   const zone = getZone(context.state, zoneName);
-  const cardValues = context.state.ruleset.deck.cardValues;
-
-  // Collect all unique numeric positions for ranks present in the zone
-  const valueSet = new Set<number>();
-  for (const card of zone.cards) {
-    for (const v of getCardNumericValues(card.rank, cardValues)) {
-      valueSet.add(v);
-    }
-  }
-
-  const sorted = [...valueSet].sort((a, b) => a - b);
+  const sorted = sortedUniqueRankValues(zone.cards, context.state.ruleset.deck.cardValues);
   const runs = findConsecutiveRuns(sorted);
   return runs.some((r) => r >= length) ? EVAL_TRUE : EVAL_FALSE;
 };
@@ -900,16 +927,7 @@ const countRunsBuiltin: BuiltinFunction = (args, context) => {
   const zoneName = resolveZoneName(args[0]!);
   const minLength = requireNumber(args[1]!, "min_length");
   const zone = getZone(context.state, zoneName);
-  const cardValues = context.state.ruleset.deck.cardValues;
-
-  const valueSet = new Set<number>();
-  for (const card of zone.cards) {
-    for (const v of getCardNumericValues(card.rank, cardValues)) {
-      valueSet.add(v);
-    }
-  }
-
-  const sorted = [...valueSet].sort((a, b) => a - b);
+  const sorted = sortedUniqueRankValues(zone.cards, context.state.ruleset.deck.cardValues);
   const runs = findConsecutiveRuns(sorted);
   return { kind: "number", value: runs.filter((r) => r >= minLength).length };
 };
@@ -921,34 +939,12 @@ const maxRunLengthBuiltin: BuiltinFunction = (args, context) => {
   assertArgCount("max_run_length", args, 1);
   const zoneName = resolveZoneName(args[0]!);
   const zone = getZone(context.state, zoneName);
-  const cardValues = context.state.ruleset.deck.cardValues;
-
-  const valueSet = new Set<number>();
-  for (const card of zone.cards) {
-    for (const v of getCardNumericValues(card.rank, cardValues)) {
-      valueSet.add(v);
-    }
-  }
-
-  const sorted = [...valueSet].sort((a, b) => a - b);
+  const sorted = sortedUniqueRankValues(zone.cards, context.state.ruleset.deck.cardValues);
   const runs = findConsecutiveRuns(sorted);
   return { kind: "number", value: runs.length > 0 ? Math.max(...runs) : 0 };
 };
 
 // ─── Trick-Taking Query Builtins ───────────────────────────────────
-
-/**
- * Resolves the numeric value of a card's rank for trick comparison.
- * For fixed values, returns `value`. For dual values, returns `high`
- * (trick-taking always uses the high value).
- */
-function resolveCardRankValue(
-  cardValues: Readonly<Record<string, CardValue>>,
-  rank: string,
-): number {
-  const cv = getCardValue(cardValues, rank);
-  return cv.kind === "fixed" ? cv.value : cv.high;
-}
 
 /**
  * trick_winner(zone_prefix) — Determines the winner of a trick.
@@ -1278,27 +1274,19 @@ const playedCardMatchesTopBuiltin: BuiltinFunction = (args, context) => {
 
   // Resolve the current player's hand zone
   const playerIndex = context.playerIndex ?? context.state.currentPlayerIndex;
-  const handZoneName = `hand:${playerIndex}`;
+  const handZoneName = perPlayerZone("hand", playerIndex);
   const handZone = getZone(context.state, handZoneName);
-
-  if (cardIndex < 0 || cardIndex >= handZone.cards.length) {
-    throw new ExpressionError(
-      `played_card_matches_top(): index ${cardIndex} out of bounds for zone '${handZoneName}' (${handZone.cards.length} cards)`,
-    );
-  }
+  const card = getCardAt("played_card_matches_top", handZone, handZoneName, cardIndex);
 
   const targetZone = getZone(context.state, targetZoneName);
-  if (targetZone.cards.length === 0) {
+  const topCard = targetZone.cards[0];
+  if (!topCard) {
     throw new ExpressionError(
       `played_card_matches_top(): target zone '${targetZoneName}' is empty`,
     );
   }
 
-  const card = handZone.cards[cardIndex]!;
-  const topCard = targetZone.cards[0]!;
-  const activeSuit = context.state.stringVariables.active_suit ?? "";
-  const matchSuit = activeSuit || topCard.suit;
-  return card.suit === matchSuit || card.rank === topCard.rank ? EVAL_TRUE : EVAL_FALSE;
+  return matchesTopBySuitOrRank(context.state, card, topCard) ? EVAL_TRUE : EVAL_FALSE;
 };
 
 // ─── Cumulative Score Builtins ─────────────────────────────────────
@@ -1319,9 +1307,7 @@ const getCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
  * max_cumulative_score() — Returns the highest cumulative score across all human players.
  */
 const maxCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
-  if (args.length !== 0) {
-    throw new ExpressionError(`max_cumulative_score() takes no arguments, got ${args.length}`);
-  }
+  assertNoArgs("max_cumulative_score", args);
   const { players, variables } = context.state;
   const roles = context.state.ruleset.roles;
   let max = 0;
@@ -1337,9 +1323,7 @@ const maxCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
  * min_cumulative_score() — Returns the lowest cumulative score across all human players.
  */
 const minCumulativeScoreBuiltin: BuiltinFunction = (args, context) => {
-  if (args.length !== 0) {
-    throw new ExpressionError(`min_cumulative_score() takes no arguments, got ${args.length}`);
-  }
+  assertNoArgs("min_cumulative_score", args);
   const { players, variables } = context.state;
   const roles = context.state.ruleset.roles;
   let min = Infinity;
@@ -1367,15 +1351,27 @@ const accumulateScoresBuiltin: BuiltinFunction = (args, context) => {
 // ─── Registration ──────────────────────────────────────────────────
 
 /**
+ * Registry generation in which the core builtins were last installed, or
+ * `undefined` if never. Compared against `getBuiltinRegistryGeneration()` so
+ * that (a) repeated calls are free, (b) registering a custom builtin first
+ * does not suppress the core set, and (c) `clearBuiltins()` forces a re-install.
+ */
+let installedGeneration: number | undefined;
+
+/**
  * Registers all builtin functions with the expression evaluator.
- * Skips registration when the registry already contains entries,
- * so repeated calls (e.g. from getValidActions) are essentially free.
+ * Idempotent: repeated calls (e.g. from getValidActions) are essentially free.
+ * Effect builtins are registered with kind "effect" so the evaluator can
+ * reject them when written as bare identifiers.
  *
  * Note: `while` is handled as a special form in the expression evaluator
  * itself (not registered here) because it requires lazy argument evaluation.
  */
 export function registerAllBuiltins(): void {
-  if (getRegisteredBuiltins().length > 0) return;
+  const generation = getBuiltinRegistryGeneration();
+  if (installedGeneration === generation) return;
+  installedGeneration = generation;
+
   // Query builtins
   registerBuiltin("hand_value", handValueBuiltin);
   registerBuiltin("card_count", cardCountBuiltin);
@@ -1420,30 +1416,31 @@ export function registerAllBuiltins(): void {
   // String builtins
   registerBuiltin("concat", concatBuiltin);
 
-  // Effect builtins
-  registerBuiltin("shuffle", shuffleBuiltin);
-  registerBuiltin("deal", dealBuiltin);
-  registerBuiltin("draw", drawBuiltin);
-  registerBuiltin("set_face_up", setFaceUpBuiltin);
-  registerBuiltin("reveal_all", revealAllBuiltin);
-  registerBuiltin("end_turn", endTurnBuiltin);
-  registerBuiltin("calculate_scores", calculateScoresBuiltin);
-  registerBuiltin("determine_winners", determineWinnersBuiltin);
-  registerBuiltin("collect_all_to", collectAllToBuiltin);
-  registerBuiltin("reset_round", resetRoundBuiltin);
-  registerBuiltin("move_top", moveTopBuiltin);
-  registerBuiltin("flip_top", flipTopBuiltin);
-  registerBuiltin("move_all", moveAllBuiltin);
-  registerBuiltin("move_rank", moveRankBuiltin);
-  registerBuiltin("reverse_turn_order", reverseTurnOrderBuiltin);
-  registerBuiltin("skip_next_player", skipNextPlayerBuiltin);
-  registerBuiltin("set_next_player", setNextPlayerBuiltin);
-  registerBuiltin("collect_trick", collectTrickBuiltin);
-  registerBuiltin("set_lead_player", setLeadPlayerBuiltin);
-  registerBuiltin("end_game", endGameBuiltin);
-  registerBuiltin("accumulate_scores", accumulateScoresBuiltin);
   registerBuiltin("turn_direction", turnDirectionBuiltin);
-  registerBuiltin("set_var", setVarBuiltin);
-  registerBuiltin("set_str_var", setStrVarBuiltin);
-  registerBuiltin("inc_var", incVarBuiltin);
+
+  // Effect builtins
+  registerBuiltin("shuffle", shuffleBuiltin, "effect");
+  registerBuiltin("deal", dealBuiltin, "effect");
+  registerBuiltin("draw", drawBuiltin, "effect");
+  registerBuiltin("set_face_up", setFaceUpBuiltin, "effect");
+  registerBuiltin("reveal_all", revealAllBuiltin, "effect");
+  registerBuiltin("end_turn", endTurnBuiltin, "effect");
+  registerBuiltin("calculate_scores", calculateScoresBuiltin, "effect");
+  registerBuiltin("determine_winners", determineWinnersBuiltin, "effect");
+  registerBuiltin("collect_all_to", collectAllToBuiltin, "effect");
+  registerBuiltin("reset_round", resetRoundBuiltin, "effect");
+  registerBuiltin("move_top", moveTopBuiltin, "effect");
+  registerBuiltin("flip_top", flipTopBuiltin, "effect");
+  registerBuiltin("move_all", moveAllBuiltin, "effect");
+  registerBuiltin("move_rank", moveRankBuiltin, "effect");
+  registerBuiltin("reverse_turn_order", reverseTurnOrderBuiltin, "effect");
+  registerBuiltin("skip_next_player", skipNextPlayerBuiltin, "effect");
+  registerBuiltin("set_next_player", setNextPlayerBuiltin, "effect");
+  registerBuiltin("collect_trick", collectTrickBuiltin, "effect");
+  registerBuiltin("set_lead_player", setLeadPlayerBuiltin, "effect");
+  registerBuiltin("end_game", endGameBuiltin, "effect");
+  registerBuiltin("accumulate_scores", accumulateScoresBuiltin, "effect");
+  registerBuiltin("set_var", setVarBuiltin, "effect");
+  registerBuiltin("set_str_var", setStrVarBuiltin, "effect");
+  registerBuiltin("inc_var", incVarBuiltin, "effect");
 }
