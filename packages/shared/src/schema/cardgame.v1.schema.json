@@ -298,7 +298,12 @@
                     "const": "partial"
                   },
                   "rule": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                      "first_card_only",
+                      "last_card_only",
+                      "face_up_only"
+                    ]
                   }
                 },
                 "required": [
@@ -373,7 +378,12 @@
                           "const": "partial"
                         },
                         "rule": {
-                          "type": "string"
+                          "type": "string",
+                          "enum": [
+                            "first_card_only",
+                            "last_card_only",
+                            "face_up_only"
+                          ]
                         }
                       },
                       "required": [
