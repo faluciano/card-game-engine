@@ -36,6 +36,7 @@ export const styles = {
     marginBottom: 18,
   },
   title: {
+    margin: 0,
     color: colors.textBright,
     fontSize: 38,
     fontWeight: 800,
@@ -51,6 +52,12 @@ export const styles = {
     color: colors.textDim,
     fontSize: 18,
     lineHeight: 1.45,
+  },
+  tabPanel: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    minHeight: 0,
   },
   listContent: {
     flex: 1,
@@ -80,6 +87,20 @@ export const styles = {
   cardFocused: {
     borderColor: colors.accent,
     backgroundColor: colors.surfaceRaised,
+  },
+  cardBody: {
+    // Button reset: the shell (styles.card) owns the visuals.
+    display: "block",
+    width: "100%",
+    padding: 0,
+    margin: 0,
+    background: "none",
+    border: "none",
+    color: "inherit",
+    font: "inherit",
+    textAlign: "left",
+    cursor: "pointer",
+    borderRadius: 10,
   },
   cardName: {
     color: colors.textBright,

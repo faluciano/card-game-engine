@@ -5,7 +5,7 @@
 // overlay. The host's RN `Animated` deal-in and flip become CSS
 // keyframes driven by the shared timing constants.
 
-import React, { useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import type { Card, HostAction, HostGameState } from "@card-engine/shared";
 import {
   DEAL_DURATION_MS,
@@ -179,10 +179,19 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
     view.revealed,
   );
 
+  // Only the top_only <-> fanned pair is toggled by a click; the other
+  // modes are fixed, so they expose no expanded state at all.
+  const expanded = mode === "top_only" ? false : mode === "fanned" ? true : undefined;
+  const zoneLabel = `${formatZoneName(view.name)} zone, ${cards.length} ${
+    cards.length === 1 ? "card" : "cards"
+  }`;
+
   return (
     <button
       type="button"
       onClick={toggleExpanded}
+      aria-label={zoneLabel}
+      aria-expanded={expanded}
       style={{
         // Button reset; border, padding and cursor come from styles.zone.
         background: "none",
@@ -422,67 +431,85 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
   readonly overlay: ResultsOverlayModel;
   readonly onBackToMenu: () => void;
 }): React.JSX.Element {
-  const backButton = (
-    <div style={styles.overlayButtons}>
-      <Button
-        label="Back to Menu"
-        variant="secondary"
-        onPress={onBackToMenu}
-        style={styles.overlayButton}
-        labelStyle={styles.overlayButtonText}
-      />
-    </div>
-  );
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
 
-  if (overlay.kind === "round_end") {
-    // ── Round-end view: show per-player results ──
-    return (
-      <div style={styles.overlay}>
-        <div style={styles.overlayCard}>
-          <div style={styles.overlayTitle}>ROUND COMPLETE</div>
+  // Move focus into the dialog when it opens so screen readers announce
+  // it and keyboard users start inside it rather than on the table.
+  useEffect(() => {
+    dialogRef.current?.focus();
+  }, []);
 
-          {overlay.players.map((row) => (
-            <div key={row.playerId} style={resultsStyles.playerRow}>
-              <span style={resultsStyles.playerName}>{row.name}</span>
-              <span style={resultsStyles.handValue}>{row.handValue}</span>
-              <div style={{ ...resultsStyles.resultBadge, backgroundColor: row.resultColor }}>
-                <span style={resultsStyles.resultBadgeText}>{row.resultLabel}</span>
-              </div>
-            </div>
-          ))}
+  const isRoundEnd = overlay.kind === "round_end";
 
-          {overlay.npcScores.length > 0 && (
-            <>
-              <div style={resultsStyles.divider} />
-              {overlay.npcScores.map(({ label, score }) => (
-                <div key={label} style={resultsStyles.npcRow}>
-                  <span style={resultsStyles.npcLabel}>{label}</span>
-                  <span style={resultsStyles.npcScore}>{score}</span>
-                </div>
-              ))}
-            </>
-          )}
-
-          {/* Info text — phones trigger the new round, not the display */}
-          <div style={resultsStyles.waitingText}>Waiting for players to start new round...</div>
-
-          {backButton}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Finished view ──
   return (
     <div style={styles.overlay}>
-      <div style={styles.overlayCard}>
-        <div style={styles.overlayTitle}>GAME OVER</div>
-        <div style={styles.overlayWinner}>
-          {overlay.winnerName !== null ? `🏆 ${overlay.winnerName} wins!` : "It's a draw!"}
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        style={styles.overlayCard}
+      >
+        <div id={titleId} style={styles.overlayTitle}>
+          {isRoundEnd ? "ROUND COMPLETE" : "GAME OVER"}
         </div>
 
-        {backButton}
+        {overlay.kind === "round_end" ? (
+          <RoundEndResults overlay={overlay} />
+        ) : (
+          <div style={styles.overlayWinner}>
+            {overlay.winnerName !== null ? `🏆 ${overlay.winnerName} wins!` : "It's a draw!"}
+          </div>
+        )}
+
+        <div style={styles.overlayButtons}>
+          <Button
+            label="Back to Menu"
+            variant="secondary"
+            onPress={onBackToMenu}
+            style={styles.overlayButton}
+            labelStyle={styles.overlayButtonText}
+          />
+        </div>
       </div>
     </div>
   );
 });
+
+/** Round-end body: per-player results, NPC scores and the waiting hint. */
+function RoundEndResults({
+  overlay,
+}: {
+  readonly overlay: Extract<ResultsOverlayModel, { readonly kind: "round_end" }>;
+}): React.JSX.Element {
+  return (
+    <>
+      {overlay.players.map((row) => (
+        <div key={row.playerId} style={resultsStyles.playerRow}>
+          <span style={resultsStyles.playerName}>{row.name}</span>
+          <span style={resultsStyles.handValue}>{row.handValue}</span>
+          <div style={{ ...resultsStyles.resultBadge, backgroundColor: row.resultColor }}>
+            <span style={resultsStyles.resultBadgeText}>{row.resultLabel}</span>
+          </div>
+        </div>
+      ))}
+
+      {overlay.npcScores.length > 0 && (
+        <>
+          <div style={resultsStyles.divider} />
+          {overlay.npcScores.map(({ label, score }) => (
+            <div key={label} style={resultsStyles.npcRow}>
+              <span style={resultsStyles.npcLabel}>{label}</span>
+              <span style={resultsStyles.npcScore}>{score}</span>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Info text — phones trigger the new round, not the display */}
+      <div style={resultsStyles.waitingText}>Waiting for players to start new round...</div>
+    </>
+  );
+}

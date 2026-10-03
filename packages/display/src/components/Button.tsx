@@ -17,6 +17,8 @@ export function Button({
   variant = "primary",
   style,
   labelStyle,
+  ariaLabel,
+  onBlur,
 }: {
   readonly label: string;
   readonly onPress?: () => void;
@@ -24,6 +26,9 @@ export function Button({
   readonly variant?: ButtonVariant;
   readonly style?: React.CSSProperties;
   readonly labelStyle?: React.CSSProperties;
+  /** Accessible name when the visible label alone is ambiguous (e.g. "DELETE"). */
+  readonly ariaLabel?: string;
+  readonly onBlur?: () => void;
 }): React.JSX.Element {
   const [active, setActive] = useState(false);
   const highlighted = active && !disabled;
@@ -36,7 +41,11 @@ export function Button({
       onMouseEnter={() => setActive(true)}
       onMouseLeave={() => setActive(false)}
       onFocus={() => setActive(true)}
-      onBlur={() => setActive(false)}
+      onBlur={() => {
+        setActive(false);
+        onBlur?.();
+      }}
+      aria-label={ariaLabel}
       style={{
         ...base,
         ...variants[variant],

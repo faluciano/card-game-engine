@@ -101,7 +101,6 @@ export const styles = {
     padding: 10,
     minWidth: 140,
     cursor: "pointer",
-    outline: "none",
   },
   zoneName: {
     color: colors.textMuted,
