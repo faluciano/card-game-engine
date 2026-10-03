@@ -36,6 +36,7 @@ export {
   type InstalledSlug,
   type RulesetHookStatus,
 } from "./ruleset-hooks";
+export { useRulesetSync, type RulesetSyncStatus } from "./use-ruleset-sync";
 export {
   useRulesetStore,
   type ImportResult,
