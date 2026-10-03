@@ -3,14 +3,14 @@
 // select games while waiting for the host to start.
 
 import type React from "react";
-import { useCallback, useState } from "react";
 import type { CSSProperties } from "react";
-import type { CatalogGame, CardGameRuleset, HostClientView, HostAction } from "@card-engine/shared";
-import { useCatalog } from "../hooks/useCatalog.js";
+import type { CatalogGame, HostAction, HostClientView } from "@card-engine/shared";
+import { findInstalledVersion, isBuiltInSlug } from "@card-engine/host-core/catalog";
+import { useClientCatalog } from "../hooks/useClientCatalog.js";
+import { useCatalogInstaller } from "../hooks/useCatalogInstaller.js";
 import { GameCard } from "../components/GameCard.js";
 import { CenteredState } from "../components/CenteredState.js";
-
-const CATALOG_BASE_URL = "https://faluciano.github.io/card-game-engine/";
+import { SelectedGame } from "../components/SelectedGame.js";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -55,20 +55,6 @@ const waitingStyle: CSSProperties = {
   fontSize: 14,
   color: "var(--color-text-muted)",
   animation: "pulse 1.5s ease-in-out infinite",
-};
-
-const selectedGameStyle: CSSProperties = {
-  padding: "0 16px 12px",
-  flexShrink: 0,
-};
-
-const selectedLabelStyle: CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "var(--color-text-muted)",
-  textTransform: "uppercase",
-  letterSpacing: 0.5,
-  marginBottom: 8,
 };
 
 const dividerStyle: CSSProperties = {
@@ -133,72 +119,20 @@ export function LobbyScreen({
   playerId,
   onChangeName,
 }: LobbyScreenProps): React.JSX.Element {
-  const { catalog, refetch } = useCatalog();
-  const [installError, setInstallError] = useState<string | null>(null);
+  const { catalog, refetch } = useClientCatalog();
+  const installer = useCatalogInstaller(sendAction);
 
-  const player = state.players[playerId];
-  const playerName = player?.name ?? "Player";
+  const playerName = state.players[playerId]?.name ?? "Player";
 
   // Currently selected game slug (from lobby screen state)
   const selectedSlug = state.screen.tag === "lobby" ? state.screen.ruleset.slug : null;
+  const selectedGame =
+    selectedSlug !== null && catalog.tag === "loaded"
+      ? (catalog.games.find((g) => g.slug === selectedSlug) ?? null)
+      : null;
 
-  const handleInstall = useCallback(
-    async (game: CatalogGame): Promise<void> => {
-      setInstallError(null);
-      try {
-        const url = `${CATALOG_BASE_URL}${game.file}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Failed to download: HTTP ${res.status}`);
-
-        const raw: unknown = await res.json();
-        // Zod is only needed here, so it is loaded on demand (own chunk).
-        const { safeParseRuleset } = await import("@card-engine/shared/schema");
-        const result = safeParseRuleset(raw);
-
-        if (!result.success) {
-          throw new Error("Invalid ruleset format");
-        }
-
-        sendAction({
-          type: "INSTALL_RULESET",
-          ruleset: result.data as CardGameRuleset,
-          slug: game.slug,
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Installation failed";
-        setInstallError(`Could not install ${game.name}: ${message}`);
-      }
-    },
-    [sendAction],
-  );
-
-  const handleSelect = useCallback(
-    async (game: CatalogGame): Promise<void> => {
-      setInstallError(null);
-      try {
-        const url = `${CATALOG_BASE_URL}${game.file}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Failed to download: HTTP ${res.status}`);
-
-        const raw: unknown = await res.json();
-        const { safeParseRuleset } = await import("@card-engine/shared/schema");
-        const result = safeParseRuleset(raw);
-
-        if (!result.success) {
-          throw new Error("Invalid ruleset format");
-        }
-
-        sendAction({
-          type: "SELECT_RULESET",
-          ruleset: result.data as CardGameRuleset,
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Selection failed";
-        setInstallError(`Could not select ${game.name}: ${message}`);
-      }
-    },
-    [sendAction],
-  );
+  const isPending = (game: CatalogGame): boolean =>
+    state.pendingInstall?.slug === game.slug || installer.inFlight.has(game.slug);
 
   return (
     <div style={containerStyle}>
@@ -214,31 +148,21 @@ export function LobbyScreen({
         <p style={waitingStyle}>Waiting for host to start the game...</p>
       </div>
 
-      {installError !== null && <div style={errorBannerStyle}>{installError}</div>}
+      {installer.error !== null && (
+        <div role="alert" style={errorBannerStyle}>
+          {installer.error}
+        </div>
+      )}
 
-      {/* ── Currently selected game ────────────────────────────── */}
-      {selectedSlug !== null &&
-        catalog.tag === "loaded" &&
-        (() => {
-          const selectedGame = catalog.games.find((g) => g.slug === selectedSlug);
-          if (!selectedGame) return null;
-
-          const installed = state.installedSlugs.find((ig) => ig.slug === selectedGame.slug);
-
-          return (
-            <div style={selectedGameStyle}>
-              <p style={selectedLabelStyle}>Selected Game</p>
-              <GameCard
-                game={selectedGame}
-                isInstalled={installed !== undefined}
-                isPending={state.pendingInstall?.slug === selectedGame.slug}
-                isSelected={true}
-                onSelect={() => {}}
-                onInstall={(g) => void handleInstall(g)}
-              />
-            </div>
-          );
-        })()}
+      {selectedGame !== null && (
+        <SelectedGame
+          game={selectedGame}
+          installedVersion={findInstalledVersion(state.installedSlugs, selectedGame.slug)}
+          isBuiltIn={isBuiltInSlug(selectedGame.slug)}
+          isPending={isPending(selectedGame)}
+          onInstall={installer.install}
+        />
+      )}
 
       <div style={dividerStyle} />
 
@@ -261,27 +185,20 @@ export function LobbyScreen({
             {catalog.games.length === 0 ? (
               <CenteredState message="No games available" />
             ) : (
-              catalog.games.map((game) => {
-                const installed = state.installedSlugs.find((ig) => ig.slug === game.slug);
-                const isInstalled = installed !== undefined;
-                const isUpdateAvailable = isInstalled && installed.version !== game.version;
-                const isSelected = game.slug === selectedSlug;
-
-                return (
-                  <GameCard
-                    key={game.slug}
-                    game={game}
-                    isInstalled={isInstalled}
-                    isUpdateAvailable={isUpdateAvailable}
-                    isPending={state.pendingInstall?.slug === game.slug}
-                    isUninstalling={state.pendingUninstall === game.slug}
-                    onInstall={(g) => void handleInstall(g)}
-                    onUninstall={() => sendAction({ type: "UNINSTALL_RULESET", slug: game.slug })}
-                    onSelect={() => void handleSelect(game)}
-                    isSelected={isSelected}
-                  />
-                );
-              })
+              catalog.games.map((game) => (
+                <GameCard
+                  key={game.slug}
+                  game={game}
+                  installedVersion={findInstalledVersion(state.installedSlugs, game.slug)}
+                  isBuiltIn={isBuiltInSlug(game.slug)}
+                  isPending={isPending(game)}
+                  isUninstalling={state.pendingUninstall === game.slug}
+                  onInstall={installer.install}
+                  onUninstall={() => installer.uninstall(game.slug)}
+                  onSelect={() => installer.select(game)}
+                  isSelected={game.slug === selectedSlug}
+                />
+              ))
             )}
           </div>
         )}
