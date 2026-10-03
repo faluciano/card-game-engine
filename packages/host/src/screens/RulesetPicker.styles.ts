@@ -56,6 +56,9 @@ export const styles = StyleSheet.create({
     borderColor: colors.accent,
     backgroundColor: colors.surfaceRaised,
   },
+  cardBody: {
+    alignSelf: "stretch",
+  },
   cardName: {
     color: colors.textBright,
     fontSize: 26,

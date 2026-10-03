@@ -5,8 +5,8 @@
 // game-over overlay. The deal-in and flip animations use RN `Animated`
 // with timing constants shared with the web display.
 
-import React, { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated, Text, View } from "react-native";
 import { useGameHost } from "@couch-kit/host";
 import type { Card, HostAction, HostGameState } from "@card-engine/shared";
 import {
@@ -27,6 +27,7 @@ import {
   type StatusBarModel,
   type ZoneViewModel,
 } from "@card-engine/host-core";
+import { TVPressable } from "../components/TVPressable";
 import { resultsStyles, styles } from "./GameTable.styles";
 
 // ─── Component ─────────────────────────────────────────────────────
@@ -163,8 +164,22 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
     view.revealed,
   );
 
+  // Only the top_only <-> fanned pair is toggled by a press; the other
+  // modes are fixed, so they report no expanded state at all.
+  const expanded = mode === "top_only" ? false : mode === "fanned" ? true : undefined;
+  const zoneLabel = `${formatZoneName(view.name)} zone, ${cards.length} ${
+    cards.length === 1 ? "card" : "cards"
+  }`;
+
   return (
-    <Pressable style={styles.zone} onPress={toggleExpanded}>
+    <TVPressable
+      style={styles.zone}
+      focusedStyle={styles.zoneFocused}
+      onPress={toggleExpanded}
+      accessibilityLabel={zoneLabel}
+      accessibilityHint={expanded === undefined ? undefined : "Toggles showing every card"}
+      accessibilityState={expanded === undefined ? undefined : { expanded }}
+    >
       <Text style={styles.zoneName}>{formatZoneName(view.name)}</Text>
       <View style={styles.cardRow}>
         {mode === "empty" ? (
@@ -186,7 +201,7 @@ const ZoneDisplay = React.memo(function ZoneDisplay({
           <CappedCardList cards={cards} newCardStartIndex={newCardStartIndex} />
         )}
       </View>
-    </Pressable>
+    </TVPressable>
   );
 });
 
@@ -426,30 +441,24 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
   readonly overlay: ResultsOverlayModel;
   readonly onBackToMenu: () => void;
 }): React.JSX.Element {
-  const [focusedButton, setFocusedButton] = useState<string | null>(null);
-
   const backButton = (
     <View style={styles.overlayButtons}>
-      <Pressable
-        style={[
-          styles.overlayButton,
-          styles.overlayButtonSecondary,
-          focusedButton === "back" && styles.overlayButtonFocused,
-        ]}
-        onFocus={() => setFocusedButton("back")}
-        onBlur={() => setFocusedButton(null)}
+      <TVPressable
+        style={[styles.overlayButton, styles.overlayButtonSecondary]}
+        focusedStyle={styles.overlayButtonFocused}
         onPress={onBackToMenu}
         hasTVPreferredFocus
+        accessibilityLabel="Back to menu"
       >
         <Text style={styles.overlayButtonTextSecondary}>Back to Menu</Text>
-      </Pressable>
+      </TVPressable>
     </View>
   );
 
   if (overlay.kind === "round_end") {
     // ── Round-end view: show per-player results ──
     return (
-      <View style={styles.overlay}>
+      <View style={styles.overlay} accessibilityViewIsModal>
         <View style={styles.overlayCard}>
           <Text style={styles.overlayTitle}>ROUND COMPLETE</Text>
 
@@ -490,7 +499,7 @@ const ResultsOverlay = React.memo(function ResultsOverlay({
 
   // ── Finished view ──
   return (
-    <View style={styles.overlay}>
+    <View style={styles.overlay} accessibilityViewIsModal>
       <View style={styles.overlayCard}>
         <Text style={styles.overlayTitle}>GAME OVER</Text>
         <Text style={styles.overlayWinner}>

@@ -84,10 +84,14 @@ export const styles = StyleSheet.create({
   zone: {
     backgroundColor: colors.tableSurface,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.tableBorder,
     padding: 10,
     minWidth: 140,
+  },
+  zoneFocused: {
+    borderColor: colors.gold,
+    backgroundColor: colors.tableSurfaceRaised,
   },
   zoneName: {
     color: colors.textMuted,

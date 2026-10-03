@@ -4,13 +4,14 @@
 // game info, and a start button that activates once the minimum player
 // count is met.
 
-import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useGameHost } from "@couch-kit/host";
 import type { HostAction, HostGameState } from "@card-engine/shared";
 import { colors, playerInitial, useLobbyModel, type LobbyPlayer } from "@card-engine/host-core";
 
 import { QRDisplay } from "../components/QRDisplay";
+import { TVPressable } from "../components/TVPressable";
 
 // ─── Component ─────────────────────────────────────────────────────
 
@@ -50,19 +51,24 @@ export function Lobby(): React.JSX.Element {
         </ScrollView>
 
         <View style={styles.controls}>
+          {/* A disabled control can't take D-pad focus, so prefer Back until
+              enough players have joined, then hand focus to Start the moment
+              it unlocks (hasTVPreferredFocus re-requests focus when it flips). */}
           <LobbyButton
             label="Start Game"
+            accessibilityLabel={model.canStart ? "Start game" : "Start game, waiting for players"}
             onPress={model.start}
             disabled={!model.canStart}
             isPrimary
-            isFirst
+            preferFocus={model.canStart}
           />
           <LobbyButton
             label="Back"
+            accessibilityLabel="Back to game selection"
             onPress={model.back}
             disabled={false}
             isPrimary={false}
-            isFirst={false}
+            preferFocus={!model.canStart}
           />
         </View>
       </View>
@@ -98,32 +104,29 @@ const PlayerRow = React.memo(function PlayerRow({
 
 function LobbyButton({
   label,
+  accessibilityLabel,
   onPress,
   disabled,
   isPrimary,
-  isFirst,
+  preferFocus,
 }: {
   readonly label: string;
+  readonly accessibilityLabel: string;
   readonly onPress: () => void;
   readonly disabled: boolean;
   readonly isPrimary: boolean;
-  readonly isFirst: boolean;
+  /** Request D-pad focus (and re-request it whenever this flips to true). */
+  readonly preferFocus: boolean;
 }): React.JSX.Element {
-  const [focused, setFocused] = useState(false);
-
   return (
-    <Pressable
-      style={[
-        styles.button,
-        isPrimary ? styles.buttonPrimary : styles.buttonSecondary,
-        disabled && styles.buttonDisabled,
-        focused && !disabled && styles.buttonFocused,
-      ]}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+    <TVPressable
+      style={[styles.button, isPrimary ? styles.buttonPrimary : styles.buttonSecondary]}
+      focusedStyle={styles.buttonFocused}
+      disabledStyle={styles.buttonDisabled}
       onPress={onPress}
       disabled={disabled}
-      hasTVPreferredFocus={isFirst}
+      hasTVPreferredFocus={preferFocus}
+      accessibilityLabel={accessibilityLabel}
     >
       <Text
         style={[
@@ -134,7 +137,7 @@ function LobbyButton({
       >
         {label}
       </Text>
-    </Pressable>
+    </TVPressable>
   );
 }
 
