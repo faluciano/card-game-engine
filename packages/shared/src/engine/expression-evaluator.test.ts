@@ -6,7 +6,11 @@ import {
   evaluateCondition,
   ExpressionError,
   registerBuiltin,
+  unregisterBuiltin,
+  getRegisteredBuiltins,
   clearBuiltins,
+  clearExpressionCache,
+  compileExpression,
   type EvalContext,
   type ASTNode,
   type BinaryOp,
@@ -101,6 +105,17 @@ function createMockState(overrides?: Partial<CardGameState>): CardGameState {
 
 function makeContext(overrides?: Partial<CardGameState>): EvalContext {
   return { state: createMockState(overrides) };
+}
+
+/** Runs `fn`, asserting it throws an ExpressionError, and returns that error. */
+function captureExpressionError(fn: () => unknown): ExpressionError {
+  try {
+    fn();
+  } catch (error) {
+    if (error instanceof ExpressionError) return error;
+    throw error;
+  }
+  throw new Error("Expected an ExpressionError to be thrown");
 }
 
 /** Extracts just `kind` and `value` from each token (drops position for brevity). */
@@ -1064,6 +1079,49 @@ describe("expression-evaluator", () => {
           expect((e as ExpressionError).name).toBe("ExpressionError");
         }
       });
+
+      it("attaches the source expression to evaluation errors", () => {
+        const error = captureExpressionError(() => evaluateExpression("1 + nope", makeContext()));
+        expect(error.expression).toBe("1 + nope");
+        expect(error.message).toBe(`Unknown identifier: 'nope' (in expression: "1 + nope")`);
+      });
+
+      it("attaches the source expression to syntax errors", () => {
+        const error = captureExpressionError(() => evaluateExpression("1 +", makeContext()));
+        expect(error.expression).toBe("1 +");
+        expect(error.message).toContain(`(in expression: "1 +")`);
+      });
+
+      it("attaches the source expression to errors thrown inside builtins", () => {
+        registerBuiltin("explode", () => {
+          throw new ExpressionError("boom");
+        });
+        const error = captureExpressionError(() =>
+          evaluateExpression("explode() && true", makeContext()),
+        );
+        expect(error.message).toBe(`boom (in expression: "explode() && true")`);
+      });
+
+      it("does not attach an expression twice when errors are rethrown", () => {
+        const error = captureExpressionError(() => evaluateCondition("1 + 1", makeContext()));
+        expect(error.message).toBe(
+          `Expected boolean expression, got number (in expression: "1 + 1")`,
+        );
+      });
+
+      it("leaves the message unchanged when no expression is given", () => {
+        const error = new ExpressionError("plain");
+        expect(error.message).toBe("plain");
+        expect(error.expression).toBeUndefined();
+      });
+
+      it("lets non-ExpressionErrors from builtins pass through unchanged", () => {
+        const bug = new TypeError("not an expression problem");
+        registerBuiltin("buggy", () => {
+          throw bug;
+        });
+        expect(() => evaluateExpression("buggy()", makeContext())).toThrow(bug);
+      });
     });
 
     describe("depth guard", () => {
@@ -1296,6 +1354,117 @@ describe("expression-evaluator", () => {
     it("throws ExpressionError for modulo by zero", () => {
       const ctx = makeContext();
       expect(() => evaluateExpression("5 % 0", ctx)).toThrow(ExpressionError);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── compileExpression ────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("compileExpression", () => {
+    it("returns the AST for a valid expression without evaluating it", () => {
+      const ast = compileExpression("unknown_fn(1) > 2");
+      expect(ast.kind).toBe("BinaryOp");
+    });
+
+    it("throws an ExpressionError naming the expression on a syntax error", () => {
+      const error = captureExpressionError(() => compileExpression("a = b"));
+      expect(error.expression).toBe("a = b");
+      expect(error.message).toContain("Did you mean '=='?");
+    });
+
+    it("throws on an empty expression", () => {
+      expect(() => compileExpression("  ")).toThrow("Empty expression");
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── clearExpressionCache ─────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("clearExpressionCache", () => {
+    it("returns the cached AST for a repeated expression", () => {
+      clearExpressionCache();
+      expect(compileExpression("1 + 2")).toBe(compileExpression("1 + 2"));
+    });
+
+    it("forces a fresh parse after clearing", () => {
+      const before = compileExpression("1 + 2");
+      clearExpressionCache();
+      const after = compileExpression("1 + 2");
+      expect(after).not.toBe(before);
+      expect(after).toEqual(before);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Builtin registry ─────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+
+  describe("unregisterBuiltin", () => {
+    it("removes a registered builtin and returns true", () => {
+      registerBuiltin("temp", () => ({ kind: "number", value: 1 }));
+      expect(unregisterBuiltin("temp")).toBe(true);
+      expect(getRegisteredBuiltins()).not.toContain("temp");
+      expect(() => evaluateExpression("temp()", makeContext())).toThrow("Unknown function: 'temp'");
+    });
+
+    it("returns false for a name that was never registered", () => {
+      expect(unregisterBuiltin("never_registered")).toBe(false);
+    });
+
+    it("forgets the effect kind so a re-registered query builtin resolves bare", () => {
+      registerBuiltin("flag", () => undefined, "effect");
+      unregisterBuiltin("flag");
+      registerBuiltin("flag", () => ({ kind: "boolean", value: true }));
+      expect(evaluateExpression("flag", makeContext())).toEqual({ kind: "boolean", value: true });
+    });
+  });
+
+  describe("bare builtin identifiers", () => {
+    it("rejects a bare effect builtin without invoking it", () => {
+      let calls = 0;
+      registerBuiltin(
+        "end_turn",
+        () => {
+          calls++;
+        },
+        "effect",
+      );
+
+      expect(() => evaluateExpression("end_turn", makeContext())).toThrow(
+        "'end_turn' is an effect builtin and must be called with parentheses: 'end_turn()'",
+      );
+      expect(calls).toBe(0);
+    });
+
+    it("invokes the effect builtin when called with parentheses", () => {
+      let calls = 0;
+      registerBuiltin(
+        "end_turn",
+        () => {
+          calls++;
+        },
+        "effect",
+      );
+
+      expect(evaluateExpression("end_turn()", makeContext())).toEqual({
+        kind: "boolean",
+        value: true,
+      });
+      expect(calls).toBe(1);
+    });
+
+    it("resolves a bare query builtin as an implicit zero-arg call", () => {
+      registerBuiltin("ready", () => ({ kind: "boolean", value: true }));
+      expect(evaluateExpression("ready", makeContext())).toEqual({ kind: "boolean", value: true });
+    });
+
+    it("rejects a bare query builtin that returns no value", () => {
+      registerBuiltin("silent", () => undefined);
+      expect(() => evaluateExpression("silent", makeContext())).toThrow(
+        "builtin 'silent' returned no value",
+      );
     });
   });
 });

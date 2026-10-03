@@ -116,12 +116,32 @@ export interface EvalContext {
   readonly actionParams?: Readonly<Record<string, string | number | boolean>>;
 }
 
-/** Error thrown when an expression is malformed or references unknown bindings. */
+/**
+ * Error thrown when an expression is malformed or references unknown bindings.
+ *
+ * When the failing source expression is known it is attached as `expression`
+ * and appended to the message, so a failure deep inside a builtin still
+ * points at the ruleset string that caused it (AGENTS.md law 4).
+ */
 export class ExpressionError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(
+    message: string,
+    public readonly expression?: string,
+  ) {
+    super(expression === undefined ? message : `${message} (in expression: "${expression}")`);
     this.name = "ExpressionError";
   }
+}
+
+/**
+ * Rethrows `error` with `expression` attached when it is an ExpressionError
+ * that does not yet carry one. Non-expression errors pass through untouched.
+ */
+function rethrowWithExpression(error: unknown, expression: string): never {
+  if (error instanceof ExpressionError && error.expression === undefined) {
+    throw new ExpressionError(error.message, expression);
+  }
+  throw error;
 }
 
 // ─── Tokens ────────────────────────────────────────────────────────
@@ -567,8 +587,25 @@ export type BuiltinFunction = (
   // biome-ignore lint/suspicious/noConfusingVoidType: side-effecting builtins are plain `() => void` callbacks with no return statement, which TypeScript does not accept against `| undefined`
 ) => EvalResult | void;
 
+/**
+ * Whether a builtin only reads state ("query") or records an
+ * `EffectDescription` for the interpreter to apply ("effect").
+ * Effect builtins must be invoked with parentheses — see `evaluateIdentifier`.
+ */
+export type BuiltinKind = "query" | "effect";
+
 /** Registry of builtin functions available to the expression evaluator. */
 const functionRegistry = new Map<string, BuiltinFunction>();
+
+/** Names in `functionRegistry` that were registered as effect builtins. */
+const effectBuiltinNames = new Set<string>();
+
+/**
+ * Incremented by `clearBuiltins()`. Lets `registerAllBuiltins` detect that
+ * the core set it installed earlier has been wiped and must be re-installed,
+ * without the two modules importing each other.
+ */
+let registryGeneration = 0;
 
 /** Cache of parsed AST nodes keyed by expression string. */
 const astCache = new Map<string, ASTNode>();
@@ -576,9 +613,19 @@ const astCache = new Map<string, ASTNode>();
 /**
  * Registers a builtin function that expressions can call.
  * Overwrites any existing function with the same name.
+ * Defaults to a query builtin; pass `"effect"` for side-effecting builtins.
  */
-export function registerBuiltin(name: string, fn: BuiltinFunction): void {
+export function registerBuiltin(
+  name: string,
+  fn: BuiltinFunction,
+  kind: BuiltinKind = "query",
+): void {
   functionRegistry.set(name, fn);
+  if (kind === "effect") {
+    effectBuiltinNames.add(name);
+  } else {
+    effectBuiltinNames.delete(name);
+  }
 }
 
 /**
@@ -586,6 +633,7 @@ export function registerBuiltin(name: string, fn: BuiltinFunction): void {
  * Returns true if the function existed, false otherwise.
  */
 export function unregisterBuiltin(name: string): boolean {
+  effectBuiltinNames.delete(name);
   return functionRegistry.delete(name);
 }
 
@@ -603,6 +651,16 @@ export function getRegisteredBuiltins(): readonly string[] {
  */
 export function clearBuiltins(): void {
   functionRegistry.clear();
+  effectBuiltinNames.clear();
+  registryGeneration++;
+}
+
+/**
+ * Returns the current registry generation — bumped on every `clearBuiltins()`.
+ * Used by `registerAllBuiltins` to decide whether the core set is still installed.
+ */
+export function getBuiltinRegistryGeneration(): number {
+  return registryGeneration;
 }
 
 // ─── Evaluator ─────────────────────────────────────────────────────
@@ -738,35 +796,23 @@ function resolveMember(obj: unknown, property: string): unknown {
   throw new ExpressionError(`Cannot access property '${property}' of ${typeof obj}`);
 }
 
+/** Type guard: is `value` already a tagged EvalResult (boolean | number | string)? */
+function isEvalResult(value: unknown): value is EvalResult {
+  if (typeof value !== "object" || value === null || !("kind" in value)) {
+    return false;
+  }
+  const kind = (value as { readonly kind: unknown }).kind;
+  return kind === "boolean" || kind === "number" || kind === "string";
+}
+
 /**
  * Converts a raw resolved value to an EvalResult.
  * Opaque objects (zones, players) are not directly representable as EvalResult —
  * they must be consumed by function calls.
  */
 function toEvalResult(value: unknown, description: string): EvalResult {
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "kind" in value &&
-    (value as EvalResult).kind === "boolean"
-  ) {
-    return value as EvalResult;
-  }
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "kind" in value &&
-    (value as EvalResult).kind === "number"
-  ) {
-    return value as EvalResult;
-  }
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "kind" in value &&
-    (value as EvalResult).kind === "string"
-  ) {
-    return value as EvalResult;
+  if (isEvalResult(value)) {
+    return value;
   }
   if (typeof value === "boolean") {
     return value ? EVAL_TRUE : EVAL_FALSE;
@@ -819,20 +865,34 @@ function evaluateNode(node: ASTNode, context: EvalContext, depth: number): EvalR
 
 function evaluateIdentifier(node: Identifier, context: EvalContext): EvalResult {
   const resolved = resolveBinding(node.name, context);
-  if (resolved === undefined) {
-    // Fall back to calling a registered zero-arg builtin function.
-    // This enables bare identifiers like `all_players_done` (without parentheses)
-    // to resolve as implicit function calls in transition conditions.
-    const fn = functionRegistry.get(node.name);
-    if (fn) {
-      const result = fn([], context);
-      if (result !== undefined && result !== null) {
-        return result;
-      }
-    }
+  if (resolved !== undefined) {
+    return toEvalResult(resolved, `identifier '${node.name}'`);
+  }
+
+  // Fall back to calling a registered zero-arg QUERY builtin.
+  // This enables bare identifiers like `all_players_done` (without parentheses)
+  // to resolve as implicit function calls in transition conditions.
+  //
+  // Effect builtins are deliberately excluded: a bare `end_turn` used to record
+  // the effect and then fail with "Unknown identifier", leaving a half-applied
+  // side effect behind. Effects must be written as calls (`end_turn()`), so the
+  // bare form is rejected up front with a message that says exactly that.
+  const fn = functionRegistry.get(node.name);
+  if (!fn) {
     throw new ExpressionError(`Unknown identifier: '${node.name}'`);
   }
-  return toEvalResult(resolved, `identifier '${node.name}'`);
+  if (effectBuiltinNames.has(node.name)) {
+    throw new ExpressionError(
+      `'${node.name}' is an effect builtin and must be called with parentheses: '${node.name}()'`,
+    );
+  }
+  const result = fn([], context);
+  if (result === undefined || result === null) {
+    throw new ExpressionError(
+      `Unknown identifier: '${node.name}' (builtin '${node.name}' returned no value)`,
+    );
+  }
+  return result;
 }
 
 /**
@@ -1070,23 +1130,44 @@ function evaluateUnaryOp(node: UnaryOp, context: EvalContext, depth: number): Ev
 // ─── Public API ────────────────────────────────────────────────────
 
 /**
+ * Tokenizes and parses a DSL expression into an AST, caching the result.
+ * Pure syntax check — does not touch game state or the builtin registry,
+ * so the schema layer can run it over every expression at load time.
+ *
+ * @throws {ExpressionError} (with `expression` attached) if the expression
+ *   is empty or syntactically invalid.
+ */
+export function compileExpression(expression: Expression): ASTNode {
+  if (!expression || expression.trim().length === 0) {
+    throw new ExpressionError("Empty expression", expression);
+  }
+
+  const cached = astCache.get(expression);
+  if (cached) return cached;
+
+  try {
+    const ast = parse(tokenize(expression));
+    astCache.set(expression, ast);
+    return ast;
+  } catch (error) {
+    rethrowWithExpression(error, expression);
+  }
+}
+
+/**
  * Evaluates a DSL expression against the current game context.
  * Uses a restricted grammar — no arbitrary code execution.
  *
- * @throws {ExpressionError} if the expression is syntactically invalid.
+ * @throws {ExpressionError} if the expression is syntactically invalid or
+ *   fails to evaluate. The error always names the source expression.
  */
 export function evaluateExpression(expression: Expression, context: EvalContext): EvalResult {
-  if (!expression || expression.trim().length === 0) {
-    throw new ExpressionError("Empty expression");
+  const ast = compileExpression(expression);
+  try {
+    return evaluateNode(ast, context, 0);
+  } catch (error) {
+    rethrowWithExpression(error, expression);
   }
-
-  let ast = astCache.get(expression);
-  if (!ast) {
-    const tokens = tokenize(expression);
-    ast = parse(tokens);
-    astCache.set(expression, ast);
-  }
-  return evaluateNode(ast, context, 0);
 }
 
 /**
@@ -1096,7 +1177,7 @@ export function evaluateExpression(expression: Expression, context: EvalContext)
 export function evaluateCondition(expression: Expression, context: EvalContext): boolean {
   const result = evaluateExpression(expression, context);
   if (result.kind !== "boolean") {
-    throw new ExpressionError(`Expected boolean expression, got ${result.kind}: "${expression}"`);
+    throw new ExpressionError(`Expected boolean expression, got ${result.kind}`, expression);
   }
   return result.value;
 }
