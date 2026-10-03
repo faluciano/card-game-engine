@@ -217,6 +217,74 @@ describe("FileRulesetStore", () => {
       expect(result).toHaveLength(1);
       expect(result[0]!.id).toBe("id-good");
     });
+
+    it("logs each skipped entry instead of dropping it silently", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      setFile(
+        METADATA_PATH,
+        JSON.stringify({ "id-bad": { slug: "bad-game", importedAt: 1, lastPlayedAt: null } }),
+      );
+      setFile(`${RULESETS_DIR}id-bad.cardgame.json`, "{ not json");
+
+      const result = await store.list();
+
+      expect(result).toEqual([]);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]![0])).toContain('"bad-game" (id-bad)');
+    });
+  });
+
+  // ── corrupt metadata index ──────────────────────────────────────
+
+  describe("corrupt metadata index", () => {
+    const existing = makeMetadataIndex({
+      "id-a": { slug: "game-a", importedAt: 1000, lastPlayedAt: null },
+    });
+
+    it("throws RulesetStoreCorruptError from list() on unparseable JSON", async () => {
+      setFile(METADATA_PATH, "{ truncated");
+
+      await expect(store.list()).rejects.toMatchObject({
+        name: "RulesetStoreCorruptError",
+        source: METADATA_PATH,
+      });
+    });
+
+    it("throws when the index parses to a non-object", async () => {
+      setFile(METADATA_PATH, "[1,2,3]");
+
+      await expect(store.list()).rejects.toThrow(/expected an object keyed by id, got array/);
+    });
+
+    it("refuses to save over a corrupt index, leaving it untouched on disk", async () => {
+      const corrupt = `${JSON.stringify(existing).slice(0, -3)}`;
+      setFile(METADATA_PATH, corrupt);
+
+      await expect(store.save(makeRuleset("new-game"))).rejects.toMatchObject({
+        name: "RulesetStoreCorruptError",
+      });
+      // Before the fix this rewrote the index as { <new id>: ... }, losing game-a.
+      expect(getFile(METADATA_PATH)).toBe(corrupt);
+      // Nothing else was written either (no orphan ruleset file).
+      expect(mockFiles.size).toBe(1);
+    });
+
+    it("refuses saveWithSlug and delete over a corrupt index", async () => {
+      setFile(METADATA_PATH, "nope");
+
+      await expect(store.saveWithSlug(makeRuleset(), "x")).rejects.toMatchObject({
+        name: "RulesetStoreCorruptError",
+      });
+      await expect(store.delete("id-a")).rejects.toMatchObject({
+        name: "RulesetStoreCorruptError",
+      });
+      expect(getFile(METADATA_PATH)).toBe("nope");
+    });
+
+    it("still treats a missing index as an empty library", async () => {
+      await expect(store.list()).resolves.toEqual([]);
+      await expect(store.save(makeRuleset())).resolves.toBeDefined();
+    });
   });
 
   // ── save() ──────────────────────────────────────────────────────

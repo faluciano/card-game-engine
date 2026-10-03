@@ -5,6 +5,7 @@
 import { File, Directory, Paths } from "expo-file-system";
 import type { CardGameRuleset } from "@card-engine/shared";
 import type { RulesetStore, StoredRuleset } from "@card-engine/host-core";
+import { RulesetStoreCorruptError, generateRulesetId } from "@card-engine/host-core";
 
 export type { StoredRuleset };
 
@@ -20,17 +21,9 @@ type MetadataIndex = Record<string, RulesetMetadataEntry>;
 
 // ─── Internal Helpers ──────────────────────────────────────────────
 
-function generateId(): string {
-  // crypto.randomUUID may not be available on Hermes
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  // Fallback: Math.random-based UUID v4
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+/** A metadata index must be a plain JSON object keyed by id. */
+function isMetadataIndex(value: unknown): value is MetadataIndex {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // ─── File Ruleset Store ────────────────────────────────────────────
@@ -66,16 +59,28 @@ export class FileRulesetStore implements RulesetStore {
     this.rulesetsDir.create();
   }
 
-  /** Reads and parses the metadata index. Returns `{}` on missing or corrupt file. */
+  /**
+   * Reads and parses the metadata index. A missing file is an empty library;
+   * an unparseable one throws {@link RulesetStoreCorruptError} so a later
+   * save cannot overwrite the whole library with a single entry.
+   */
   private async readMetadata(): Promise<MetadataIndex> {
     if (!this.metadataFile.exists) return {};
 
+    const raw = await this.metadataFile.text();
+    let parsed: unknown;
     try {
-      const raw = await this.metadataFile.text();
-      return JSON.parse(raw) as MetadataIndex;
-    } catch {
-      return {};
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      throw new RulesetStoreCorruptError(this.metadataFile.uri, err);
     }
+    if (!isMetadataIndex(parsed)) {
+      throw new RulesetStoreCorruptError(
+        this.metadataFile.uri,
+        `expected an object keyed by id, got ${Array.isArray(parsed) ? "array" : typeof parsed}`,
+      );
+    }
+    return parsed;
   }
 
   /** Writes the metadata index to disk. */
@@ -102,7 +107,13 @@ export class FileRulesetStore implements RulesetStore {
           importedAt: meta.importedAt,
           lastPlayedAt: meta.lastPlayedAt,
         });
-      } catch {}
+      } catch (err) {
+        // Skip the entry but say so: a silently vanishing game looks like data loss.
+        console.warn(
+          `[FileRulesetStore] Skipping ruleset "${meta.slug}" (${id}): could not read or parse`,
+          err,
+        );
+      }
     }
 
     // Sort by importedAt descending (most recent first)
@@ -138,43 +149,24 @@ export class FileRulesetStore implements RulesetStore {
 
   /** Saves a new ruleset to the store. Returns the stored entry. */
   async save(ruleset: CardGameRuleset): Promise<StoredRuleset> {
-    this.ensureDirectory();
-
-    const id = generateId();
-    const now = Date.now();
-
-    // Write the ruleset file
-    this.rulesetFile(id).write(JSON.stringify(ruleset, null, 2));
-
-    // Update metadata index
-    const index = await this.readMetadata();
-    index[id] = {
-      slug: ruleset.meta.slug,
-      importedAt: now,
-      lastPlayedAt: null,
-    };
-    this.writeMetadata(index);
-
-    return {
-      id,
-      ruleset,
-      importedAt: now,
-      lastPlayedAt: null,
-    };
+    return this.saveWithSlug(ruleset, ruleset.meta.slug);
   }
 
   /** Saves a new ruleset, using the given slug for metadata instead of the ruleset's own slug. */
   async saveWithSlug(ruleset: CardGameRuleset, slugOverride: string): Promise<StoredRuleset> {
     this.ensureDirectory();
 
-    const id = generateId();
+    // Read the index first: if it is corrupt this throws before anything is
+    // written, so no orphan ruleset file is left behind.
+    const index = await this.readMetadata();
+
+    const id = generateRulesetId();
     const now = Date.now();
 
     // Write the ruleset file (unchanged JSON)
     this.rulesetFile(id).write(JSON.stringify(ruleset, null, 2));
 
     // Update metadata with override slug
-    const index = await this.readMetadata();
     index[id] = {
       slug: slugOverride,
       importedAt: now,

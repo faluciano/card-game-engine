@@ -4,7 +4,14 @@
 // the game orchestrator, built-in rulesets, and theme tokens.
 // Persistence is injected through the RulesetStore interface.
 
-export type { RulesetStore, StoredRuleset } from "./ruleset-store";
+export {
+  RulesetStoreCorruptError,
+  RulesetStoreQuotaError,
+  generateRulesetId,
+  isQuotaExceededError,
+  type RulesetStore,
+  type StoredRuleset,
+} from "./ruleset-store";
 export {
   BUILT_IN_RULESETS,
   BUILT_IN_SLUGS,
