@@ -85,7 +85,7 @@
         "@card-engine/shared": "workspace:*",
       },
       "devDependencies": {
-        "@testing-library/react": "^16.3.0",
+        "@testing-library/react": "^16.3.3",
         "@types/react": "~19.2.4",
         "jsdom": "^26.1.0",
         "react": "19.2.3",
