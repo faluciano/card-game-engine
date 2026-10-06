@@ -17,20 +17,20 @@
     "@card-engine/shared": "workspace:*",
     "@couch-kit/core": "0.10.1",
     "@couch-kit/host": "2.1.1",
-    "expo": "~57.0.0",
-    "expo-build-properties": "~57.0.17",
+    "expo": "~57.0.27",
+    "expo-build-properties": "~57.0.22",
     "expo-file-system": "~57.0.7",
     "expo-network": "~57.0.2",
     "react": "19.2.3",
-    "react-native": "0.86.3",
+    "react-native": "0.87.1",
     "react-native-nitro-modules": "^0.35.10",
-    "react-native-qrcode-svg": "^6.3.21",
-    "react-native-svg": "15.15.4"
+    "react-native-qrcode-svg": "^6.3.26",
+    "react-native-svg": "15.15.5"
   },
   "devDependencies": {
     "@couch-kit/cli": "0.3.12",
     "@types/react": "~19.2.4",
-    "babel-preset-expo": "~57.0.0",
+    "babel-preset-expo": "~57.0.14",
     "typescript": "~5.9.3",
     "vitest": "^5.0.3"
   },
