@@ -21,7 +21,7 @@
     "expo-build-properties": "~57.0.17",
     "expo-file-system": "~57.0.7",
     "expo-network": "~57.0.2",
-    "react": "19.2.3",
+    "react": "19.3.0",
     "react-native": "0.86.3",
     "react-native-nitro-modules": "^0.35.10",
     "react-native-qrcode-svg": "^6.3.21",
@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@couch-kit/cli": "0.3.12",
-    "@types/react": "~19.2.4",
+    "@types/react": "~19.3.0",
     "babel-preset-expo": "~57.0.0",
     "typescript": "~5.9.3",
     "vitest": "^5.0.3"
