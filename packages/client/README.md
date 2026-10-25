@@ -33,14 +33,14 @@ packages/client/
 
 `App` routes between screens based on connection status and `state.status`:
 
-| Condition | Screen |
-|-----------|--------|
-| `status !== "connected"` or no `playerId` | `ConnectingScreen` |
-| `state.status === "ruleset_picker"` | `WaitingScreen` ("Host is selecting a game...") |
-| `state.status === "lobby"` | `LobbyScreen` |
-| No `playerView` (engine not yet initialized) | `WaitingScreen` ("Loading game...") |
-| `state.status === "game:finished"` | `ResultScreen` |
-| Any other `game:*` status | `PlayingScreen` |
+| Condition                                    | Screen                                          |
+| -------------------------------------------- | ----------------------------------------------- |
+| `status !== "connected"` or no `playerId`    | `ConnectingScreen`                              |
+| `state.status === "ruleset_picker"`          | `WaitingScreen` ("Host is selecting a game...") |
+| `state.status === "lobby"`                   | `LobbyScreen`                                   |
+| No `playerView` (engine not yet initialized) | `WaitingScreen` ("Loading game...")             |
+| `state.status === "game:finished"`           | `ResultScreen`                                  |
+| Any other `game:*` status                    | `PlayingScreen`                                 |
 
 ## Screens
 
@@ -117,10 +117,7 @@ import {
 
 const initialState = createHostInitialState();
 
-const { status, state, playerId, sendAction } = useGameClient<
-  HostGameState,
-  HostAction
->({
+const { status, state, playerId, sendAction } = useGameClient<HostGameState, HostAction>({
   reducer: hostReducer,
   initialState,
 });

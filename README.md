@@ -63,13 +63,13 @@ card-game-engine/
                        type-checked separately with its own TypeScript 5.9)
 ```
 
-| Package | Runtime | Key Dependencies |
-|---------|---------|------------------|
-| `shared` | Pure TypeScript, zero framework deps | Zod, CouchKit core |
-| `host-core` | Framework-light TypeScript | @card-engine/shared, React (peer) |
-| `host` | Expo + React Native | CouchKit host, expo-file-system |
-| `client` | Vite + React 19 | CouchKit client |
-| `display` | Vite + React 19 | CouchKit display |
+| Package     | Runtime                              | Key Dependencies                  |
+| ----------- | ------------------------------------ | --------------------------------- |
+| `shared`    | Pure TypeScript, zero framework deps | Zod, CouchKit core                |
+| `host-core` | Framework-light TypeScript           | @card-engine/shared, React (peer) |
+| `host`      | Expo + React Native                  | CouchKit host, expo-file-system   |
+| `client`    | Vite + React 19                      | CouchKit client                   |
+| `display`   | Vite + React 19                      | CouchKit display                  |
 
 ## Getting Started
 
@@ -130,21 +130,21 @@ bun run typecheck
 
 ### Scripts
 
-| Command | Description |
-|---------|-------------|
-| `bun run dev:client` | Start the client Vite dev server with HMR |
-| `bun run build:client` | Vite production build of the controller |
-| `bun run bundle:client` | Bundle client dist into host's Android assets |
-| `bun run build:android` | Bundle client + Expo Android build |
-| `bun run typecheck` | Type-check client and host-core (+ shared via references), scripts, display, and host |
-| `bun run typecheck:host` | Type-check the host package only (its own TypeScript 5.9) |
-| `bun run dev:display` | Start the browser display dev server |
-| `bun run build:display` | Vite production build of the browser display |
-| `bun run lint` | Biome lint and format check (`bun run format` to fix) |
-| `bun run validate` | Validate all rulesets against the Zod schema |
-| `bun run schema:generate` | Regenerate `cardgame.v1.schema.json` (editor JSON Schema) from the Zod schema |
-| `bun run schema:check` | Fail if the JSON Schema has drifted from the Zod schema |
-| `bun run catalog` | Generate `catalog.json` from all rulesets' metadata |
+| Command                   | Description                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| `bun run dev:client`      | Start the client Vite dev server with HMR                                             |
+| `bun run build:client`    | Vite production build of the controller                                               |
+| `bun run bundle:client`   | Bundle client dist into host's Android assets                                         |
+| `bun run build:android`   | Bundle client + Expo Android build                                                    |
+| `bun run typecheck`       | Type-check client and host-core (+ shared via references), scripts, display, and host |
+| `bun run typecheck:host`  | Type-check the host package only (its own TypeScript 5.9)                             |
+| `bun run dev:display`     | Start the browser display dev server                                                  |
+| `bun run build:display`   | Vite production build of the browser display                                          |
+| `bun run lint`            | Biome lint and format check (`bun run format` to fix)                                 |
+| `bun run validate`        | Validate all rulesets against the Zod schema                                          |
+| `bun run schema:generate` | Regenerate `cardgame.v1.schema.json` (editor JSON Schema) from the Zod schema         |
+| `bun run schema:check`    | Fail if the JSON Schema has drifted from the Zod schema                               |
+| `bun run catalog`         | Generate `catalog.json` from all rulesets' metadata                                   |
 
 ## Rulesets
 
@@ -166,15 +166,15 @@ See the [Ruleset Authoring Guide](docs/ruleset-authoring.md) for the full format
 
 All four implementation phases are **complete**. Run `bunx vitest run` in each package for current test counts.
 
-| Phase | Status |
-|-------|--------|
-| Phase 1 — Engine Core | ✅ Complete |
-| Phase 1.5 — Documentation | ✅ Complete |
-| Phase 2 — Storage & Import | ✅ Complete |
+| Phase                                         | Status      |
+| --------------------------------------------- | ----------- |
+| Phase 1 — Engine Core                         | ✅ Complete |
+| Phase 1.5 — Documentation                     | ✅ Complete |
+| Phase 2 — Storage & Import                    | ✅ Complete |
 | Phase 3 — Host Screens & CouchKit Integration | ✅ Complete |
-| Phase 3.4 — Schema & Catalog | ✅ Complete |
-| Phase 4 — Client Controller App | ✅ Complete |
-| Cross-Network Play — Browser Display + Relay | ✅ Complete |
+| Phase 3.4 — Schema & Catalog                  | ✅ Complete |
+| Phase 4 — Client Controller App               | ✅ Complete |
+| Cross-Network Play — Browser Display + Relay  | ✅ Complete |
 
 The app builds and deploys to Android TV via `bun run build:android`. The host runs an HTTP+WebSocket server via CouchKit; phones connect by scanning a QR code displayed on the TV.
 
@@ -203,10 +203,10 @@ graph LR
 
 **Live:**
 
-| | |
-| --- | --- |
-| Display (put this on the TV) | https://card-game-display.pages.dev |
-| Controller (phones) | https://card-game-controller.pages.dev |
+|                              |                                        |
+| ---------------------------- | -------------------------------------- |
+| Display (put this on the TV) | https://card-game-display.pages.dev    |
+| Controller (phones)          | https://card-game-controller.pages.dev |
 
 Both deploy from `main` via Cloudflare Pages.
 

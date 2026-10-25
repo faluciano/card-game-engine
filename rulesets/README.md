@@ -4,51 +4,51 @@ This directory contains example `.cardgame.json` ruleset files that the Card Gam
 
 ## Games
 
-| File | Game | Family | Players |
-|------|------|--------|---------|
-| `blackjack.cardgame.json` | Blackjack | Banking / dealer vs. players | 1–6 |
-| `crazy-eights.cardgame.json` | Crazy Eights | Matching / shedding | 2–4 |
-| `war.cardgame.json` | War | Comparing / simultaneous play | 2 |
-| `go-fish.cardgame.json` | Go Fish | Collecting / asking | 2–4 |
-| `hearts.cardgame.json` | Hearts | Trick-taking / avoidance | 4 |
+| File                         | Game         | Family                        | Players |
+| ---------------------------- | ------------ | ----------------------------- | ------- |
+| `blackjack.cardgame.json`    | Blackjack    | Banking / dealer vs. players  | 1–6     |
+| `crazy-eights.cardgame.json` | Crazy Eights | Matching / shedding           | 2–4     |
+| `war.cardgame.json`          | War          | Comparing / simultaneous play | 2       |
+| `go-fish.cardgame.json`      | Go Fish      | Collecting / asking           | 2–4     |
+| `hearts.cardgame.json`       | Hearts       | Trick-taking / avoidance      | 4       |
 
 ## Catalog Fields
 
 Each ruleset's `meta` block supports optional catalog fields for browsing and discovery:
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Display name of the game |
-| `slug` | Yes | URL-safe identifier (`^[a-z0-9-]+$`) |
-| `version` | Yes | Semver version string |
-| `author` | Yes | Author name |
-| `players` | Yes | `{ min, max }` player count |
-| `description` | No | Short description of the game |
-| `tags` | No | Array of searchable tags (e.g., `["casino", "classic"]`) |
-| `license` | No | License identifier (e.g., `MIT`, `public-domain`) |
+| Field         | Required | Description                                              |
+| ------------- | -------- | -------------------------------------------------------- |
+| `name`        | Yes      | Display name of the game                                 |
+| `slug`        | Yes      | URL-safe identifier (`^[a-z0-9-]+$`)                     |
+| `version`     | Yes      | Semver version string                                    |
+| `author`      | Yes      | Author name                                              |
+| `players`     | Yes      | `{ min, max }` player count                              |
+| `description` | No       | Short description of the game                            |
+| `tags`        | No       | Array of searchable tags (e.g., `["casino", "classic"]`) |
+| `license`     | No       | License identifier (e.g., `MIT`, `public-domain`)        |
 
 ## Scripts
 
 From the project root:
 
-| Command | Description |
-|---------|-------------|
+| Command            | Description                                                                 |
+| ------------------ | --------------------------------------------------------------------------- |
 | `bun run validate` | Validates all rulesets against the Zod schema (the engine's parse boundary) |
-| `bun run catalog` | Generates `catalog.json` from all rulesets' metadata |
+| `bun run catalog`  | Generates `catalog.json` from all rulesets' metadata                        |
 
 ## Creating Your Own
 
 A ruleset file requires these top-level sections:
 
-| Section | Purpose |
-|---------|---------|
-| `meta` | Name, version, author, player count |
-| `deck` | Card preset or custom card list, value mappings |
-| `zones` | Named regions where cards reside |
-| `roles` | Player and NPC role definitions |
-| `phases` | Game flow as a finite state machine |
-| `scoring` | How to calculate and compare scores |
-| `ui` | Layout and visual hints for renderers |
+| Section   | Purpose                                         |
+| --------- | ----------------------------------------------- |
+| `meta`    | Name, version, author, player count             |
+| `deck`    | Card preset or custom card list, value mappings |
+| `zones`   | Named regions where cards reside                |
+| `roles`   | Player and NPC role definitions                 |
+| `phases`  | Game flow as a finite state machine             |
+| `scoring` | How to calculate and compare scores             |
+| `ui`      | Layout and visual hints for renderers           |
 
 Optional sections: `variables` (unified variable manifest — each key maps to `{ type: "number" | "string", initial, public? }`, where `initial` must match `type`), `globalTransitions` (fallback phase transitions evaluated when no phase-specific transition matches).
 

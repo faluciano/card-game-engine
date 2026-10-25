@@ -153,7 +153,7 @@ import { createReducer, createInitialState } from "@card-engine/shared";
 // client connections, and state synchronization.
 <GameHostProvider config={{ reducer, initialState }}>
   <App />
-</GameHostProvider>
+</GameHostProvider>;
 
 // Inside screens, useGameHost() provides:
 // - state:     current CardGameState
@@ -196,13 +196,13 @@ bun run build:android
 
 Expo config in `app.json`:
 
-| Setting | Value |
-|---------|-------|
-| Orientation | `landscape` |
-| UI style | `dark` |
-| New architecture | Enabled |
-| Android package | `com.cardgameengine.host` |
-| Target SDK | 34 |
+| Setting          | Value                     |
+| ---------------- | ------------------------- |
+| Orientation      | `landscape`               |
+| UI style         | `dark`                    |
+| New architecture | Enabled                   |
+| Android package  | `com.cardgameengine.host` |
+| Target SDK       | 34                        |
 
 ## Testing
 
@@ -216,27 +216,27 @@ bun run test:watch    # Watch mode
 
 25 tests across 2 test files covering the storage and file-import layers (URL import and Zod issue formatting tests moved to `@card-engine/host-core`):
 
-| Test File | Tests | Coverage |
-|-----------|-------|----------|
-| `file-ruleset-store.test.ts` | 16 | CRUD, metadata index, slug lookup/override, corrupt-entry tolerance |
-| `file-importer.test.ts` | 9 | Extension guard, file read, JSON parse, validation |
+| Test File                    | Tests | Coverage                                                            |
+| ---------------------------- | ----- | ------------------------------------------------------------------- |
+| `file-ruleset-store.test.ts` | 16    | CRUD, metadata index, slug lookup/override, corrupt-entry tolerance |
+| `file-importer.test.ts`      | 9     | Extension guard, file read, JSON parse, validation                  |
 
 Storage tests run against an in-memory `expo-file-system` mock (see `vitest.config.ts` alias and the `vi.mock` in the test file). Screen components, the bridge reducer, and the orchestrator hook are React Native UI code verified manually on-device — they depend on CouchKit provider context and native modules not available in the Vitest environment.
 
 ## Current Status
 
-| Component | Status |
-|-----------|--------|
-| `FileRulesetStore` | ✅ Implemented — JSON-file CRUD with metadata index via expo-file-system |
-| `importFromFile` | ✅ Implemented — expo-file-system read, Zod validation |
-| `importFromUrl` | ✅ Implemented — HTTPS-only, size limits, Zod validation |
-| `formatZodIssues` | ✅ Implemented — human-readable Zod error formatting |
-| Unit tests | ✅ 25 tests passing across 2 files |
-| Bridge types (`HostGameState`, `HostAction`, `HostScreen`) | ✅ Implemented — CouchKit ↔ card engine reconciliation |
-| Bridge reducer (`hostReducer`) | ✅ Implemented — navigation, game lifecycle, engine delegation |
-| `App.tsx` pipeline | ✅ Implemented — AssetGate → GameHostProvider → ServerErrorGate → ScreenRouter |
-| `RulesetPicker` | ✅ Implemented — built-in blackjack, D-pad focus, import placeholder |
-| `Lobby` | ✅ Implemented — QR placeholder, player list, start gate |
-| `GameTable` | ✅ Implemented — zone rendering, card faces, scores, results overlay |
-| `useGameOrchestrator` | ✅ Implemented — auto round reset after 5s delay |
-| CouchKit integration | ✅ Wired — GameHostProvider, useGameHost, serverUrl |
+| Component                                                  | Status                                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `FileRulesetStore`                                         | ✅ Implemented — JSON-file CRUD with metadata index via expo-file-system       |
+| `importFromFile`                                           | ✅ Implemented — expo-file-system read, Zod validation                         |
+| `importFromUrl`                                            | ✅ Implemented — HTTPS-only, size limits, Zod validation                       |
+| `formatZodIssues`                                          | ✅ Implemented — human-readable Zod error formatting                           |
+| Unit tests                                                 | ✅ 25 tests passing across 2 files                                             |
+| Bridge types (`HostGameState`, `HostAction`, `HostScreen`) | ✅ Implemented — CouchKit ↔ card engine reconciliation                         |
+| Bridge reducer (`hostReducer`)                             | ✅ Implemented — navigation, game lifecycle, engine delegation                 |
+| `App.tsx` pipeline                                         | ✅ Implemented — AssetGate → GameHostProvider → ServerErrorGate → ScreenRouter |
+| `RulesetPicker`                                            | ✅ Implemented — built-in blackjack, D-pad focus, import placeholder           |
+| `Lobby`                                                    | ✅ Implemented — QR placeholder, player list, start gate                       |
+| `GameTable`                                                | ✅ Implemented — zone rendering, card faces, scores, results overlay           |
+| `useGameOrchestrator`                                      | ✅ Implemented — auto round reset after 5s delay                               |
+| CouchKit integration                                       | ✅ Wired — GameHostProvider, useGameHost, serverUrl                            |

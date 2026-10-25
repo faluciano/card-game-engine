@@ -4,13 +4,13 @@
 
 Bun monorepo (`bun@1.4.2`, pinned by `packageManager` in the root `package.json`) with five packages. A customizable card game engine driven by declarative JSON rulesets, with multi-device gameplay over local WiFi.
 
-| Package | Purpose | Has Tests |
-|---------|---------|-----------|
-| `packages/shared` | Pure TS game engine — types, Zod schema, expression evaluator, interpreter, builtins, PRNG | Yes |
-| `packages/host-core` | Framework-light host logic shared by the TV host and the browser display — catalog fetching, ruleset import, install hooks, orchestrator, built-in rulesets, theme tokens (React as a peer) | Yes |
-| `packages/host` | Expo React Native TV app — CouchKit host + file storage | Yes |
-| `packages/client` | Vite + React 19 web app — phone controller UI via CouchKit client | Yes |
-| `packages/display` | Vite + React 19 web app — browser display that owns the game via a Cloudflare Workers relay (CouchKit display) | No |
+| Package              | Purpose                                                                                                                                                                                     | Has Tests |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `packages/shared`    | Pure TS game engine — types, Zod schema, expression evaluator, interpreter, builtins, PRNG                                                                                                  | Yes       |
+| `packages/host-core` | Framework-light host logic shared by the TV host and the browser display — catalog fetching, ruleset import, install hooks, orchestrator, built-in rulesets, theme tokens (React as a peer) | Yes       |
+| `packages/host`      | Expo React Native TV app — CouchKit host + file storage                                                                                                                                     | Yes       |
+| `packages/client`    | Vite + React 19 web app — phone controller UI via CouchKit client                                                                                                                           | Yes       |
+| `packages/display`   | Vite + React 19 web app — browser display that owns the game via a Cloudflare Workers relay (CouchKit display)                                                                              | No        |
 
 ## Build & Test Commands
 
@@ -106,7 +106,7 @@ import { PhaseMachine } from "./phase-machine";
 
 ### TypeScript Conventions
 
-- **`strict: true`** — no implicit any. `noUncheckedIndexedAccess` is *not* enabled (only `scripts/tsconfig.json` turns it on), so treat indexed reads (`arr[i]`, `record[key]`) as possibly `undefined` by convention and guard them
+- **`strict: true`** — no implicit any. `noUncheckedIndexedAccess` is _not_ enabled (only `scripts/tsconfig.json` turns it on), so treat indexed reads (`arr[i]`, `record[key]`) as possibly `undefined` by convention and guard them
 - **Branded types** for domain IDs: `PlayerId`, `GameSessionId`, `CardInstanceId`
 - **Discriminated unions** on `kind` field for state variants (e.g., `GameStatus`, `EvalResult`)
 - **`interface`** for object shapes with methods or extension points
@@ -117,15 +117,15 @@ import { PhaseMachine } from "./phase-machine";
 
 ### Naming Conventions
 
-| Category | Convention | Examples |
-|----------|-----------|----------|
-| Files | `kebab-case.ts` | `expression-evaluator.ts`, `phase-machine.ts` |
-| Test files | `*.test.ts` colocated with source | `prng.test.ts`, `builtins.test.ts` |
-| Types/Interfaces | `PascalCase` | `CardGameState`, `PhaseDefinition`, `EvalResult` |
-| Functions | `camelCase`, verb-first | `createReducer`, `evaluateCondition`, `computeHandValue` |
-| Constants | `UPPER_SNAKE_CASE` | `MAX_ACTION_LOG_SIZE`, `EVAL_TRUE` |
-| Boolean vars | Question-phrased | `isHuman`, `faceUp`, `connected` |
-| Builtin names | `snake_case` (DSL convention) | `hand_value`, `card_count`, `all_players_done` |
+| Category         | Convention                        | Examples                                                 |
+| ---------------- | --------------------------------- | -------------------------------------------------------- |
+| Files            | `kebab-case.ts`                   | `expression-evaluator.ts`, `phase-machine.ts`            |
+| Test files       | `*.test.ts` colocated with source | `prng.test.ts`, `builtins.test.ts`                       |
+| Types/Interfaces | `PascalCase`                      | `CardGameState`, `PhaseDefinition`, `EvalResult`         |
+| Functions        | `camelCase`, verb-first           | `createReducer`, `evaluateCondition`, `computeHandValue` |
+| Constants        | `UPPER_SNAKE_CASE`                | `MAX_ACTION_LOG_SIZE`, `EVAL_TRUE`                       |
+| Boolean vars     | Question-phrased                  | `isHuman`, `faceUp`, `connected`                         |
+| Builtin names    | `snake_case` (DSL convention)     | `hand_value`, `card_count`, `all_players_done`           |
 
 ### Section Headers
 
@@ -141,13 +141,16 @@ Files use ASCII box-drawing comment headers to delimit major sections:
 2. **Parse, Don't Validate** — Zod schema is the parse boundary; after `parseRuleset()` succeeds, trust the types
 3. **Atomic Predictability** — Engine is a pure reducer `(state, action) => state`. Never mutate input. Deterministic via seeded PRNG
 4. **Fail Fast, Fail Loud** — Descriptive errors with context. No silent fallbacks. `ExpressionError` includes expression text
-5. **Intentional Naming** — Types describe what they *are*; functions describe what they *do*
+5. **Intentional Naming** — Types describe what they _are_; functions describe what they _do_
 
 Custom error classes extend `Error` with a `name` property:
 
 ```typescript
 export class RulesetParseError extends Error {
-  constructor(message: string, public readonly issues: readonly string[]) {
+  constructor(
+    message: string,
+    public readonly issues: readonly string[],
+  ) {
     super(message);
     this.name = "RulesetParseError";
   }

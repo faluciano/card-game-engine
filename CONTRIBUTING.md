@@ -28,13 +28,13 @@ cd packages/shared && bunx vitest run
 
 This is a monorepo with five packages:
 
-| Package | Purpose |
-|---------|---------|
-| `packages/shared` | Pure TypeScript game engine. Zero framework dependencies. All game logic, Zod validation, and shared types live here. |
+| Package              | Purpose                                                                                                                                                                                      |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared`    | Pure TypeScript game engine. Zero framework dependencies. All game logic, Zod validation, and shared types live here.                                                                        |
 | `packages/host-core` | Framework-light host logic shared by the TV host and the browser display — catalog fetching, ruleset import, install hooks, orchestrator, built-in rulesets, theme tokens (React as a peer). |
-| `packages/host` | Expo React Native TV app. Wires the engine to CouchKit and persists state with expo-file-system. |
-| `packages/client` | Vite + React web app. Thin UI shell that renders `PlayerView` and sends actions. |
-| `packages/display` | Vite + React web app. Browser display that owns the game and reaches phones through a Cloudflare Workers relay. |
+| `packages/host`      | Expo React Native TV app. Wires the engine to CouchKit and persists state with expo-file-system.                                                                                             |
+| `packages/client`    | Vite + React web app. Thin UI shell that renders `PlayerView` and sends actions.                                                                                                             |
+| `packages/display`   | Vite + React web app. Browser display that owns the game and reaches phones through a Cloudflare Workers relay.                                                                              |
 
 Example rulesets live in `rulesets/` as `.cardgame.json` files.
 
@@ -107,7 +107,7 @@ function pushEffect(context: EvalContext, effect: EffectDescription): void {
   const mctx = context as MutableEvalContext;
   if (!mctx.effects || !Array.isArray(mctx.effects)) {
     throw new ExpressionError(
-      `Effect builtin '${effect.kind}' requires a MutableEvalContext with an effects array`
+      `Effect builtin '${effect.kind}' requires a MutableEvalContext with an effects array`,
     );
   }
   mctx.effects.push(effect);
@@ -122,14 +122,10 @@ function pushEffect(context: EvalContext, effect: EffectDescription): void {
 - `RulesetParseError` includes all Zod issues so the caller sees every problem at once.
 
 ```typescript
-function assertArgCount(
-  fnName: string,
-  args: readonly EvalResult[],
-  expected: number
-): void {
+function assertArgCount(fnName: string, args: readonly EvalResult[], expected: number): void {
   if (args.length !== expected) {
     throw new ExpressionError(
-      `${fnName}() requires exactly ${expected} argument(s), got ${args.length}`
+      `${fnName}() requires exactly ${expected} argument(s), got ${args.length}`,
     );
   }
 }
@@ -137,12 +133,12 @@ function assertArgCount(
 
 ### Law 5: Intentional Naming
 
-| Category | Convention | Examples |
-|----------|-----------|----------|
-| Types | Describe what they **are**, not what they contain | `PlayerView`, not `FilteredState` |
-| Functions | Describe what they **do** | `createPlayerView`, `evaluateTransitions`, `computeHandValue` |
-| Booleans | Phrased as questions | `isHuman`, `faceUp`, `connected` |
-| Abbreviations | Only well-known ones | `id`, `PRNG`, `FSM`, `AST` |
+| Category      | Convention                                        | Examples                                                      |
+| ------------- | ------------------------------------------------- | ------------------------------------------------------------- |
+| Types         | Describe what they **are**, not what they contain | `PlayerView`, not `FilteredState`                             |
+| Functions     | Describe what they **do**                         | `createPlayerView`, `evaluateTransitions`, `computeHandValue` |
+| Booleans      | Phrased as questions                              | `isHuman`, `faceUp`, `connected`                              |
+| Abbreviations | Only well-known ones                              | `id`, `PRNG`, `FSM`, `AST`                                    |
 
 ## Project Architecture
 
@@ -211,26 +207,26 @@ cd packages/shared && bunx vitest
 
 1. Add the factory function in `deck/presets.ts`:
 
-    ```typescript
-    export function myCustomDeck(): readonly CardTemplate[] {
-      const cards: CardTemplate[] = [];
-      // ... build cards ...
-      return cards;
-    }
-    ```
+   ```typescript
+   export function myCustomDeck(): readonly CardTemplate[] {
+     const cards: CardTemplate[] = [];
+     // ... build cards ...
+     return cards;
+   }
+   ```
 
 2. Add the preset name to the `DeckPreset` type in `types/ruleset.ts`:
 
-    ```typescript
-    export type DeckPreset = "standard_52" | "standard_54" | "my_custom";
-    ```
+   ```typescript
+   export type DeckPreset = "standard_52" | "standard_54" | "my_custom";
+   ```
 
 3. Add the case to `getPresetDeck()` in `deck/presets.ts`:
 
-    ```typescript
-    case "my_custom":
-      return myCustomDeck();
-    ```
+   ```typescript
+   case "my_custom":
+     return myCustomDeck();
+   ```
 
 4. Add the new preset string to the Zod schema in `schema/validation.ts`, then run `bun run schema:generate` to regenerate `cardgame.v1.schema.json` (never edit that file by hand; CI runs `bun run schema:check`).
 
@@ -262,28 +258,28 @@ Keep messages concise. Focus on **why** the change was made, not a line-by-line 
 2. Make your changes, following the 5 Laws and testing requirements above.
 3. Ensure lint passes (`bun run format` fixes most issues):
 
-    ```bash
-    bun run lint
-    ```
+   ```bash
+   bun run lint
+   ```
 
 4. Ensure types check (`tsc -b packages/client packages/host-core` covers shared via project references, then scripts, display, and host):
 
-    ```bash
-    bun run typecheck
-    ```
+   ```bash
+   bun run typecheck
+   ```
 
 5. Ensure tests pass in every package you touched:
 
-    ```bash
-    cd packages/<pkg> && bunx vitest run
-    ```
+   ```bash
+   cd packages/<pkg> && bunx vitest run
+   ```
 
 6. Ensure rulesets still validate and the JSON Schema is in sync:
 
-    ```bash
-    bun run validate
-    bun run schema:check
-    ```
+   ```bash
+   bun run validate
+   bun run schema:check
+   ```
 
 7. One feature per PR. If your change touches multiple concerns, split it into separate pull requests.
 8. Provide a clear description of what the PR does and why. Link to any relevant issues. The PR template's checklist mirrors these steps.
