@@ -7,7 +7,7 @@
 
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
-import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, StyleSheet, Text, TextInput, type TextInputInstance, View } from "react-native";
 import {
   IMPORT_URL_PLACEHOLDER,
   colors,
@@ -38,7 +38,7 @@ export function ImportModal({
   onImportWithSlug,
   allSlugs,
 }: ImportModalProps): React.JSX.Element | null {
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const [focused, setFocused] = useState<FocusKey | null>(null);
   const model = useImportModalModel({
     visible,
