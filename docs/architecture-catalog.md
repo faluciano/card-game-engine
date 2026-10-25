@@ -136,27 +136,27 @@ On TV app launch, `useInstalledSlugs` reads all rulesets from disk and dispatche
 
 ## Offline Behavior
 
-| Scenario | Works? | Why |
-|----------|--------|-----|
-| Play an installed game (TV + phones on WiFi) | ✅ | Entirely local — CouchKit syncs over LAN |
-| TV boots with installed games | ✅ | Reads from disk, no internet needed |
-| Built-in rulesets (Crazy Eights) | ✅ | Bundled at build time (`packages/host-core/src/built-in-rulesets.ts`) |
-| Browse catalog from phone | ❌ | Requires GitHub Pages fetch |
-| Install new game from phone | ❌ | Requires GitHub Pages for ruleset download |
-| Phone on WiFi but no internet | ⚠️ | Can connect to TV and play installed games, but cannot browse or install |
+| Scenario                                     | Works? | Why                                                                      |
+| -------------------------------------------- | ------ | ------------------------------------------------------------------------ |
+| Play an installed game (TV + phones on WiFi) | ✅     | Entirely local — CouchKit syncs over LAN                                 |
+| TV boots with installed games                | ✅     | Reads from disk, no internet needed                                      |
+| Built-in rulesets (Crazy Eights)             | ✅     | Bundled at build time (`packages/host-core/src/built-in-rulesets.ts`)    |
+| Browse catalog from phone                    | ❌     | Requires GitHub Pages fetch                                              |
+| Install new game from phone                  | ❌     | Requires GitHub Pages for ruleset download                               |
+| Phone on WiFi but no internet                | ⚠️     | Can connect to TV and play installed games, but cannot browse or install |
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `scripts/build-catalog.ts` | Generates catalog.json from rulesets |
-| `packages/shared/src/bridge/host-reducer.ts` | Pure reducer — sets transient flags |
-| `packages/client/src/hooks/useCatalog.ts` | Fetches catalog from GitHub Pages |
-| `packages/client/src/screens/CatalogScreen.tsx` | Full catalog browser (ruleset_picker status) |
-| `packages/client/src/screens/LobbyScreen.tsx` | Lobby catalog browser (lobby status) |
-| `packages/client/src/components/GameCard.tsx` | Install/update/remove UI |
-| `packages/host-core/src/ruleset-hooks.ts` | `useRulesetInstaller` (pendingInstall → store I/O), `useRulesetUninstaller` (pendingUninstall → store I/O), `useInstalledSlugs` (boot-time store → state sync) |
-| `packages/host-core/src/use-ruleset-store.ts` | `useRulesetStore` — reactive store for the picker UI |
-| `packages/host-core/src/ruleset-store.ts` | `RulesetStore` interface the hooks write through |
-| `packages/host-core/src/built-in-rulesets.ts` | Rulesets bundled into the app (Crazy Eights) |
-| `packages/host/src/storage/file-ruleset-store.ts` | File-based `RulesetStore` on Android TV |
+| File                                              | Role                                                                                                                                                           |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/build-catalog.ts`                        | Generates catalog.json from rulesets                                                                                                                           |
+| `packages/shared/src/bridge/host-reducer.ts`      | Pure reducer — sets transient flags                                                                                                                            |
+| `packages/client/src/hooks/useCatalog.ts`         | Fetches catalog from GitHub Pages                                                                                                                              |
+| `packages/client/src/screens/CatalogScreen.tsx`   | Full catalog browser (ruleset_picker status)                                                                                                                   |
+| `packages/client/src/screens/LobbyScreen.tsx`     | Lobby catalog browser (lobby status)                                                                                                                           |
+| `packages/client/src/components/GameCard.tsx`     | Install/update/remove UI                                                                                                                                       |
+| `packages/host-core/src/ruleset-hooks.ts`         | `useRulesetInstaller` (pendingInstall → store I/O), `useRulesetUninstaller` (pendingUninstall → store I/O), `useInstalledSlugs` (boot-time store → state sync) |
+| `packages/host-core/src/use-ruleset-store.ts`     | `useRulesetStore` — reactive store for the picker UI                                                                                                           |
+| `packages/host-core/src/ruleset-store.ts`         | `RulesetStore` interface the hooks write through                                                                                                               |
+| `packages/host-core/src/built-in-rulesets.ts`     | Rulesets bundled into the app (Crazy Eights)                                                                                                                   |
+| `packages/host/src/storage/file-ruleset-store.ts` | File-based `RulesetStore` on Android TV                                                                                                                        |

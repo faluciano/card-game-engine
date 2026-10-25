@@ -6,13 +6,13 @@ A customizable card game engine driven by declarative JSON rulesets, with multi-
 
 This is a Bun monorepo with five packages:
 
-| Package           | Purpose                                                                         |
-| ----------------- | ------------------------------------------------------------------------------- |
-| `packages/shared` | Pure TypeScript game engine — types, Zod schema, expression evaluator, interpreter, builtins, PRNG |
+| Package              | Purpose                                                                                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared`    | Pure TypeScript game engine — types, Zod schema, expression evaluator, interpreter, builtins, PRNG                                                                                          |
 | `packages/host-core` | Framework-light host logic shared by the TV host and the browser display — catalog fetching, ruleset import, install hooks, orchestrator, built-in rulesets, theme tokens (React as a peer) |
-| `packages/host`   | Expo React Native TV app — CouchKit host + expo-file-system storage             |
-| `packages/client` | Vite + React web app — phone controller UI via CouchKit client                  |
-| `packages/display` | Vite + React web app — browser display that owns the game via a Cloudflare Workers relay |
+| `packages/host`      | Expo React Native TV app — CouchKit host + expo-file-system storage                                                                                                                         |
+| `packages/client`    | Vite + React web app — phone controller UI via CouchKit client                                                                                                                              |
+| `packages/display`   | Vite + React web app — browser display that owns the game via a Cloudflare Workers relay                                                                                                    |
 
 ## Key Commands
 

@@ -230,15 +230,15 @@ The engine uses a safe expression DSL for conditions, effects, and automatic seq
 
 Lowest to highest:
 
-| Precedence | Operators       | Description                       |
-|------------|-----------------|-----------------------------------|
-| 1          | `\|\|`          | Logical OR (short-circuit)        |
-| 2          | `&&`            | Logical AND (short-circuit)       |
-| 3          | `==`, `!=`      | Equality                          |
-| 4          | `<`, `>`, `<=`, `>=` | Comparison                   |
-| 5          | `+`, `-`        | Addition, subtraction             |
-| 6          | `*`, `/`, `%`   | Multiplication, division, modulo  |
-| 7          | `!`, unary `-`  | Logical NOT, numeric negation     |
+| Precedence | Operators            | Description                      |
+| ---------- | -------------------- | -------------------------------- |
+| 1          | `\|\|`               | Logical OR (short-circuit)       |
+| 2          | `&&`                 | Logical AND (short-circuit)      |
+| 3          | `==`, `!=`           | Equality                         |
+| 4          | `<`, `>`, `<=`, `>=` | Comparison                       |
+| 5          | `+`, `-`             | Addition, subtraction            |
+| 6          | `*`, `/`, `%`        | Multiplication, division, modulo |
+| 7          | `!`, unary `-`       | Logical NOT, numeric negation    |
 
 ### Literals
 
@@ -271,11 +271,11 @@ Functions are registered builtins. Unknown function names produce an `Expression
 
 ### Safety Limits
 
-| Limit              | Value |
-|--------------------|-------|
-| Max eval depth     | 64    |
-| Max AST nodes      | 1000  |
-| Max while iterations | 100 |
+| Limit                | Value |
+| -------------------- | ----- |
+| Max eval depth       | 64    |
+| Max AST nodes        | 1000  |
+| Max while iterations | 100   |
 
 ## Builtin Catalog
 
@@ -283,80 +283,80 @@ Functions are registered builtins. Unknown function names produce an `Expression
 
 Pure functions that read state without side effects.
 
-| Builtin                          | Args                | Returns   | Description                                          |
-|----------------------------------|---------------------|-----------|------------------------------------------------------|
-| `hand_value(zone)`               | zone name           | `number`  | Blackjack hand value with ace optimization (11 or 1) |
-| `card_count(zone)`               | zone name           | `number`  | Number of cards in zone                              |
-| `sum_card_values(zone, strategy)`| zone name, number   | `number`  | Sum card values using a target threshold strategy    |
-| `prefer_high_under(target)`      | number              | `number`  | Returns the target as a strategy descriptor          |
-| `all_players_done()`             | none                | `boolean` | True once `turnsTakenThisPhase` >= human player count (each `end_turn()` counts one) |
-| `all_hands_dealt()`              | none                | `boolean` | Sentinel -- always returns true                      |
-| `scores_calculated()`            | none                | `boolean` | Sentinel -- always returns true                      |
-| `continue_game()`                | none                | `boolean` | Sentinel -- returns true (game continues)            |
-| `top_card_suit(zone)`            | zone name           | `string`  | Suit string of the top (first) card in zone          |
-| `top_card_rank_name(zone)`       | zone name           | `string`  | Rank string of the top card in zone (e.g., `"A"`)    |
-| `has_card_matching_suit(zone, suit)` | zone, string    | `boolean` | True if zone has a card with the given suit          |
-| `has_card_matching_rank(zone, rank)` | zone, string    | `boolean` | True if zone has a card with the given rank          |
-| `card_matches_top(hand, index, target)` | zone, number, zone | `boolean` | True if card matches target's top by suit or rank |
-| `has_playable_card(hand, target)`| zone, zone          | `boolean` | True if hand has any card matching target's top      |
-| `turn_direction()`               | none                | `number`  | Current turn direction (1=clockwise, -1=counter)     |
-| `get_var(name)`                  | string              | `number`  | Returns the value of a custom variable. Throws if not found. |
-| `get_str_var(name)`              | string              | `string`  | Returns the value of a string variable. Returns `""` if not found. |
-| `get_param(name)`                | string              | `string\|number` | Returns the value of an action parameter. Returns 0 if not found. Booleans as 1/0. |
-| `count_sets(zone, min_size)`     | zone name, number   | `number`  | Count rank groups with at least min_size cards           |
-| `max_set_size(zone)`             | zone name           | `number`  | Size of the largest rank group (e.g., 4 for four-of-a-kind) |
-| `has_flush(zone, min_size)`      | zone name, number   | `boolean` | True if any suit has at least min_size cards             |
-| `has_straight(zone, length)`     | zone name, number   | `boolean` | True if consecutive rank sequence of given length exists |
-| `count_runs(zone, min_length)`   | zone name, number   | `number`  | Count consecutive rank sequences of at least min_length  |
-| `max_run_length(zone)`           | zone name           | `number`  | Length of the longest consecutive rank sequence          |
-| `trick_winner(zone_prefix)`      | string              | `number`  | Determines trick winner. Led suit from `{prefix}:{lead_player}`. Returns player index or -1. |
-| `led_card_suit(zone_prefix)`     | string              | `string`  | Suit of card played by lead player. Returns `""` if not set. |
-| `trick_card_count(zone_prefix)`  | string              | `number`  | Total cards across all `{prefix}:{N}` zones.             |
-| `count_cards_by_suit(zone, suit)`| zone, string        | `number`  | Count cards of a specific suit in a zone.                |
-| `has_card_with(zone, rank, suit)`| zone, string, string| `boolean` | True if zone has a card matching both rank and suit.     |
-| `sum_zone_values_by_suit(zone, suit)` | zone, string   | `number`  | Sum card values for cards of a specific suit.            |
-| `played_card_matches_top(zone)`  | zone name           | `boolean` | Does the played card match the top of zone by suit or rank? Reads `played_card_index` from context. Returns `true` when index is -1 (sentinel). |
-| `get_cumulative_score(i)`        | number              | `number`  | Returns `cumulative_score_{i}` from variables, defaults to 0. |
-| `max_cumulative_score()`         | none                | `number`  | Highest cumulative score across all human players.       |
-| `min_cumulative_score()`         | none                | `number`  | Lowest cumulative score across all human players.        |
-| `concat(a, b)`                   | any, any            | `string`  | Concatenates two values into a string.                   |
-| `card_rank(zone, index)`         | zone, number        | `number`  | Numeric rank value of card at index. Dual-value returns high. |
-| `card_rank_name(zone, index)`    | zone, number        | `string`  | Rank string (e.g., `"A"`, `"K"`) of card at index.      |
-| `card_suit(zone, index)`         | zone, number        | `string`  | Suit string of card at index.                            |
-| `count_rank(zone, rank)`         | zone, string        | `number`  | Count cards with given rank string.                      |
-| `top_card_rank(zone)`            | zone name           | `number`  | Numeric rank value of top card. Shorthand for `card_rank(zone, 0)`. |
-| `max_card_rank(zone)`            | zone name           | `number`  | Highest numeric rank value among all cards in zone.      |
+| Builtin                                 | Args                 | Returns          | Description                                                                                                                                     |
+| --------------------------------------- | -------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hand_value(zone)`                      | zone name            | `number`         | Blackjack hand value with ace optimization (11 or 1)                                                                                            |
+| `card_count(zone)`                      | zone name            | `number`         | Number of cards in zone                                                                                                                         |
+| `sum_card_values(zone, strategy)`       | zone name, number    | `number`         | Sum card values using a target threshold strategy                                                                                               |
+| `prefer_high_under(target)`             | number               | `number`         | Returns the target as a strategy descriptor                                                                                                     |
+| `all_players_done()`                    | none                 | `boolean`        | True once `turnsTakenThisPhase` >= human player count (each `end_turn()` counts one)                                                            |
+| `all_hands_dealt()`                     | none                 | `boolean`        | Sentinel -- always returns true                                                                                                                 |
+| `scores_calculated()`                   | none                 | `boolean`        | Sentinel -- always returns true                                                                                                                 |
+| `continue_game()`                       | none                 | `boolean`        | Sentinel -- returns true (game continues)                                                                                                       |
+| `top_card_suit(zone)`                   | zone name            | `string`         | Suit string of the top (first) card in zone                                                                                                     |
+| `top_card_rank_name(zone)`              | zone name            | `string`         | Rank string of the top card in zone (e.g., `"A"`)                                                                                               |
+| `has_card_matching_suit(zone, suit)`    | zone, string         | `boolean`        | True if zone has a card with the given suit                                                                                                     |
+| `has_card_matching_rank(zone, rank)`    | zone, string         | `boolean`        | True if zone has a card with the given rank                                                                                                     |
+| `card_matches_top(hand, index, target)` | zone, number, zone   | `boolean`        | True if card matches target's top by suit or rank                                                                                               |
+| `has_playable_card(hand, target)`       | zone, zone           | `boolean`        | True if hand has any card matching target's top                                                                                                 |
+| `turn_direction()`                      | none                 | `number`         | Current turn direction (1=clockwise, -1=counter)                                                                                                |
+| `get_var(name)`                         | string               | `number`         | Returns the value of a custom variable. Throws if not found.                                                                                    |
+| `get_str_var(name)`                     | string               | `string`         | Returns the value of a string variable. Returns `""` if not found.                                                                              |
+| `get_param(name)`                       | string               | `string\|number` | Returns the value of an action parameter. Returns 0 if not found. Booleans as 1/0.                                                              |
+| `count_sets(zone, min_size)`            | zone name, number    | `number`         | Count rank groups with at least min_size cards                                                                                                  |
+| `max_set_size(zone)`                    | zone name            | `number`         | Size of the largest rank group (e.g., 4 for four-of-a-kind)                                                                                     |
+| `has_flush(zone, min_size)`             | zone name, number    | `boolean`        | True if any suit has at least min_size cards                                                                                                    |
+| `has_straight(zone, length)`            | zone name, number    | `boolean`        | True if consecutive rank sequence of given length exists                                                                                        |
+| `count_runs(zone, min_length)`          | zone name, number    | `number`         | Count consecutive rank sequences of at least min_length                                                                                         |
+| `max_run_length(zone)`                  | zone name            | `number`         | Length of the longest consecutive rank sequence                                                                                                 |
+| `trick_winner(zone_prefix)`             | string               | `number`         | Determines trick winner. Led suit from `{prefix}:{lead_player}`. Returns player index or -1.                                                    |
+| `led_card_suit(zone_prefix)`            | string               | `string`         | Suit of card played by lead player. Returns `""` if not set.                                                                                    |
+| `trick_card_count(zone_prefix)`         | string               | `number`         | Total cards across all `{prefix}:{N}` zones.                                                                                                    |
+| `count_cards_by_suit(zone, suit)`       | zone, string         | `number`         | Count cards of a specific suit in a zone.                                                                                                       |
+| `has_card_with(zone, rank, suit)`       | zone, string, string | `boolean`        | True if zone has a card matching both rank and suit.                                                                                            |
+| `sum_zone_values_by_suit(zone, suit)`   | zone, string         | `number`         | Sum card values for cards of a specific suit.                                                                                                   |
+| `played_card_matches_top(zone)`         | zone name            | `boolean`        | Does the played card match the top of zone by suit or rank? Reads `played_card_index` from context. Returns `true` when index is -1 (sentinel). |
+| `get_cumulative_score(i)`               | number               | `number`         | Returns `cumulative_score_{i}` from variables, defaults to 0.                                                                                   |
+| `max_cumulative_score()`                | none                 | `number`         | Highest cumulative score across all human players.                                                                                              |
+| `min_cumulative_score()`                | none                 | `number`         | Lowest cumulative score across all human players.                                                                                               |
+| `concat(a, b)`                          | any, any             | `string`         | Concatenates two values into a string.                                                                                                          |
+| `card_rank(zone, index)`                | zone, number         | `number`         | Numeric rank value of card at index. Dual-value returns high.                                                                                   |
+| `card_rank_name(zone, index)`           | zone, number         | `string`         | Rank string (e.g., `"A"`, `"K"`) of card at index.                                                                                              |
+| `card_suit(zone, index)`                | zone, number         | `string`         | Suit string of card at index.                                                                                                                   |
+| `count_rank(zone, rank)`                | zone, string         | `number`         | Count cards with given rank string.                                                                                                             |
+| `top_card_rank(zone)`                   | zone name            | `number`         | Numeric rank value of top card. Shorthand for `card_rank(zone, 0)`.                                                                             |
+| `max_card_rank(zone)`                   | zone name            | `number`         | Highest numeric rank value among all cards in zone.                                                                                             |
 
 ### Effect Builtins
 
 Mutating functions that record effect descriptions for the interpreter to apply.
 
-| Builtin                             | Args                       | Description                                    |
-|-------------------------------------|----------------------------|------------------------------------------------|
-| `shuffle(zone)`                     | zone name                  | Shuffle cards in zone using seeded PRNG        |
-| `deal(from, to, count)`            | zone, zone prefix, number  | Deal count cards to each per-player zone       |
-| `draw(from, to, count)`            | zone, zone, number         | Move count cards between zones                 |
-| `set_face_up(zone, index, faceUp)` | zone, number, boolean      | Set faceUp on a specific card by index         |
-| `reveal_all(zone)`                  | zone name                  | Set faceUp = true on all cards in zone         |
-| `end_turn()`                        | none                       | Advance to next player                         |
-| `calculate_scores()`                | none                       | Evaluate scoring for each player               |
-| `determine_winners()`               | none                       | Set winners based on scores                    |
-| `collect_all_to(zone)`             | zone name                  | Collect all cards from all zones into target   |
-| `reset_round()`                     | none                       | Increment round, reset scores and player index |
-| `reverse_turn_order()`              | none                       | Flip turn direction (clockwise ↔ counterclockwise) |
-| `skip_next_player()`                | none                       | Advance player index by one extra step             |
-| `set_next_player(index)`            | number                     | Set next player to a specific 0-based index        |
-| `move_top(from, to, count)`         | zone, zone, number         | Move top count cards from one zone to another      |
-| `flip_top(zone, count)`             | zone, number               | Set top count cards in zone to face-up             |
-| `move_all(from, to)`                | zone, zone                 | Move all cards from one zone to another            |
-| `move_rank(from, to, rank)`         | zone, zone, string         | Move every card of the given rank between zones    |
-| `collect_trick(prefix, target)`     | string, zone               | Move all `{prefix}:{N}` cards into target (face-down) |
-| `set_lead_player(index)`            | number                     | Set `lead_player` variable and `currentPlayerIndex`    |
-| `end_game()`                        | none                       | Transition game status to `finished`                   |
-| `accumulate_scores()`               | none                       | Add round scores to cumulative score variables         |
-| `set_var(name, value)`              | string, number             | Sets a custom variable to the given value                  |
-| `set_str_var(name, value)`          | string, string             | Sets a string variable to the given value                  |
-| `inc_var(name, amount)`             | string, number             | Increments a custom variable by amount (can be negative)   |
+| Builtin                            | Args                      | Description                                              |
+| ---------------------------------- | ------------------------- | -------------------------------------------------------- |
+| `shuffle(zone)`                    | zone name                 | Shuffle cards in zone using seeded PRNG                  |
+| `deal(from, to, count)`            | zone, zone prefix, number | Deal count cards to each per-player zone                 |
+| `draw(from, to, count)`            | zone, zone, number        | Move count cards between zones                           |
+| `set_face_up(zone, index, faceUp)` | zone, number, boolean     | Set faceUp on a specific card by index                   |
+| `reveal_all(zone)`                 | zone name                 | Set faceUp = true on all cards in zone                   |
+| `end_turn()`                       | none                      | Advance to next player                                   |
+| `calculate_scores()`               | none                      | Evaluate scoring for each player                         |
+| `determine_winners()`              | none                      | Set winners based on scores                              |
+| `collect_all_to(zone)`             | zone name                 | Collect all cards from all zones into target             |
+| `reset_round()`                    | none                      | Increment round, reset scores and player index           |
+| `reverse_turn_order()`             | none                      | Flip turn direction (clockwise ↔ counterclockwise)       |
+| `skip_next_player()`               | none                      | Advance player index by one extra step                   |
+| `set_next_player(index)`           | number                    | Set next player to a specific 0-based index              |
+| `move_top(from, to, count)`        | zone, zone, number        | Move top count cards from one zone to another            |
+| `flip_top(zone, count)`            | zone, number              | Set top count cards in zone to face-up                   |
+| `move_all(from, to)`               | zone, zone                | Move all cards from one zone to another                  |
+| `move_rank(from, to, rank)`        | zone, zone, string        | Move every card of the given rank between zones          |
+| `collect_trick(prefix, target)`    | string, zone              | Move all `{prefix}:{N}` cards into target (face-down)    |
+| `set_lead_player(index)`           | number                    | Set `lead_player` variable and `currentPlayerIndex`      |
+| `end_game()`                       | none                      | Transition game status to `finished`                     |
+| `accumulate_scores()`              | none                      | Add round scores to cumulative score variables           |
+| `set_var(name, value)`             | string, number            | Sets a custom variable to the given value                |
+| `set_str_var(name, value)`         | string, string            | Sets a string variable to the given value                |
+| `inc_var(name, amount)`            | string, number            | Increments a custom variable by amount (can be negative) |
 
 ## Key Types
 
@@ -375,7 +375,7 @@ Discriminated union of 9 action variants: `join`, `leave`, `start_game`, `play_c
 ### `GameReducer`
 
 ```typescript
-type GameReducer = (state: CardGameState, action: CardGameAction) => CardGameState
+type GameReducer = (state: CardGameState, action: CardGameAction) => CardGameState;
 ```
 
 ### `PlayerView`

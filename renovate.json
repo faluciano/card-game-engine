@@ -12,7 +12,7 @@
       "matchUpdateTypes": ["minor", "patch", "digest"]
     },
     {
-      "description": "Android native stack: Nitro, Expo, React Native and native modules. Grouped so the APK check runs once per batch; never auto-merged, because native ABI drift (nitro-http-server vs nitro-modules, July 2026) does not show up in typecheck or unit tests.",
+      "description": "Android native stack: Nitro, Expo, React Native and native modules. Grouped (majors included, since an Expo SDK pins its React Native version) so the APK check runs once per batch; never auto-merged, because native ABI drift (nitro-http-server vs nitro-modules, July 2026) does not show up in typecheck or unit tests.",
       "matchPackageNames": [
         "react-native",
         "expo",
@@ -24,6 +24,7 @@
         "react-native-qrcode-svg"
       ],
       "groupName": "android native stack",
+      "separateMajorMinor": false,
       "automerge": false
     },
     {
@@ -45,6 +46,14 @@
         "@types/**"
       ],
       "groupName": "web toolchain",
+      "automerge": false
+    },
+    {
+      "description": "The TV host's React must match the renderer bundled with its React Native version (Expo pins the pair), so it moves with the android native stack, not the web toolchain.",
+      "matchFileNames": ["packages/host/package.json"],
+      "matchPackageNames": ["react", "react-dom", "@types/react"],
+      "groupName": "android native stack",
+      "separateMajorMinor": false,
       "automerge": false
     },
     {

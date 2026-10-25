@@ -94,11 +94,11 @@ sections:
 }
 ```
 
-| Field | Required | Description |
-|---|---|---|
-| `$schema` | No | Root-level field referencing the JSON Schema for editor validation and autocompletion. |
-| `meta` | Yes | Metadata block (see below). |
-| `deck` … `ui` | Yes | All other top-level sections are required. The schema enforces this at load time. |
+| Field         | Required | Description                                                                            |
+| ------------- | -------- | -------------------------------------------------------------------------------------- |
+| `$schema`     | No       | Root-level field referencing the JSON Schema for editor validation and autocompletion. |
+| `meta`        | Yes      | Metadata block (see below).                                                            |
+| `deck` … `ui` | Yes      | All other top-level sections are required. The schema enforces this at load time.      |
 
 For the blackjack ruleset, the `meta` block looks like this:
 
@@ -157,10 +157,10 @@ The `deck` section defines which cards exist and what they are worth.
 
 Two built-in deck presets are available:
 
-| Preset | Cards | Description |
-|---|---|---|
-| `standard_52` | 52 | 4 suits (hearts, diamonds, clubs, spades) x 13 ranks (A through K) |
-| `standard_54` | 54 | Standard 52 + 2 Jokers |
+| Preset        | Cards | Description                                                        |
+| ------------- | ----- | ------------------------------------------------------------------ |
+| `standard_52` | 52    | 4 suits (hearts, diamonds, clubs, spades) x 13 ranks (A through K) |
+| `standard_54` | 54    | Standard 52 + 2 Jokers                                             |
 
 ### Copies
 
@@ -174,6 +174,7 @@ Each rank referenced by the deck must have a value definition in `cardValues`.
 Two kinds are supported:
 
 - **`fixed`** -- a single numeric value. Most cards use this.
+
   ```json
   { "kind": "fixed", "value": 10 }
   ```
@@ -181,12 +182,14 @@ Two kinds are supported:
 - **`dual`** -- two possible values; the engine picks the best one. Used for
   Aces in blackjack: the engine starts with the `high` value and downgrades
   to `low` when the total would exceed the target (21).
+
   ```json
   { "kind": "dual", "low": 1, "high": 11 }
   ```
 
 - **Numeric shorthand** -- bare numbers are accepted as shorthand for `fixed`
   values. At parse time, `2` normalizes to `{ "kind": "fixed", "value": 2 }`.
+
   ```json
   "cardValues": {
     "2": 2,
@@ -194,6 +197,7 @@ Two kinds are supported:
     "ace": { "kind": "choice", "options": [1, 11] }
   }
   ```
+
   This makes simple value mappings much more concise. The object form is still
   supported and required for `dual` or `choice` value kinds.
 
@@ -220,11 +224,11 @@ Roles define who participates in the game.
 
 Each role has three fields:
 
-| Field | Type | Description |
-|---|---|---|
-| `name` | `string` | A unique identifier. Referenced by zones, actions, and visibility rules. |
-| `isHuman` | `boolean` | `true` for roles controlled by connected players; `false` for AI-controlled roles (e.g., the dealer). |
-| `count` | `number \| "per_player"` | `"per_player"` creates one instance per connected player. A fixed number creates exactly that many. |
+| Field     | Type                     | Description                                                                                           |
+| --------- | ------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `name`    | `string`                 | A unique identifier. Referenced by zones, actions, and visibility rules.                              |
+| `isHuman` | `boolean`                | `true` for roles controlled by connected players; `false` for AI-controlled roles (e.g., the dealer). |
+| `count`   | `number \| "per_player"` | `"per_player"` creates one instance per connected player. A fixed number creates exactly that many.   |
 
 In blackjack, every connected human is a `player`, and one AI-controlled
 `dealer` is created automatically.
@@ -258,13 +262,13 @@ exactly one zone at any time.
 
 Each zone definition has:
 
-| Field | Type | Description |
-|---|---|---|
-| `name` | `string` | The key in the `zones` object. Used in expressions and effect functions. |
-| `visibility` | `string` | Default visibility for this zone (see [Zone Visibility & Phase Overrides](#12-zone-visibility--phase-overrides)). |
-| `owners` | `string[]` | Role names that own this zone. An empty array means the zone is shared ("house"). |
-| `maxCards` | `number?` | Optional card limit for the zone. |
-| `phaseOverrides` | `Record<string, string>?` | Optional map of phase name → visibility override string. |
+| Field            | Type                      | Description                                                                                                       |
+| ---------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `name`           | `string`                  | The key in the `zones` object. Used in expressions and effect functions.                                          |
+| `visibility`     | `string`                  | Default visibility for this zone (see [Zone Visibility & Phase Overrides](#12-zone-visibility--phase-overrides)). |
+| `owners`         | `string[]`                | Role names that own this zone. An empty array means the zone is shared ("house").                                 |
+| `maxCards`       | `number?`                 | Optional card limit for the zone.                                                                                 |
+| `phaseOverrides` | `Record<string, string>?` | Optional map of phase name → visibility override string.                                                          |
 
 ### Per-Player Zones
 
@@ -303,11 +307,11 @@ and advances through phases automatically.
 
 Three kinds of phases exist:
 
-| Kind | Description |
-|---|---|
-| `automatic` | Runs a sequence of effects (`onEnter`) then immediately evaluates transitions. Used for dealing, scoring, and AI turns. |
-| `turn_based` | Waits for player input. Players take turns choosing from a set of allowed actions. |
-| `all_players` | All players can act concurrently before transitions are evaluated. |
+| Kind          | Description                                                                                                             |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `automatic`   | Runs a sequence of effects (`onEnter`) then immediately evaluates transitions. Used for dealing, scoring, and AI turns. |
+| `turn_based`  | Waits for player input. Players take turns choosing from a set of allowed actions.                                      |
+| `all_players` | All players can act concurrently before transitions are evaluated.                                                      |
 
 ### Phase Structure
 
@@ -316,9 +320,7 @@ Three kinds of phases exist:
   "name": "deal",
   "kind": "automatic",
   "actions": [],
-  "transitions": [
-    { "to": "player_turns", "when": "all_hands_dealt" }
-  ],
+  "transitions": [{ "to": "player_turns", "when": "all_hands_dealt" }],
   "onEnter": [
     "shuffle(draw_pile)",
     "deal(draw_pile, hand, 2)",
@@ -330,16 +332,16 @@ Three kinds of phases exist:
 
 Every phase has these fields:
 
-| Field | Type | Description |
-|---|---|---|
-| `name` | `string` | Unique identifier for this phase. Referenced by transitions. |
-| `kind` | `"automatic" \| "turn_based" \| "all_players"` | How the phase advances. |
-| `actions` | `array` | Available player actions (empty for `automatic` phases). |
-| `transitions` | `array` | Ordered list of `{ to, when }` transition rules. |
-| `onEnter` | `string[]?` | Expressions executed in order when the phase is entered. Replaces the former `automaticSequence` field. |
-| `onExit` | `string[]?` | Expressions executed when the phase is exited (available in schema, **not yet implemented** in the engine). |
-| `turnOrder` | `"clockwise" \| "counterclockwise" \| "fixed"?` | Turn order for `turn_based` phases. |
-| `autoEndTurnCondition` | `string?` | Expression evaluated after each player action. If `true`, the player's turn ends automatically. Useful for shedding games where playing a card should end the turn. |
+| Field                  | Type                                            | Description                                                                                                                                                         |
+| ---------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                 | `string`                                        | Unique identifier for this phase. Referenced by transitions.                                                                                                        |
+| `kind`                 | `"automatic" \| "turn_based" \| "all_players"`  | How the phase advances.                                                                                                                                             |
+| `actions`              | `array`                                         | Available player actions (empty for `automatic` phases).                                                                                                            |
+| `transitions`          | `array`                                         | Ordered list of `{ to, when }` transition rules.                                                                                                                    |
+| `onEnter`              | `string[]?`                                     | Expressions executed in order when the phase is entered. Replaces the former `automaticSequence` field.                                                             |
+| `onExit`               | `string[]?`                                     | Expressions executed when the phase is exited (available in schema, **not yet implemented** in the engine).                                                         |
+| `turnOrder`            | `"clockwise" \| "counterclockwise" \| "fixed"?` | Turn order for `turn_based` phases.                                                                                                                                 |
+| `autoEndTurnCondition` | `string?`                                       | Expression evaluated after each player action. If `true`, the player's turn ends automatically. Useful for shedding games where playing a card should end the turn. |
 
 ### Blackjack Phase Flow
 
@@ -373,10 +375,7 @@ before players act.
 {
   "name": "deal",
   "kind": "automatic",
-  "onEnter": [
-    "shuffle(draw_pile)",
-    "deal(draw_pile, hand, 2)"
-  ],
+  "onEnter": ["shuffle(draw_pile)", "deal(draw_pile, hand, 2)"],
   "transitions": [{ "to": "player_turns", "when": "all_hands_dealt" }]
 }
 ```
@@ -411,9 +410,7 @@ evaluated after each player action (including `play_card`). If it evaluates to
   "kind": "turn_based",
   "autoEndTurnCondition": "hand_count == 0",
   "allowedActions": ["playCard"],
-  "transitions": [
-    { "to": "scoring", "when": "all_players_done" }
-  ]
+  "transitions": [{ "to": "scoring", "when": "all_players_done" }]
 }
 ```
 
@@ -453,7 +450,7 @@ defines phase transitions that are evaluated as a **fallback** after the current
 phase's own `transitions` array. If no phase-specific transition matches, the
 engine checks `globalTransitions` next.
 
-This is useful for conditions that should trigger a phase change from *any*
+This is useful for conditions that should trigger a phase change from _any_
 phase, such as a game-over check:
 
 ```json
@@ -485,12 +482,12 @@ They are nested inside a phase's `actions` array.
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `name` | `string` | Unique identifier for the action within this phase. |
-| `label` | `string` | Human-readable label shown in the client UI. |
-| `condition` | `string?` | Optional expression. If present, the action is only available when this evaluates to `true`. |
-| `effect` | `string[]` | Array of expressions executed in order when the action is triggered. |
+| Field       | Type       | Description                                                                                  |
+| ----------- | ---------- | -------------------------------------------------------------------------------------------- |
+| `name`      | `string`   | Unique identifier for the action within this phase.                                          |
+| `label`     | `string`   | Human-readable label shown in the client UI.                                                 |
+| `condition` | `string?`  | Optional expression. If present, the action is only available when this evaluates to `true`. |
+| `effect`    | `string[]` | Array of expressions executed in order when the action is triggered.                         |
 
 ### Blackjack Actions
 
@@ -656,12 +653,12 @@ sandboxed evaluator.
 
 ### Operators
 
-| Category | Operators |
-|---|---|
-| Arithmetic | `+`, `-`, `*`, `/`, `%` |
-| Comparison | `==`, `!=`, `<`, `>`, `<=`, `>=` |
-| Logic | `&&`, `\|\|`, `!` |
-| Unary | `-` (negation), `!` (logical not) |
+| Category   | Operators                         |
+| ---------- | --------------------------------- |
+| Arithmetic | `+`, `-`, `*`, `/`, `%`           |
+| Comparison | `==`, `!=`, `<`, `>`, `<=`, `>=`  |
+| Logic      | `&&`, `\|\|`, `!`                 |
+| Unary      | `-` (negation), `!` (logical not) |
 
 ### Literals
 
@@ -673,13 +670,13 @@ sandboxed evaluator.
 
 Expressions can reference game state through these built-in bindings:
 
-| Variable | Type | Description |
-|---|---|---|
-| `current_player` | object | The active player. Access sub-properties like `current_player.hand`. |
-| `current_player_index` | number | Index of the active player. |
-| `turn_number` | number | Current turn number. |
-| `player_count` | number | Total number of connected players. |
-| `<zone_name>` | string | Any zone name (e.g., `draw_pile`, `dealer_hand`) resolves to a string. |
+| Variable               | Type   | Description                                                            |
+| ---------------------- | ------ | ---------------------------------------------------------------------- |
+| `current_player`       | object | The active player. Access sub-properties like `current_player.hand`.   |
+| `current_player_index` | number | Index of the active player.                                            |
+| `turn_number`          | number | Current turn number.                                                   |
+| `player_count`         | number | Total number of connected players.                                     |
+| `<zone_name>`          | string | Any zone name (e.g., `draw_pile`, `dealer_hand`) resolves to a string. |
 
 The `current_player` object also provides shortcuts to per-player zones. For
 example, `current_player.hand` resolves to `"hand:0"` for player 0, `"hand:1"`
@@ -689,84 +686,84 @@ for player 1, and so on.
 
 #### Query Builtins (read state, return a value)
 
-| Function | Returns | Description |
-|---|---|---|
-| `hand_value(zone)` | number | Computes the optimal hand value for cards in the zone, handling dual-value cards (Aces). Uses a target of 21. |
-| `hand_value(zone, target)` | number | Same as above but uses a custom target value instead of 21. |
-| `card_count(zone)` | number | Returns the number of cards in a zone. |
-| `card_rank(zone, index)` | number | Returns the numeric rank value of the card at `index` in `zone`. For dual-value cards, returns the `high` value. |
-| `card_suit(zone, index)` | string | Returns the suit string of the card at `index` in `zone`. |
-| `card_rank_name(zone, index)` | string | Returns the rank string (e.g., `"A"`, `"K"`, `"7"`) of the card at `index` in `zone`. |
-| `count_rank(zone, rank)` | number | Counts how many cards in `zone` have the given rank string. |
-| `top_card_rank(zone)` | number | Returns the numeric rank value of the first (top) card in `zone`. Shorthand for `card_rank(zone, 0)`. |
-| `max_card_rank(zone)` | number | Returns the highest numeric rank value among all cards in `zone`. Returns 0 for empty zones. |
-| `sum_card_values(zone, strategy)` | number | Computes card values with a strategy (use with `prefer_high_under`). |
-| `prefer_high_under(target)` | number | Returns a strategy descriptor for `sum_card_values`. |
-| `top_card_suit(zone)` | string | Returns the suit string of the top (first) card in a zone. Throws if the zone is empty. |
-| `top_card_rank_name(zone)` | string | Returns the rank string (e.g., `"A"`, `"K"`) of the top card in a zone. Throws if the zone is empty. |
-| `has_card_matching_suit(zone, suit)` | boolean | True if the zone contains at least one card with the given suit string. |
-| `has_card_matching_rank(zone, rank)` | boolean | True if the zone contains at least one card with the given rank string. |
-| `card_matches_top(hand_zone, card_index, target_zone)` | boolean | True if the card at `card_index` in `hand_zone` matches the top card of `target_zone` by suit **or** rank. |
-| `has_playable_card(hand_zone, target_zone)` | boolean | True if `hand_zone` has any card matching the top card of `target_zone` by suit or rank. Useful for enabling/disabling a "draw" action. |
-| `played_card_matches_top(zone)` | boolean | Returns boolean: does the played card match the top of the target zone by suit or rank? Reads `played_card_index` from context. Returns `true` when index is -1 (sentinel). |
-| `turn_direction()` | number | Returns the current turn direction: `1` (clockwise) or `-1` (counterclockwise). |
-| `get_var(name)` | number | Returns the value of a custom variable. Throws if the variable does not exist. |
-| `get_str_var(name)` | string | Returns the value of a string variable. Returns empty string `""` if the variable does not exist. |
-| `get_param(name)` | string\|number | Returns the value of an action parameter. Throws if it was not provided. Booleans as 1/0. |
-| `is_availability_check()` | boolean | True while the engine decides whether to offer an action, before parameters are chosen. Use it to guard `get_param` in conditions. |
-| `count_sets(zone, min_size)` | number | Count rank groups with at least min_size cards. |
-| `max_set_size(zone)` | number | Size of the largest rank group (e.g., 4 for four-of-a-kind). |
-| `has_flush(zone, min_size)` | boolean | True if any suit has at least min_size cards. |
-| `has_straight(zone, length)` | boolean | True if consecutive rank sequence of given length exists. |
-| `count_runs(zone, min_length)` | number | Count consecutive rank sequences of at least min_length. |
-| `max_run_length(zone)` | number | Length of the longest consecutive rank sequence. |
-| `trick_winner(zone_prefix)` | number | Determines the winner of a trick. Compares face-up cards across all `{prefix}:{N}` zones. The led suit comes from the card in `{prefix}:{lead_player}`. If a `trump_suit` variable is set and any player played a trump, the highest trump wins. Otherwise, the highest led-suit card wins. Returns `-1` if no valid cards found. |
-| `led_card_suit(zone_prefix)` | string | Returns the suit string of the card played by the lead player. Reads `lead_player` from variables. Returns empty string if lead_player is not set or the zone is empty. |
-| `trick_card_count(zone_prefix)` | number | Returns the total number of cards across all `{prefix}:{N}` zones. Used to detect "trick complete" (count equals player_count). |
-| `count_cards_by_suit(zone, suit)` | number | Counts cards of a specific suit in a zone. E.g., `count_cards_by_suit("won:0", "hearts")`. |
-| `has_card_with(zone, rank, suit)` | boolean | True if the zone contains a card matching both the specified rank AND suit. E.g., `has_card_with("won:0", "Q", "spades")` for Queen of Spades detection. |
-| `sum_zone_values_by_suit(zone, suit)` | number | Sums card values for all cards of a specific suit in a zone. Uses `high` value for dual-value cards. |
-| `concat(a, b)` | string | Concatenates two values into a string. E.g., `concat("won:", trick_winner("trick"))` produces `"won:2"`. |
-| `all_players_done()` | boolean | True when all players have completed their turns. |
-| `all_hands_dealt()` | boolean | True after dealing is complete. |
-| `scores_calculated()` | boolean | True after scoring is complete. |
-| `continue_game()` | boolean | True when the game should continue to another round. |
+| Function                                               | Returns        | Description                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------ | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hand_value(zone)`                                     | number         | Computes the optimal hand value for cards in the zone, handling dual-value cards (Aces). Uses a target of 21.                                                                                                                                                                                                                     |
+| `hand_value(zone, target)`                             | number         | Same as above but uses a custom target value instead of 21.                                                                                                                                                                                                                                                                       |
+| `card_count(zone)`                                     | number         | Returns the number of cards in a zone.                                                                                                                                                                                                                                                                                            |
+| `card_rank(zone, index)`                               | number         | Returns the numeric rank value of the card at `index` in `zone`. For dual-value cards, returns the `high` value.                                                                                                                                                                                                                  |
+| `card_suit(zone, index)`                               | string         | Returns the suit string of the card at `index` in `zone`.                                                                                                                                                                                                                                                                         |
+| `card_rank_name(zone, index)`                          | string         | Returns the rank string (e.g., `"A"`, `"K"`, `"7"`) of the card at `index` in `zone`.                                                                                                                                                                                                                                             |
+| `count_rank(zone, rank)`                               | number         | Counts how many cards in `zone` have the given rank string.                                                                                                                                                                                                                                                                       |
+| `top_card_rank(zone)`                                  | number         | Returns the numeric rank value of the first (top) card in `zone`. Shorthand for `card_rank(zone, 0)`.                                                                                                                                                                                                                             |
+| `max_card_rank(zone)`                                  | number         | Returns the highest numeric rank value among all cards in `zone`. Returns 0 for empty zones.                                                                                                                                                                                                                                      |
+| `sum_card_values(zone, strategy)`                      | number         | Computes card values with a strategy (use with `prefer_high_under`).                                                                                                                                                                                                                                                              |
+| `prefer_high_under(target)`                            | number         | Returns a strategy descriptor for `sum_card_values`.                                                                                                                                                                                                                                                                              |
+| `top_card_suit(zone)`                                  | string         | Returns the suit string of the top (first) card in a zone. Throws if the zone is empty.                                                                                                                                                                                                                                           |
+| `top_card_rank_name(zone)`                             | string         | Returns the rank string (e.g., `"A"`, `"K"`) of the top card in a zone. Throws if the zone is empty.                                                                                                                                                                                                                              |
+| `has_card_matching_suit(zone, suit)`                   | boolean        | True if the zone contains at least one card with the given suit string.                                                                                                                                                                                                                                                           |
+| `has_card_matching_rank(zone, rank)`                   | boolean        | True if the zone contains at least one card with the given rank string.                                                                                                                                                                                                                                                           |
+| `card_matches_top(hand_zone, card_index, target_zone)` | boolean        | True if the card at `card_index` in `hand_zone` matches the top card of `target_zone` by suit **or** rank.                                                                                                                                                                                                                        |
+| `has_playable_card(hand_zone, target_zone)`            | boolean        | True if `hand_zone` has any card matching the top card of `target_zone` by suit or rank. Useful for enabling/disabling a "draw" action.                                                                                                                                                                                           |
+| `played_card_matches_top(zone)`                        | boolean        | Returns boolean: does the played card match the top of the target zone by suit or rank? Reads `played_card_index` from context. Returns `true` when index is -1 (sentinel).                                                                                                                                                       |
+| `turn_direction()`                                     | number         | Returns the current turn direction: `1` (clockwise) or `-1` (counterclockwise).                                                                                                                                                                                                                                                   |
+| `get_var(name)`                                        | number         | Returns the value of a custom variable. Throws if the variable does not exist.                                                                                                                                                                                                                                                    |
+| `get_str_var(name)`                                    | string         | Returns the value of a string variable. Returns empty string `""` if the variable does not exist.                                                                                                                                                                                                                                 |
+| `get_param(name)`                                      | string\|number | Returns the value of an action parameter. Throws if it was not provided. Booleans as 1/0.                                                                                                                                                                                                                                         |
+| `is_availability_check()`                              | boolean        | True while the engine decides whether to offer an action, before parameters are chosen. Use it to guard `get_param` in conditions.                                                                                                                                                                                                |
+| `count_sets(zone, min_size)`                           | number         | Count rank groups with at least min_size cards.                                                                                                                                                                                                                                                                                   |
+| `max_set_size(zone)`                                   | number         | Size of the largest rank group (e.g., 4 for four-of-a-kind).                                                                                                                                                                                                                                                                      |
+| `has_flush(zone, min_size)`                            | boolean        | True if any suit has at least min_size cards.                                                                                                                                                                                                                                                                                     |
+| `has_straight(zone, length)`                           | boolean        | True if consecutive rank sequence of given length exists.                                                                                                                                                                                                                                                                         |
+| `count_runs(zone, min_length)`                         | number         | Count consecutive rank sequences of at least min_length.                                                                                                                                                                                                                                                                          |
+| `max_run_length(zone)`                                 | number         | Length of the longest consecutive rank sequence.                                                                                                                                                                                                                                                                                  |
+| `trick_winner(zone_prefix)`                            | number         | Determines the winner of a trick. Compares face-up cards across all `{prefix}:{N}` zones. The led suit comes from the card in `{prefix}:{lead_player}`. If a `trump_suit` variable is set and any player played a trump, the highest trump wins. Otherwise, the highest led-suit card wins. Returns `-1` if no valid cards found. |
+| `led_card_suit(zone_prefix)`                           | string         | Returns the suit string of the card played by the lead player. Reads `lead_player` from variables. Returns empty string if lead_player is not set or the zone is empty.                                                                                                                                                           |
+| `trick_card_count(zone_prefix)`                        | number         | Returns the total number of cards across all `{prefix}:{N}` zones. Used to detect "trick complete" (count equals player_count).                                                                                                                                                                                                   |
+| `count_cards_by_suit(zone, suit)`                      | number         | Counts cards of a specific suit in a zone. E.g., `count_cards_by_suit("won:0", "hearts")`.                                                                                                                                                                                                                                        |
+| `has_card_with(zone, rank, suit)`                      | boolean        | True if the zone contains a card matching both the specified rank AND suit. E.g., `has_card_with("won:0", "Q", "spades")` for Queen of Spades detection.                                                                                                                                                                          |
+| `sum_zone_values_by_suit(zone, suit)`                  | number         | Sums card values for all cards of a specific suit in a zone. Uses `high` value for dual-value cards.                                                                                                                                                                                                                              |
+| `concat(a, b)`                                         | string         | Concatenates two values into a string. E.g., `concat("won:", trick_winner("trick"))` produces `"won:2"`.                                                                                                                                                                                                                          |
+| `all_players_done()`                                   | boolean        | True when all players have completed their turns.                                                                                                                                                                                                                                                                                 |
+| `all_hands_dealt()`                                    | boolean        | True after dealing is complete.                                                                                                                                                                                                                                                                                                   |
+| `scores_calculated()`                                  | boolean        | True after scoring is complete.                                                                                                                                                                                                                                                                                                   |
+| `continue_game()`                                      | boolean        | True when the game should continue to another round.                                                                                                                                                                                                                                                                              |
 
 #### Effect Builtins (modify state)
 
-| Function | Description |
-|---|---|
-| `shuffle(zone)` | Shuffles all cards in the zone using the seeded PRNG. |
-| `deal(from, to, count)` | Deals `count` cards from `from` to each per-player zone matching `to`. |
-| `draw(from, to, count)` | Draws `count` cards from `from` into `to` for the current player. |
-| `move_top(from, to, count)` | Moves the top `count` cards from `from` zone to `to` zone. Works on any two arbitrary zones (not player-scoped like `draw`). |
-| `move_all(from, to)` | Moves all cards from `from` zone to `to` zone. Cards retain their face-up state. |
-| `move_rank(from, to, rank)` | Moves every card whose rank string equals `rank` from `from` to `to`, keeping relative order and face-up state. Used to hand over asked-for cards or lay down a book in Go Fish. No-op if nothing matches. |
-| `flip_top(zone, count)` | Sets the top `count` cards in `zone` to face-up. |
-| `set_face_up(zone, index, bool)` | Sets the face-up state of a specific card in a zone. |
-| `reveal_all(zone)` | Sets all cards in a zone to face-up. |
-| `end_turn()` | Advances to the next player. |
-| `calculate_scores()` | Computes scores for all players using the ruleset's scoring expressions. |
-| `determine_winners()` | Evaluates bust/win/tie conditions per player and records results. |
-| `collect_all_to(zone)` | Gathers all cards from all zones into the target zone. |
-| `reset_round()` | Resets the round: clears scores, resets player index, increments turn. |
-| `reverse_turn_order()` | Flips turn direction (clockwise ↔ counterclockwise). Only valid when `effects` collector is available. |
-| `skip_next_player()` | Advances the player index by one extra step in the current direction. Only valid when `effects` collector is available. |
-| `set_next_player(index)` | Sets the next player to a specific index (0-based). Only valid when `effects` collector is available. |
-| `collect_trick(zone_prefix, target_zone)` | Moves all cards from every `{prefix}:{N}` zone into `target_zone`. Cards are set face-down. Used to collect a completed trick into the winner's won pile. |
-| `set_lead_player(player_index)` | Sets `variables.lead_player` AND `currentPlayerIndex` to the given player index. The trick winner leads the next trick. |
-| `end_game()` | Transitions the game status to `finished`. Derives the winner from `scores[result:N] === 1`. Call after `determine_winners()` in the scoring phase. |
-| `set_var(name, value)` | Sets a custom variable to the given numeric value. |
-| `set_str_var(name, value)` | Sets a string variable to the given value. |
-| `inc_var(name, amount)` | Increments a custom variable by `amount` (can be negative). Creates the variable from 0 if it doesn't exist. |
+| Function                                  | Description                                                                                                                                                                                                |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shuffle(zone)`                           | Shuffles all cards in the zone using the seeded PRNG.                                                                                                                                                      |
+| `deal(from, to, count)`                   | Deals `count` cards from `from` to each per-player zone matching `to`.                                                                                                                                     |
+| `draw(from, to, count)`                   | Draws `count` cards from `from` into `to` for the current player.                                                                                                                                          |
+| `move_top(from, to, count)`               | Moves the top `count` cards from `from` zone to `to` zone. Works on any two arbitrary zones (not player-scoped like `draw`).                                                                               |
+| `move_all(from, to)`                      | Moves all cards from `from` zone to `to` zone. Cards retain their face-up state.                                                                                                                           |
+| `move_rank(from, to, rank)`               | Moves every card whose rank string equals `rank` from `from` to `to`, keeping relative order and face-up state. Used to hand over asked-for cards or lay down a book in Go Fish. No-op if nothing matches. |
+| `flip_top(zone, count)`                   | Sets the top `count` cards in `zone` to face-up.                                                                                                                                                           |
+| `set_face_up(zone, index, bool)`          | Sets the face-up state of a specific card in a zone.                                                                                                                                                       |
+| `reveal_all(zone)`                        | Sets all cards in a zone to face-up.                                                                                                                                                                       |
+| `end_turn()`                              | Advances to the next player.                                                                                                                                                                               |
+| `calculate_scores()`                      | Computes scores for all players using the ruleset's scoring expressions.                                                                                                                                   |
+| `determine_winners()`                     | Evaluates bust/win/tie conditions per player and records results.                                                                                                                                          |
+| `collect_all_to(zone)`                    | Gathers all cards from all zones into the target zone.                                                                                                                                                     |
+| `reset_round()`                           | Resets the round: clears scores, resets player index, increments turn.                                                                                                                                     |
+| `reverse_turn_order()`                    | Flips turn direction (clockwise ↔ counterclockwise). Only valid when `effects` collector is available.                                                                                                     |
+| `skip_next_player()`                      | Advances the player index by one extra step in the current direction. Only valid when `effects` collector is available.                                                                                    |
+| `set_next_player(index)`                  | Sets the next player to a specific index (0-based). Only valid when `effects` collector is available.                                                                                                      |
+| `collect_trick(zone_prefix, target_zone)` | Moves all cards from every `{prefix}:{N}` zone into `target_zone`. Cards are set face-down. Used to collect a completed trick into the winner's won pile.                                                  |
+| `set_lead_player(player_index)`           | Sets `variables.lead_player` AND `currentPlayerIndex` to the given player index. The trick winner leads the next trick.                                                                                    |
+| `end_game()`                              | Transitions the game status to `finished`. Derives the winner from `scores[result:N] === 1`. Call after `determine_winners()` in the scoring phase.                                                        |
+| `set_var(name, value)`                    | Sets a custom variable to the given numeric value.                                                                                                                                                         |
+| `set_str_var(name, value)`                | Sets a string variable to the given value.                                                                                                                                                                 |
+| `inc_var(name, amount)`                   | Increments a custom variable by `amount` (can be negative). Creates the variable from 0 if it doesn't exist.                                                                                               |
 
 #### Special Forms
 
-| Form | Description |
-|---|---|
-| `while(condition, body)` | Repeatedly evaluates `body` while `condition` is true. Bounded to 100 iterations to prevent infinite loops. Effects are flushed between iterations so the condition sees updated state. |
-| `if(condition, then)` | If `condition` is true, evaluates `then`; otherwise returns `true`. |
-| `if(condition, then, else)` | If `condition` is true, evaluates `then`; otherwise evaluates `else`. |
+| Form                        | Description                                                                                                                                                                             |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `while(condition, body)`    | Repeatedly evaluates `body` while `condition` is true. Bounded to 100 iterations to prevent infinite loops. Effects are flushed between iterations so the condition sees updated state. |
+| `if(condition, then)`       | If `condition` is true, evaluates `then`; otherwise returns `true`.                                                                                                                     |
+| `if(condition, then, else)` | If `condition` is true, evaluates `then`; otherwise evaluates `else`.                                                                                                                   |
 
 The `if` form uses **lazy evaluation** -- only the chosen branch is evaluated.
 This makes it safe to guard expressions that would fail on missing zones. For
@@ -827,11 +824,11 @@ Each `turn_based` phase can declare its initial turn order:
 }
 ```
 
-| Value | Description |
-|---|---|
-| `"clockwise"` | Players proceed in ascending index order (default). |
-| `"counterclockwise"` | Players proceed in descending index order. |
-| `"fixed"` | Player order does not change; turn direction effects are ignored. |
+| Value                | Description                                                       |
+| -------------------- | ----------------------------------------------------------------- |
+| `"clockwise"`        | Players proceed in ascending index order (default).               |
+| `"counterclockwise"` | Players proceed in descending index order.                        |
+| `"fixed"`            | Player order does not change; turn direction effects are ignored. |
 
 ### Turn Order Effects
 
@@ -879,11 +876,11 @@ Declare variables using the top-level `variables` field. Each key maps to a
 
 A `VariableDefinition` has:
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | `"number" \| "string"` | Yes | The variable's type. Discriminates the definition. |
-| `initial` | `number \| string` | Yes | The starting value. Must match `type` (a number for `"number"`, a string for `"string"`). |
-| `public` | `boolean` | No | If `true`, the variable is included in `PlayerView`. Defaults to `false`. |
+| Field     | Type                   | Required | Description                                                                               |
+| --------- | ---------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `type`    | `"number" \| "string"` | Yes      | The variable's type. Discriminates the definition.                                        |
+| `initial` | `number \| string`     | Yes      | The starting value. Must match `type` (a number for `"number"`, a string for `"string"`). |
+| `public`  | `boolean`              | No       | If `true`, the variable is included in `PlayerView`. Defaults to `false`.                 |
 
 **Numeric variables** (`"type": "number"`) are read with `get_var(name)`,
 written with `set_var(name, value)` and `inc_var(name, amount)`.
@@ -900,14 +897,17 @@ written with `set_str_var(name, value)`.
 Two ways to read a numeric variable:
 
 1. **`get_var(name)` builtin** — explicitly reads a variable by name:
+
    ```
    get_var("running_total") > 99
    ```
 
 2. **Identifier binding** — variable names resolve directly in expressions:
+
    ```
    running_total > 99
    ```
+
    Note: if a variable name collides with a zone name or score key, the zone
    or score takes precedence.
 
@@ -920,9 +920,9 @@ get_str_var("current_suit") != "none"
 
 Two effect builtins modify variables:
 
-| Builtin | Description |
-|---------|-------------|
-| `set_var(name, value)` | Sets a variable to an exact numeric value. |
+| Builtin                 | Description                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `set_var(name, value)`  | Sets a variable to an exact numeric value.                                                                          |
 | `inc_var(name, amount)` | Adds `amount` to the current value. Use negative amounts to subtract. If the variable doesn't exist, starts from 0. |
 
 ### Example: Tracking a Running Total
@@ -1007,10 +1007,10 @@ String variables are declared in the same `variables` manifest with
 
 **Builtins:**
 
-| Builtin | Description |
-|---------|-------------|
-| `get_str_var(name)` | Returns the string value. Returns `""` if the variable doesn't exist. |
-| `set_str_var(name, value)` | Sets a string variable to the given value. |
+| Builtin                    | Description                                                           |
+| -------------------------- | --------------------------------------------------------------------- |
+| `get_str_var(name)`        | Returns the string value. Returns `""` if the variable doesn't exist. |
+| `set_str_var(name, value)` | Sets a string variable to the given value.                            |
 
 **Example — Crazy Eights suit choosing:**
 
@@ -1049,11 +1049,11 @@ The `scoring` section defines how winners are determined.
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `method` | expression | The scoring expression. Evaluated per player to compute their score. |
-| `winCondition` | expression | Expression that determines whether a player wins. |
-| `bustCondition` | expression? | Optional expression that determines whether a player has busted. |
+| Field           | Type        | Description                                                          |
+| --------------- | ----------- | -------------------------------------------------------------------- |
+| `method`        | expression  | The scoring expression. Evaluated per player to compute their score. |
+| `winCondition`  | expression  | Expression that determines whether a player wins.                    |
+| `bustCondition` | expression? | Optional expression that determines whether a player has busted.     |
 
 In blackjack, the `method` uses `sum_card_values` with the `prefer_high_under`
 strategy to compute the best possible hand value without exceeding 21. The
@@ -1070,12 +1070,12 @@ below the target.
 For games played over multiple rounds, the engine supports
 accumulated scoring through cumulative score variables:
 
-| Builtin | Args | Returns | Description |
-|---------|------|---------|-------------|
-| `accumulate_scores()` | 0 | effect | Adds each player's `player_score:{i}` to `variables["cumulative_score_{i}"]` |
-| `get_cumulative_score(i)` | 1 | number | Returns `variables["cumulative_score_{i}"]`, defaults to 0 |
-| `max_cumulative_score()` | 0 | number | Highest cumulative score across all human players |
-| `min_cumulative_score()` | 0 | number | Lowest cumulative score across all human players |
+| Builtin                   | Args | Returns | Description                                                                  |
+| ------------------------- | ---- | ------- | ---------------------------------------------------------------------------- |
+| `accumulate_scores()`     | 0    | effect  | Adds each player's `player_score:{i}` to `variables["cumulative_score_{i}"]` |
+| `get_cumulative_score(i)` | 1    | number  | Returns`variables["cumulative_score_{i}"]`, defaults to 0                    |
+| `max_cumulative_score()`  | 0    | number  | Highest cumulative score across all human players                            |
+| `min_cumulative_score()`  | 0    | number  | Lowest cumulative score across all human players                             |
 
 **Pattern**: After `calculate_scores()` computes round scores, call
 `accumulate_scores()` to persist them. Use `max_cumulative_score()` in
@@ -1085,10 +1085,7 @@ transition conditions to determine whether the game should end or continue.
 {
   "name": "scoring",
   "kind": "automatic",
-  "onEnter": [
-    "calculate_scores()",
-    "accumulate_scores()"
-  ],
+  "onEnter": ["calculate_scores()", "accumulate_scores()"],
   "transitions": [
     { "to": "game_over", "when": "max_cumulative_score() >= 100" },
     { "to": "round_end", "when": "max_cumulative_score() < 100" }
@@ -1135,13 +1132,13 @@ optional `phaseOverrides` map that changes visibility during specific phases.
 
 ### Visibility Values
 
-| Value | Description |
-|---|---|
-| `"visible"` | All players can see all cards in this zone (formerly `"public"`). |
-| `"owner_only"` | Only the zone's owner can see the cards. Other players see card backs. |
-| `"hidden"` | No one can see the cards (not even the owner). Used for draw piles. |
-| `"count_only"` | Players can see how many cards are in the zone, but not the card faces. |
-| `"partial:first_card_only"` | Only the first card in the zone is visible. |
+| Value                       | Description                                                             |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `"visible"`                 | All players can see all cards in this zone (formerly `"public"`).       |
+| `"owner_only"`              | Only the zone's owner can see the cards. Other players see card backs.  |
+| `"hidden"`                  | No one can see the cards (not even the owner). Used for draw piles.     |
+| `"count_only"`              | Players can see how many cards are in the zone, but not the card faces. |
+| `"partial:first_card_only"` | Only the first card in the zone is visible.                             |
 
 ### Phase Overrides (`phaseOverrides`)
 
@@ -1203,11 +1200,11 @@ The `ui` section provides optional layout hints for the client renderer.
 }
 ```
 
-| Field | Values | Description |
-|---|---|---|
-| `layout` | `semicircle`, `circle`, `grid`, `linear` | How player positions are arranged on screen. |
-| `tableColor` | `felt_green`, `wood`, `dark`, `custom` | Background theme for the table. |
-| `customColor` | string? | A custom color string, used when `tableColor` is `"custom"`. |
+| Field         | Values                                   | Description                                                  |
+| ------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| `layout`      | `semicircle`, `circle`, `grid`, `linear` | How player positions are arranged on screen.                 |
+| `tableColor`  | `felt_green`, `wood`, `dark`, `custom`   | Background theme for the table.                              |
+| `customColor` | string?                                  | A custom color string, used when `tableColor` is `"custom"`. |
 
 These are hints only -- the client can interpret or override them.
 
@@ -1228,8 +1225,8 @@ section.
     "version": "1.0.0",
     "author": "card-engine",
     "players": {
-      "min": 1,   // At least 1 human player
-      "max": 6    // Up to 6 human players against the dealer
+      "min": 1, // At least 1 human player
+      "max": 6 // Up to 6 human players against the dealer
     }
   },
 
@@ -1241,19 +1238,19 @@ section.
     "preset": "standard_52",
     "copies": 2,
     "cardValues": {
-      "A":  { "kind": "dual", "low": 1, "high": 11 },
-      "2":  2,
-      "3":  3,
-      "4":  4,
-      "5":  5,
-      "6":  6,
-      "7":  7,
-      "8":  8,
-      "9":  9,
+      "A": { "kind": "dual", "low": 1, "high": 11 },
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9,
       "10": 10,
-      "J":  10,
-      "Q":  10,
-      "K":  10
+      "J": 10,
+      "Q": 10,
+      "K": 10
     }
   },
 
@@ -1262,28 +1259,28 @@ section.
   // a phaseOverride that reveals all cards during the dealer_turn phase.
   "zones": {
     "draw_pile": {
-      "visibility": "hidden",              // Nobody sees the draw pile
-      "owners": []                          // Shared (house) zone
+      "visibility": "hidden", // Nobody sees the draw pile
+      "owners": [] // Shared (house) zone
     },
     "hand": {
-      "visibility": "owner_only",          // Only the owner sees their hand
-      "owners": ["player"]                  // Expands to hand:0, hand:1, etc.
+      "visibility": "owner_only", // Only the owner sees their hand
+      "owners": ["player"] // Expands to hand:0, hand:1, etc.
     },
     "dealer_hand": {
       "visibility": "partial:first_card_only",
-      "owners": ["dealer"],                 // Single zone, owned by the dealer
+      "owners": ["dealer"], // Single zone, owned by the dealer
       "phaseOverrides": { "dealer_turn": "visible" }
     },
     "discard": {
-      "visibility": "visible",             // Everyone can see the discard pile
-      "owners": []                          // Shared zone
+      "visibility": "visible", // Everyone can see the discard pile
+      "owners": [] // Shared zone
     }
   },
 
   // --- Roles ---
   // One human role per connected player, plus one AI dealer.
   "roles": [
-    { "name": "player", "isHuman": true,  "count": "per_player" },
+    { "name": "player", "isHuman": true, "count": "per_player" },
     { "name": "dealer", "isHuman": false, "count": 1 }
   ],
 
@@ -1296,14 +1293,12 @@ section.
       "name": "deal",
       "kind": "automatic",
       "actions": [],
-      "transitions": [
-        { "to": "player_turns", "when": "all_hands_dealt" }
-      ],
+      "transitions": [{ "to": "player_turns", "when": "all_hands_dealt" }],
       "onEnter": [
-        "shuffle(draw_pile)",                    // Shuffle the shoe
-        "deal(draw_pile, hand, 2)",              // Deal 2 cards to each player
-        "deal(draw_pile, dealer_hand, 2)",       // Deal 2 cards to the dealer
-        "set_face_up(dealer_hand, 0, true)"      // Flip the dealer's first card face-up
+        "shuffle(draw_pile)", // Shuffle the shoe
+        "deal(draw_pile, hand, 2)", // Deal 2 cards to each player
+        "deal(draw_pile, dealer_hand, 2)", // Deal 2 cards to the dealer
+        "set_face_up(dealer_hand, 0, true)" // Flip the dealer's first card face-up
       ]
     },
     {
@@ -1326,10 +1321,7 @@ section.
           "name": "double_down",
           "label": "Double Down",
           "condition": "card_count(current_player.hand) == 2",
-          "effect": [
-            "draw(draw_pile, current_player.hand, 1)",
-            "end_turn()"
-          ]
+          "effect": ["draw(draw_pile, current_player.hand, 1)", "end_turn()"]
         }
       ],
       "transitions": [
@@ -1343,9 +1335,7 @@ section.
       "name": "dealer_turn",
       "kind": "automatic",
       "actions": [],
-      "transitions": [
-        { "to": "scoring", "when": "hand_value(dealer_hand) >= 17" }
-      ],
+      "transitions": [{ "to": "scoring", "when": "hand_value(dealer_hand) >= 17" }],
       "onEnter": [
         "reveal_all(dealer_hand)",
         "while(hand_value(dealer_hand) < 17, draw(draw_pile, dealer_hand, 1))"
@@ -1356,26 +1346,16 @@ section.
       "name": "scoring",
       "kind": "automatic",
       "actions": [],
-      "transitions": [
-        { "to": "round_end", "when": "scores_calculated" }
-      ],
-      "onEnter": [
-        "calculate_scores()",
-        "determine_winners()"
-      ]
+      "transitions": [{ "to": "round_end", "when": "scores_calculated" }],
+      "onEnter": ["calculate_scores()", "determine_winners()"]
     },
     {
       // Phase 5: Collect cards and reset for the next round
       "name": "round_end",
       "kind": "automatic",
       "actions": [],
-      "transitions": [
-        { "to": "deal", "when": "continue_game" }
-      ],
-      "onEnter": [
-        "collect_all_to(draw_pile)",
-        "reset_round()"
-      ]
+      "transitions": [{ "to": "deal", "when": "continue_game" }],
+      "onEnter": ["collect_all_to(draw_pile)", "reset_round()"]
     }
   ],
 
@@ -1466,13 +1446,13 @@ You can reference it in your `.cardgame.json` files for editor support:
 
 ### Common Validation Errors
 
-| Error | Cause |
-|---|---|
-| `meta.slug: Invalid` | Slug contains uppercase letters or special characters. |
-| `meta.version: Invalid` | Version is not in `X.Y.Z` format. |
-| `players.min must be <= players.max` | Min player count exceeds max. |
-| `deck.preset: Invalid enum value` | Preset name is not one of the three recognized values. |
-| `phases: Array must contain at least 1 element(s)` | No phases defined. |
+| Error                                              | Cause                                                  |
+| -------------------------------------------------- | ------------------------------------------------------ |
+| `meta.slug: Invalid`                               | Slug contains uppercase letters or special characters. |
+| `meta.version: Invalid`                            | Version is not in `X.Y.Z` format.                      |
+| `players.min must be <= players.max`               | Min player count exceeds max.                          |
+| `deck.preset: Invalid enum value`                  | Preset name is not one of the three recognized values. |
+| `phases: Array must contain at least 1 element(s)` | No phases defined.                                     |
 
 ---
 
@@ -1512,12 +1492,7 @@ describe("Blackjack ruleset", () => {
   });
 
   it("creates initial state with correct zones", () => {
-    const state = createInitialState(
-      ruleset,
-      "session-1" as GameSessionId,
-      players,
-      seed
-    );
+    const state = createInitialState(ruleset, "session-1" as GameSessionId, players, seed);
 
     // Per-player hands are expanded
     expect(state.zones["hand:0"]).toBeDefined();
@@ -1534,12 +1509,7 @@ describe("Blackjack ruleset", () => {
 
   it("starts the game and runs the deal phase", () => {
     const reducer = createReducer(ruleset, seed);
-    const initial = createInitialState(
-      ruleset,
-      "session-1" as GameSessionId,
-      players,
-      seed
-    );
+    const initial = createInitialState(ruleset, "session-1" as GameSessionId, players, seed);
 
     const state = reducer(initial, { kind: "start_game" });
 
@@ -1561,12 +1531,7 @@ describe("Blackjack ruleset", () => {
 ```typescript
 it("allows a player to hit and draw a card", () => {
   const reducer = createReducer(ruleset, seed);
-  const initial = createInitialState(
-    ruleset,
-    "session-1" as GameSessionId,
-    players,
-    seed
-  );
+  const initial = createInitialState(ruleset, "session-1" as GameSessionId, players, seed);
 
   // Start the game (runs deal phase)
   let state = reducer(initial, { kind: "start_game" });
@@ -1614,11 +1579,11 @@ In a trick-taking game:
 
 Trick-taking games typically use three per-player zone types:
 
-| Zone | Visibility | Purpose |
-|------|-----------|---------|
-| `hand` | owner_only | Player's cards |
-| `trick` | public | Current trick (0-1 cards) |
-| `won` | hidden | Collected trick cards |
+| Zone    | Visibility | Purpose                   |
+| ------- | ---------- | ------------------------- |
+| `hand`  | owner_only | Player's cards            |
+| `trick` | public     | Current trick (0-1 cards) |
+| `won`   | hidden     | Collected trick cards     |
 
 ```json
 "zones": {
@@ -1657,11 +1622,7 @@ setup → play_trick → resolve_trick → play_trick → ... → scoring
   "kind": "automatic",
   "actions": [],
   "transitions": [{ "to": "play_trick", "when": "all_hands_dealt" }],
-  "onEnter": [
-    "shuffle(draw_pile)",
-    "deal(draw_pile, hand, 13)",
-    "set_lead_player(0)"
-  ]
+  "onEnter": ["shuffle(draw_pile)", "deal(draw_pile, hand, 13)", "set_lead_player(0)"]
 }
 ```
 
@@ -1673,14 +1634,14 @@ their trick zone.
 {
   "name": "play_trick",
   "kind": "turn_based",
-  "actions": [{
-    "name": "play_card",
-    "label": "Play Card",
-    "effect": ["end_turn()"]
-  }],
-  "transitions": [
-    { "to": "resolve_trick", "when": "trick_card_count(\"trick\") == player_count" }
+  "actions": [
+    {
+      "name": "play_card",
+      "label": "Play Card",
+      "effect": ["end_turn()"]
+    }
   ],
+  "transitions": [{ "to": "resolve_trick", "when": "trick_card_count(\"trick\") == player_count" }],
   "turnOrder": "clockwise"
 }
 ```
@@ -1778,11 +1739,13 @@ effect clears round state but preserves `cumulative_score_*` variables:
 {
   "name": "round_end",
   "kind": "all_players",
-  "actions": [{
-    "name": "play_again",
-    "label": "Play Again",
-    "effect": ["collect_all_to(draw_pile)", "reset_round()"]
-  }],
+  "actions": [
+    {
+      "name": "play_again",
+      "label": "Play Again",
+      "effect": ["collect_all_to(draw_pile)", "reset_round()"]
+    }
+  ],
   "transitions": [{ "to": "setup", "when": "continue_game" }]
 }
 ```
