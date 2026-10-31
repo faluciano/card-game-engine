@@ -925,11 +925,17 @@ function requirePlayerIndex(draft: Draft, kind: EffectKind, playerIndex: number)
 // ─── Effect Implementations ────────────────────────────────────────
 
 /**
- * Shuffles all cards in a zone using the seeded RNG.
+ * Shuffles all cards in a zone using the seeded RNG. A shuffled pile is
+ * face-down, so every card is turned over: otherwise a face-up discard
+ * pile reshuffled into the draw pile would keep showing its faces, and
+ * each card drawn from it would land face-up in a hand.
  */
 function applyShuffleEffect(draft: Draft, params: ZoneParams, rng: SeededRng): void {
   const zone = requireZone(draft, "shuffle", params.zone);
-  draft.zones()[params.zone] = { ...zone, cards: rng.shuffle(zone.cards) };
+  const cards = rng
+    .shuffle(zone.cards)
+    .map((card) => (card.faceUp ? { ...card, faceUp: false } : card));
+  draft.zones()[params.zone] = { ...zone, cards };
 }
 
 /**

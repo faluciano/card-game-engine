@@ -17,6 +17,7 @@ import {
   getScoreRows,
   getSharedZones,
   getStatusBarModel,
+  getTableZone,
   getZoneDisplayMode,
   isPlayerZone,
   isPublicOnTable,
@@ -25,7 +26,6 @@ import {
   resolveScoreLabel,
   resolveTableColor,
   resolveWinnerName,
-  revealCards,
   suitSymbol,
 } from "./game-table-model";
 import { colors } from "./theme";
@@ -230,18 +230,66 @@ describe("suits", () => {
 
 // ─── Zone display ──────────────────────────────────────────────────
 
-describe("revealCards", () => {
-  it("forces cards face-up when revealed and keeps identity otherwise", () => {
-    const list = cards(2, false);
-    expect(revealCards(list, false)).toBe(list);
-    const revealed = revealCards(list, true);
-    expect(revealed.every((c) => c.faceUp)).toBe(true);
-    expect(list[0]!.faceUp).toBe(false);
+describe("getTableZone", () => {
+  function zoneWith(
+    visibility: ZoneState["definition"]["visibility"],
+    cardList: readonly Card[],
+    phaseOverrides?: ZoneState["definition"]["phaseOverrides"],
+  ): ZoneState {
+    return { definition: { name: "x", visibility, owners: [], phaseOverrides }, cards: cardList };
+  }
+
+  function tableState(zones: Readonly<Record<string, ZoneState>>, currentPhase = "play") {
+    return engine({ zones, currentPhase });
+  }
+
+  const faces = (z: ZoneState): boolean[] => z.cards.map((c) => c.faceUp);
+
+  it("shows face-up cards in a hidden zone as card backs", () => {
+    // A reshuffled discard pile: every card still flagged face-up.
+    const state = tableState({ draw_pile: zoneWith({ kind: "hidden" }, cards(3, true)) });
+    expect(faces(getTableZone(state, "draw_pile"))).toEqual([false, false, false]);
   });
 
-  it("keeps already face-up card objects", () => {
-    const list = cards(1, true);
-    expect(revealCards(list, true)[0]).toBe(list[0]);
+  it("shows face-up cards in a player's hand as card backs", () => {
+    const state = tableState({ "hand:0": zoneWith({ kind: "owner_only" }, cards(2, true)) });
+    expect(faces(getTableZone(state, "hand:0"))).toEqual([false, false]);
+  });
+
+  it("shows every card of a public zone face-up", () => {
+    const state = tableState({ trick: zoneWith({ kind: "public" }, cards(2, false)) });
+    expect(faces(getTableZone(state, "trick"))).toEqual([true, true]);
+  });
+
+  it("applies partial rules: only face-up cards of a face_up_only zone show", () => {
+    const hole = [card("up", "hearts", "K", true), card("down", "spades", "A", false)];
+    const state = tableState({
+      dealer_hand: zoneWith({ kind: "partial", rule: "face_up_only" }, hole),
+    });
+    expect(faces(getTableZone(state, "dealer_hand"))).toEqual([true, false]);
+  });
+
+  it("honours phase overrides", () => {
+    const hand = zoneWith({ kind: "owner_only" }, cards(2, false), [
+      { phase: "showdown", visibility: { kind: "public" } },
+    ]);
+    expect(faces(getTableZone(tableState({ "hand:1": hand }, "play"), "hand:1"))).toEqual([
+      false,
+      false,
+    ]);
+    expect(faces(getTableZone(tableState({ "hand:1": hand }, "showdown"), "hand:1"))).toEqual([
+      true,
+      true,
+    ]);
+  });
+
+  it("returns the same zone object when nothing changes", () => {
+    const deck = zoneWith({ kind: "hidden" }, cards(2, false));
+    expect(getTableZone(tableState({ deck }), "deck")).toBe(deck);
+  });
+
+  it("throws for a zone that does not exist", () => {
+    expect(() => getTableZone(tableState({}), "ghost")).toThrow("Zone not found: ghost");
   });
 });
 

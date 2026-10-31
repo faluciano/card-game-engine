@@ -28,5 +28,5 @@ export {
   type ValidAction,
   type ActionValidationResult,
 } from "./action-validator";
-export { createPlayerView } from "./state-filter";
+export { createPlayerView, createTableZoneView } from "./state-filter";
 export { isHumanPlayer } from "./role-utils";

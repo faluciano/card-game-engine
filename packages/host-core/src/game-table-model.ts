@@ -6,6 +6,7 @@
 // renderers only map these values to native / DOM elements.
 
 import type { Card, CardGameState, Player, UIConfig, ZoneState } from "@card-engine/shared";
+import { createTableZoneView } from "@card-engine/shared";
 import { colors } from "./theme";
 
 // ─── Constants ─────────────────────────────────────────────────────
@@ -241,9 +242,24 @@ export function getScoreRows(engineState: CardGameState): readonly ScoreRow[] {
 
 // ─── Zone Display ──────────────────────────────────────────────────
 
-/** Cards as the god-view shows them: forced face-up when the zone is revealed. */
-export function revealCards(cards: readonly Card[], revealed: boolean): readonly Card[] {
-  return revealed ? cards.map((card) => (card.faceUp ? card : { ...card, faceUp: true })) : cards;
+/**
+ * A zone as the shared table shows it: each card the table may see under
+ * the zone's visibility rule is face-up, every other card face-down. The
+ * ruleset decides, never a card's own `faceUp` flag, so a face-up card
+ * that ends up in a draw pile or a hand still shows only its back.
+ * Returns the zone itself when nothing changes, keeping memoized renders.
+ */
+export function getTableZone(engineState: CardGameState, zoneName: string): ZoneState {
+  const zone = engineState.zones[zoneName];
+  if (!zone) {
+    throw new Error(`Zone not found: ${zoneName}`);
+  }
+  const visible = createTableZoneView(engineState, zoneName).cards;
+  const cards = zone.cards.map((card, i) => {
+    const faceUp = visible[i] != null;
+    return card.faceUp === faceUp ? card : { ...card, faceUp };
+  });
+  return cards.every((card, i) => card === zone.cards[i]) ? zone : { ...zone, cards };
 }
 
 export type ZoneDisplayMode =

@@ -120,9 +120,7 @@ export function createPlayerView(state: CardGameState, playerId: PlayerId): Play
       zoneName,
       zoneState.cards,
       effectiveVisibility,
-      player.role,
-      playerIndex,
-      zoneState.definition.owners,
+      isZoneOwner(zoneName, zoneState.definition.owners, player.role, playerIndex),
     );
   }
 
@@ -174,6 +172,40 @@ export function createPlayerView(state: CardGameState, playerId: PlayerId): Play
 }
 
 /**
+ * Creates the view of one zone for the shared table — the TV or browser
+ * display that the whole room watches. The table owns no zone, so
+ * `owner_only` and `hidden` zones show only card backs, `partial` rules
+ * apply as for any player, and `public` zones show every card. A card's
+ * own `faceUp` flag never reveals it on its own.
+ *
+ * @throws {Error} when the zone does not exist.
+ */
+export function createTableZoneView(state: CardGameState, zoneName: string): FilteredZoneState {
+  const zone = state.zones[zoneName];
+  if (!zone) {
+    throw new Error(`Zone not found: ${zoneName}`);
+  }
+  const visibility = getEffectiveVisibility(zone.definition, state.currentPhase);
+  return filterZone(zoneName, zone.cards, visibility, false);
+}
+
+/**
+ * Whether a player owns a zone: their own copy of a per-player zone
+ * (`hand:2` for player 2), or a shared zone their role owns.
+ */
+function isZoneOwner(
+  name: string,
+  zoneOwners: readonly string[],
+  playerRole: string,
+  playerIndex: number,
+): boolean {
+  const perPlayerMatch = name.match(/:(\d+)$/);
+  return perPlayerMatch
+    ? Number(perPlayerMatch[1]) === playerIndex
+    : zoneOwners.includes(playerRole);
+}
+
+/**
  * Applies visibility rules to a zone's cards.
  * Returns a FilteredZoneState where hidden cards become null.
  */
@@ -181,15 +213,8 @@ function filterZone(
   name: string,
   cards: readonly Card[],
   visibility: ZoneVisibility,
-  playerRole: string,
-  playerIndex: number,
-  zoneOwners: readonly string[],
+  isOwner: boolean,
 ): FilteredZoneState {
-  const perPlayerMatch = name.match(/:(\d+)$/);
-  const isOwner = perPlayerMatch
-    ? Number(perPlayerMatch[1]) === playerIndex
-    : zoneOwners.includes(playerRole);
-
   switch (visibility.kind) {
     case "public":
       return { name, cards: [...cards], cardCount: cards.length };
