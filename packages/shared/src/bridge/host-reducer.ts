@@ -15,6 +15,11 @@ import type { HostAction, HostGameState, HostScreen, InstalledGame } from "./hos
 import { createInitialState } from "../engine/interpreter";
 import { generateSeed } from "../engine/prng";
 import { getEngine } from "./engine-cache";
+import {
+  CLIENT_ACTION_KINDS,
+  authorizeHostAction,
+  isHostActionRejection,
+} from "./host-action-guard";
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
@@ -26,18 +31,6 @@ function generateSessionId(): GameSessionId {
   const word = () => generateSeed().toString(16).padStart(8, "0");
   return `${word()}-${word()}-${word()}-${word()}` as GameSessionId;
 }
-
-/**
- * Engine actions a client may send through GAME_ACTION: playing a card and
- * declaring one of the phase's named actions — both checked against the
- * ruleset. Everything else is host-only: phase pacing (`advance_phase`,
- * `step_phase`, `reset_round`) is driven by the host orchestrator; the
- * roster/lifecycle actions (`join`, `leave`, `start_game`) are owned by
- * CouchKit and START_GAME — a client sending them could impersonate or add
- * players; and raw `draw_card` / `end_turn` would let a client draw from any
- * zone or skip its turn outside the ruleset's actions.
- */
-const CLIENT_ACTION_KINDS: ReadonlySet<CardGameAction["kind"]> = new Set(["play_card", "declare"]);
 
 /** Host-only engine actions, dispatched via their own HostAction types. */
 type InternalActionKind = "advance_phase" | "step_phase" | "reset_round";
@@ -122,8 +115,20 @@ export function hostReducerImpl(state: HostGameState, action: HostAction): HostG
   }
 }
 
-/** Raw reducer — CouchKit's GameHostProvider wraps it internally. */
-export const hostReducer = hostReducerImpl;
+/**
+ * The reducer CouchKit runs. Checks each action with
+ * {@link authorizeHostAction} first: CouchKit stamps a phone's actions
+ * with the sender's `playerId`, which the guard uses to refuse host-only
+ * actions and to pin a phone's moves to its own player. Refused actions
+ * leave the state unchanged.
+ */
+export function hostReducer(state: HostGameState, action: HostAction): HostGameState {
+  const stamped = (action as { readonly playerId?: unknown }).playerId;
+  const senderId = typeof stamped === "string" ? stamped : undefined;
+  const authorized = authorizeHostAction(action, senderId, state);
+  if (isHostActionRejection(authorized)) return state;
+  return hostReducerImpl(state, authorized);
+}
 
 // ─── Action Handlers ───────────────────────────────────────────────
 

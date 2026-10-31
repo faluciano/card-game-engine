@@ -15,6 +15,13 @@ export type {
 } from "./client-view";
 export { createHostClientView, EMPTY_CLIENT_VIEW } from "./client-view";
 export {
+  authorizeHostAction,
+  isHostActionRejection,
+  CLIENT_ACTION_KINDS,
+  type HostActionAuthorization,
+  type HostActionRejection,
+} from "./host-action-guard";
+export {
   createHostInitialState,
   deriveStatus,
   hostReducerImpl,
