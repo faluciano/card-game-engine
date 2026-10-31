@@ -19,7 +19,7 @@
       "dependencies": {
         "@card-engine/host-core": "workspace:*",
         "@card-engine/shared": "workspace:*",
-        "@couch-kit/client": "0.16.0",
+        "@couch-kit/client": "0.16.1",
         "react": "19.3.1",
         "react-dom": "19.3.1",
       },
@@ -38,8 +38,8 @@
       "dependencies": {
         "@card-engine/host-core": "workspace:*",
         "@card-engine/shared": "workspace:*",
-        "@couch-kit/core": "0.10.1",
-        "@couch-kit/display": "0.7.0",
+        "@couch-kit/core": "0.10.2",
+        "@couch-kit/display": "0.7.1",
         "react": "19.3.1",
         "react-dom": "19.3.1",
         "react-qr-code": "^2.2.0",
@@ -58,8 +58,8 @@
       "dependencies": {
         "@card-engine/host-core": "workspace:*",
         "@card-engine/shared": "workspace:*",
-        "@couch-kit/core": "0.10.1",
-        "@couch-kit/host": "2.1.1",
+        "@couch-kit/core": "0.10.2",
+        "@couch-kit/host": "2.1.2",
         "expo": "~58.0.19",
         "expo-build-properties": "~58.0.11",
         "expo-file-system": "~58.0.11",
@@ -71,7 +71,7 @@
         "react-native-svg": "15.16.0",
       },
       "devDependencies": {
-        "@couch-kit/cli": "0.3.12",
+        "@couch-kit/cli": "0.3.13",
         "@types/react": "~19.3.0",
         "babel-preset-expo": "~58.0.20",
         "typescript": "~5.9.3",
@@ -101,7 +101,7 @@
       "name": "@card-engine/shared",
       "version": "0.1.0",
       "dependencies": {
-        "@couch-kit/core": "0.10.1",
+        "@couch-kit/core": "0.10.2",
         "zod": "^4.6.7",
       },
       "devDependencies": {
@@ -285,17 +285,17 @@
 
     "@card-engine/shared": ["@card-engine/shared@workspace:packages/shared"],
 
-    "@couch-kit/cli": ["@couch-kit/cli@0.3.12", "", { "dependencies": { "@couch-kit/core": "0.10.1", "commander": "^15.0.0" }, "bin": { "couch-kit": "dist/index.js" } }, "sha512-fjoxjtekv95YXUAN1QUnwjJuBuvOWNpE8Hc2gSBgzSdjpnq+UbrGA74uxYt4BaFqsMQYCfkrPqxwA/U8s/JsLA=="],
+    "@couch-kit/cli": ["@couch-kit/cli@0.3.13", "", { "dependencies": { "@couch-kit/core": "0.10.2", "commander": "^15.0.0" }, "bin": { "couch-kit": "dist/index.js" } }, "sha512-NKlFQkHfdsgRy+ijP+RwvXRGjl6UV3uxdLbKk1/EmGclYCfCvcoj2jdSrnVDqLnKb9k3SclUYcswun3svWF8FQ=="],
 
-    "@couch-kit/client": ["@couch-kit/client@0.16.0", "", { "dependencies": { "@couch-kit/core": "0.10.1" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-d9PGrlZHNfwsay0uPcz4Nj2tjlN7in00XeyaAGD3Voow2i6jF0nshhq9OfNGfmr64o6WSNPSC5MixI9HClxjGA=="],
+    "@couch-kit/client": ["@couch-kit/client@0.16.1", "", { "dependencies": { "@couch-kit/core": "0.10.2" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-vhHrqHag8UFA17NnODQusec+Eg7W4u1/jzA5s9Qwl8o++wgOHBy4Cy/Pl/shES+C4C+KrDSz3QAlhOfouLezCA=="],
 
-    "@couch-kit/core": ["@couch-kit/core@0.10.1", "", {}, "sha512-ye32Sv4ykwykhxCX4iYLTPy9YNiK4CDi/N9esjXaqJ/lKxK5GwIJTnntFl2o9WMMDY8SPQ3x91ZUo+jjKF74aQ=="],
+    "@couch-kit/core": ["@couch-kit/core@0.10.2", "", {}, "sha512-Gzxy6BPRJ/y9HH28a0c7NSRGLNyoqCG6ov4gBpeCG0+eQXdOoP3yJR+6lEGaa3HVbxZUMCRXsX2nu5wUNqp+Kg=="],
 
-    "@couch-kit/display": ["@couch-kit/display@0.7.0", "", { "dependencies": { "@couch-kit/client": "0.16.0", "@couch-kit/core": "0.10.1", "@couch-kit/runtime": "0.6.0" } }, "sha512-D+vx/RYTrmAWMmIpKS2Xbnts+YSzTpQ+VCofrWLtv6ZQxQNY13mjmOIujK7LdYNi6Rg3XidTpQeFdsmLJmbijA=="],
+    "@couch-kit/display": ["@couch-kit/display@0.7.1", "", { "dependencies": { "@couch-kit/client": "0.16.1", "@couch-kit/core": "0.10.2", "@couch-kit/runtime": "0.7.0" } }, "sha512-cs+ocfRnA2DV8jtOCZnOJS/JXLUsoZ62Tyq0N4R8GV4yHZExTWnY6oRQ7Xgdmwy/SzIhrxiEy4nvDMPZ/69Sew=="],
 
-    "@couch-kit/host": ["@couch-kit/host@2.1.1", "", { "dependencies": { "@couch-kit/core": "0.10.1", "@couch-kit/runtime": "0.6.0", "react-native-nitro-http-server": "^1.9.2" }, "peerDependencies": { "expo": ">=51.0.0", "expo-file-system": ">=19.0.0", "expo-network": ">=7.0.0", "react": ">=18.2.0", "react-native": ">=0.72.0", "react-native-nitro-modules": ">=0.35.0" } }, "sha512-rt74uyMiUeQZkol9EWYgZ09/RCnj+SvGYJLCZhaJLzqehxWMBUn03aztnKXMJHvkB34V5km4qfQLeLmTR5mn2g=="],
+    "@couch-kit/host": ["@couch-kit/host@2.1.2", "", { "dependencies": { "@couch-kit/core": "0.10.2", "@couch-kit/runtime": "0.7.0", "react-native-nitro-http-server": "^1.9.2" }, "peerDependencies": { "expo": ">=51.0.0", "expo-file-system": ">=19.0.0", "expo-network": ">=7.0.0", "react": ">=18.2.0", "react-native": ">=0.72.0", "react-native-nitro-modules": ">=0.35.0" } }, "sha512-9ehWhMn5iGN33wKbb0nBvDQ4Jkqyf/jW2Nie2CL1mwK3CHC/LzUgqLZEgquwskTdJAof4IGkMVrjRsgWsmr5NQ=="],
 
-    "@couch-kit/runtime": ["@couch-kit/runtime@0.6.0", "", { "dependencies": { "@couch-kit/core": "0.10.1" } }, "sha512-6YQIiJoyWuFEQLsu6HUTzn7pXYWS0+y4L2jU++hYZgVEwDStrJ1P5KDjC4Qm0o7b8JmN5XWGcPPP+g9z6jbrDQ=="],
+    "@couch-kit/runtime": ["@couch-kit/runtime@0.7.0", "", { "dependencies": { "@couch-kit/core": "0.10.2" } }, "sha512-XKvm3xn69ABIB+bOoBCKPS9vW4o715y8TXLh5rnkW/lJkLi6MWLhLx0jrr/zGJPljCc0QEu+YNB8OjofIAKhtw=="],
 
     "@csstools/color-helpers": ["@csstools/color-helpers@6.1.2", "", {}, "sha512-grhRy3OKmniaAEKXMjua5z/EODX0MSqBGjunw8+j/3HQjOnahs2AGhvEOIYVUWcU6ScApbhLhVrQTX8XqrMrow=="],
 
