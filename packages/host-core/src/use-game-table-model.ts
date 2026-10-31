@@ -22,10 +22,10 @@ import {
   getSharedZones,
   getStatusBarModel,
   getZoneDisplayMode,
+  getTableZone,
   isPublicOnTable,
   nextNewCardStartIndex,
   resolveTableColor,
-  revealCards,
   type ActiveSuitModel,
   type PlayerZoneGroup,
   type ResultsOverlayModel,
@@ -67,9 +67,9 @@ export type GameTableModel =
     };
 
 function toZoneViews(engineState: CardGameState, zones: readonly ZoneEntry[]): ZoneViewModel[] {
-  return zones.map(([name, zone]) => ({
+  return zones.map(([name]) => ({
     name,
-    zone,
+    zone: getTableZone(engineState, name),
     revealed: isPublicOnTable(engineState, name),
   }));
 }
@@ -125,7 +125,7 @@ export function useGameTableModel(
 // ─── Zone Model ────────────────────────────────────────────────────
 
 export interface ZoneModel {
-  /** Cards as shown (forced face-up when revealed). */
+  /** Cards as shown: face-up exactly where the table may see them. */
   readonly cards: readonly Card[];
   readonly mode: ZoneDisplayMode;
   /** Index from which cards are "newly dealt" (-1 when none). */
@@ -140,7 +140,7 @@ export interface ZoneModel {
  */
 export function useZoneModel(name: string, zone: ZoneState, revealed: boolean): ZoneModel {
   const [expanded, setExpanded] = useState(false);
-  const cards = useMemo(() => revealCards(zone.cards, revealed), [revealed, zone.cards]);
+  const cards = zone.cards;
 
   // Track previous card count to detect newly dealt cards
   const prevCardCountRef = useRef(cards.length);

@@ -333,7 +333,7 @@ Mutating functions that record effect descriptions for the interpreter to apply.
 
 | Builtin                            | Args                      | Description                                              |
 | ---------------------------------- | ------------------------- | -------------------------------------------------------- |
-| `shuffle(zone)`                    | zone name                 | Shuffle cards in zone using seeded PRNG                  |
+| `shuffle(zone)`                    | zone name                 | Shuffle with seeded PRNG; turns cards face-down          |
 | `deal(from, to, count)`            | zone, zone prefix, number | Deal count cards to each per-player zone                 |
 | `draw(from, to, count)`            | zone, zone, number        | Move count cards between zones                           |
 | `set_face_up(zone, index, faceUp)` | zone, number, boolean     | Set faceUp on a specific card by index                   |

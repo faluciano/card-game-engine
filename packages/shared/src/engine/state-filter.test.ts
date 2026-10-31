@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createPlayerView } from "./state-filter";
+import { createPlayerView, createTableZoneView } from "./state-filter";
 import type {
   Card,
   CardGameState,
@@ -997,5 +997,66 @@ describe("state-filter", () => {
       const view = createPlayerView(state, makePlayerId("p1"));
       expect(view.variables).toEqual({});
     });
+  });
+});
+
+// ─── createTableZoneView ───────────────────────────────────────────
+
+describe("createTableZoneView", () => {
+  const visibleIds = (state: CardGameState, zone: string): (string | null)[] =>
+    createTableZoneView(state, zone).cards.map((c) => c?.id ?? null);
+
+  it("shows every card of a public zone", () => {
+    const state = stateWithZone("discard", [KING_HEARTS, ACE_SPADES], { kind: "public" });
+    expect(visibleIds(state, "discard")).toEqual(["c2", "c1"]);
+  });
+
+  it("hides a hidden zone even when its cards are flagged face-up", () => {
+    const state = stateWithZone("draw_pile", [ACE_SPADES, JACK_CLUBS], { kind: "hidden" });
+    const view = createTableZoneView(state, "draw_pile");
+    expect(view.cards).toEqual([null, null]);
+    expect(view.cardCount).toBe(2);
+  });
+
+  it("hides per-player owner_only zones, face-up cards included", () => {
+    const state = stateWithZone("hand:0", [ACE_SPADES, KING_HEARTS], { kind: "owner_only" }, [
+      "player",
+    ]);
+    expect(visibleIds(state, "hand:0")).toEqual([null, null]);
+  });
+
+  it("hides role-owned owner_only zones", () => {
+    const state = stateWithZone("dealer_hand", [ACE_SPADES], { kind: "owner_only" }, ["dealer"]);
+    expect(visibleIds(state, "dealer_hand")).toEqual([null]);
+  });
+
+  it("applies partial rules", () => {
+    const cards = [ACE_SPADES, KING_HEARTS, QUEEN_DIAMONDS, JACK_CLUBS];
+    const faceUpOnly = stateWithZone("z", cards, { kind: "partial", rule: "face_up_only" });
+    expect(visibleIds(faceUpOnly, "z")).toEqual(["c1", null, null, "c4"]);
+    const firstOnly = stateWithZone("z", cards, { kind: "partial", rule: "first_card_only" });
+    expect(visibleIds(firstOnly, "z")).toEqual(["c1", null, null, null]);
+  });
+
+  it("honours phase overrides", () => {
+    const state = createMockState({
+      currentPhase: "dealer_turn",
+      zones: {
+        "hand:0": {
+          definition: {
+            name: "hand",
+            visibility: { kind: "owner_only" },
+            owners: ["player"],
+            phaseOverrides: [{ phase: "dealer_turn", visibility: { kind: "public" } }],
+          },
+          cards: [TEN_SPADES],
+        },
+      },
+    });
+    expect(visibleIds(state, "hand:0")).toEqual(["c5"]);
+  });
+
+  it("throws for a zone that does not exist", () => {
+    expect(() => createTableZoneView(createMockState(), "ghost")).toThrow("Zone not found: ghost");
   });
 });

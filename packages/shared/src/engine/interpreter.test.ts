@@ -1077,6 +1077,49 @@ describe("Ruleset Interpreter", () => {
       expect(handCards1).toEqual(handCards2);
     });
 
+    it("shuffle turns every card face-down, so a reshuffled face-up pile deals backs", () => {
+      const ruleset: CardGameRuleset = {
+        meta: {
+          name: "Face-Down Shuffle",
+          slug: "face-down-shuffle",
+          version: "1.0.0",
+          author: "test",
+          players: { min: 2, max: 2 },
+        },
+        deck: { preset: "standard_52", copies: 1, cardValues: {} },
+        zones: [
+          { name: "draw_pile", visibility: { kind: "hidden" }, owners: [] },
+          { name: "hand", visibility: { kind: "owner_only" }, owners: ["player"] },
+        ],
+        roles: [{ name: "player", isHuman: true, count: "per_player" }],
+        phases: [
+          {
+            name: "deal",
+            kind: "automatic",
+            actions: [],
+            transitions: [{ to: "play", when: "all_hands_dealt" }],
+            // Like a discard pile turned into the draw pile: every card face-up.
+            onEnter: ["flip_top(draw_pile, 52)", "shuffle(draw_pile)", "deal(draw_pile, hand, 3)"],
+          },
+          {
+            name: "play",
+            kind: "turn_based",
+            actions: [{ name: "pass", label: "Pass", effect: ["end_turn()"] }],
+            transitions: [],
+          },
+        ],
+        scoring: { method: "0", winCondition: "false" },
+        ui: { layout: "semicircle", tableColor: "felt_green" },
+      };
+      const reducer = createReducer(ruleset);
+      const initial = createInitialState(ruleset, makeSessionId("s"), makePlayers(2), FIXED_SEED);
+      const started = reducer(initial, { kind: "start_game" });
+
+      const cards = Object.values(started.zones).flatMap((zone) => zone.cards);
+      expect(cards).toHaveLength(52);
+      expect(cards.filter((c) => c.faceUp)).toEqual([]);
+    });
+
     it("different seeds produce different deals", () => {
       const ruleset = makeBlackjackRuleset();
       const players = makePlayers(1);

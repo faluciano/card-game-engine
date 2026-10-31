@@ -74,7 +74,7 @@ export {
   resolveScoreLabel,
   resolveTableColor,
   resolveWinnerName,
-  revealCards,
+  getTableZone,
   suitSymbol,
   type ActiveSuitModel,
   type CappedCard,
