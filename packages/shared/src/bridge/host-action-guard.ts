@@ -5,8 +5,9 @@
 // its own cards and manage the game library — everything that paces or
 // restarts the game is the host's.
 //
-// The signature matches CouchKit's planned `authorizeAction` runtime
-// hook, so this guard can move there unchanged once it ships.
+// Pass it as CouchKit's `authorizeAction` runtime option: the runtime
+// calls it for player actions only (never the host's own dispatches),
+// fails closed if it throws, and sends the rejection reason to the phone.
 
 import type { CardGameAction, PlayerId } from "../types/index";
 import type { HostAction, HostGameState } from "./host-state";

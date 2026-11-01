@@ -148,30 +148,41 @@ describe("authorizeHostAction", () => {
   });
 });
 
-// ─── hostReducer integration ───────────────────────────────────────
+// ─── Runtime integration ───────────────────────────────────────────
 
-describe("hostReducer guards phone actions", () => {
+/**
+ * What CouchKit's runtime does with a phone action when the host passes
+ * `authorizeAction: authorizeHostAction`: authorize it, then reduce the
+ * result stamped with the sender. A rejection leaves the state alone.
+ */
+function receiveFromPhone(state: HostGameState, action: HostAction, senderId: string) {
+  const authorized = authorizeHostAction(fromPhone(action, senderId), senderId, state);
+  if (isHostActionRejection(authorized)) return { state, rejection: authorized.reject };
+  return { state: hostReducer(state, fromPhone(authorized, senderId)), rejection: null };
+}
+
+describe("authorizeHostAction as the runtime's authorizeAction", () => {
   it("lets a phone act for its own player", () => {
-    const state = makeStartedGameState();
-    const next = hostReducer(state, fromPhone(declare("p1", "draw"), "p1"));
-    expect(next.engineState!.zones["hand:0"]!.cards).toHaveLength(1);
+    const { state } = receiveFromPhone(makeStartedGameState(), declare("p1", "draw"), "p1");
+    expect(state.engineState!.zones["hand:0"]!.cards).toHaveLength(1);
   });
 
   it("stops a phone from acting as another player", () => {
-    const state = makeStartedGameState();
     // Bob claims to be Alice, whose turn it is.
-    const next = hostReducer(state, fromPhone(declare("p1", "draw"), "p2"));
-    expect(next.engineState!.zones["hand:0"]!.cards).toHaveLength(0);
-    expect(next.engineState!.zones["hand:1"]!.cards).toHaveLength(0);
-    expect(next.actionError?.playerId).toBe("p2");
+    const { state } = receiveFromPhone(makeStartedGameState(), declare("p1", "draw"), "p2");
+    expect(state.engineState!.zones["hand:0"]!.cards).toHaveLength(0);
+    expect(state.engineState!.zones["hand:1"]!.cards).toHaveLength(0);
+    expect(state.actionError?.playerId).toBe("p2");
   });
 
-  it("ignores a phone leaving the table mid-game", () => {
-    const state = makeStartedGameState();
-    expect(hostReducer(state, fromPhone({ type: "BACK_TO_PICKER" }, "p2"))).toBe(state);
+  it("refuses a phone leaving the table mid-game", () => {
+    const before = makeStartedGameState();
+    const { state, rejection } = receiveFromPhone(before, { type: "BACK_TO_PICKER" }, "p2");
+    expect(state).toBe(before);
+    expect(rejection).toBe("Players cannot send BACK_TO_PICKER; only the host can");
   });
 
-  it("ignores a phone restarting the game with a chosen seed", () => {
+  it("refuses a phone starting the game with a chosen seed", () => {
     let lobby = hostReducer(createHostInitialState(), {
       type: "SELECT_RULESET",
       ruleset: makeTestRuleset(),
@@ -183,10 +194,12 @@ describe("hostReducer guards phone actions", () => {
         p2: { id: "p2", name: "Bob", connected: true, isHost: false },
       },
     };
-    expect(hostReducer(lobby, fromPhone({ type: "START_GAME", seed: 1 }, "p1"))).toBe(lobby);
+    const { state, rejection } = receiveFromPhone(lobby, { type: "START_GAME", seed: 1 }, "p1");
+    expect(state).toBe(lobby);
+    expect(rejection).not.toBeNull();
   });
 
-  it("still runs the host's own dispatches", () => {
+  it("leaves the host's own dispatches to the reducer", () => {
     const state = makeStartedGameState();
     expect(hostReducer(state, { type: "BACK_TO_PICKER" }).screen.tag).toBe("ruleset_picker");
   });

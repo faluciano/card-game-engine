@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { RelayDisplayHost } from "@couch-kit/display";
 import {
+  authorizeHostAction,
   hostReducer,
   createHostInitialState,
   createHostClientView,
@@ -26,6 +27,9 @@ export function App(): React.JSX.Element {
       onRoomCode: setRoomId,
       reducer: hostReducer,
       initialState: createHostInitialState(),
+      // Phones may only play their own cards and manage the library; the
+      // reason for a refusal goes back to the phone that sent it.
+      authorizeAction: authorizeHostAction,
       // Each phone receives only its own hand and the moves it may make.
       // Without this the whole engine state — every hand — goes to every
       // player, and hiding cards is left to the client's good manners.

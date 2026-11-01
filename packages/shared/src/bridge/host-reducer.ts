@@ -15,11 +15,7 @@ import type { HostAction, HostGameState, HostScreen, InstalledGame } from "./hos
 import { createInitialState } from "../engine/interpreter";
 import { generateSeed } from "../engine/prng";
 import { getEngine } from "./engine-cache";
-import {
-  CLIENT_ACTION_KINDS,
-  authorizeHostAction,
-  isHostActionRejection,
-} from "./host-action-guard";
+import { CLIENT_ACTION_KINDS } from "./host-action-guard";
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
@@ -116,19 +112,11 @@ export function hostReducerImpl(state: HostGameState, action: HostAction): HostG
 }
 
 /**
- * The reducer CouchKit runs. Checks each action with
- * {@link authorizeHostAction} first: CouchKit stamps a phone's actions
- * with the sender's `playerId`, which the guard uses to refuse host-only
- * actions and to pin a phone's moves to its own player. Refused actions
- * leave the state unchanged.
+ * The reducer CouchKit runs. It trusts its input: configure the host
+ * runtime with `authorizeAction: authorizeHostAction` so phone actions
+ * are checked (and pinned to their sender) before they get here.
  */
-export function hostReducer(state: HostGameState, action: HostAction): HostGameState {
-  const stamped = (action as { readonly playerId?: unknown }).playerId;
-  const senderId = typeof stamped === "string" ? stamped : undefined;
-  const authorized = authorizeHostAction(action, senderId, state);
-  if (isHostActionRejection(authorized)) return state;
-  return hostReducerImpl(state, authorized);
-}
+export const hostReducer = hostReducerImpl;
 
 // ─── Action Handlers ───────────────────────────────────────────────
 
