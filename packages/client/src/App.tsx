@@ -11,6 +11,7 @@ import {
   createRelayTransport,
   useRelayRoom,
   describeRelayError,
+  normalizeRoomCode,
 } from "@couch-kit/client";
 import { EMPTY_CLIENT_VIEW, type HostAction, type HostClientView } from "@card-engine/shared";
 import { NameEntryScreen } from "./screens/NameEntryScreen.js";
@@ -27,19 +28,10 @@ import { ScreenTransition } from "./components/ScreenTransition.js";
 
 const STORAGE_KEY = "ck_player_name";
 
-// Relay (cross-network) opt-in. When the controller is opened with `?room=CODE`,
-// it connects to the shared relay for that room instead of the default LAN
-// WebSocket, letting phones join a browser display from any network.
-const DEFAULT_RELAY_URL =
-  import.meta.env.VITE_RELAY_URL ?? "wss://couch-kit-relay.faluciano.workers.dev";
-
-function readRelayUrl(): string {
-  try {
-    return new URLSearchParams(window.location.search).get("relay") ?? DEFAULT_RELAY_URL;
-  } catch {
-    return DEFAULT_RELAY_URL;
-  }
-}
+// The relay that carries the room (`?room=CODE`) between the phones and the
+// browser display. Fixed at build time on purpose: a `?relay=` link would let
+// anyone who can show a player a QR code point their phone at another relay.
+const RELAY_URL = import.meta.env.VITE_RELAY_URL ?? "wss://couch-kit-relay.faluciano.workers.dev";
 
 function readStoredName(): string | null {
   try {
@@ -123,17 +115,26 @@ function GameClient({
   playerName,
   onChangeName,
 }: GameClientProps): React.JSX.Element {
-  const url = useMemo(() => readRelayUrl(), []);
   // No reducer: the host projects state per player, so this client holds a
   // view rather than the whole game and cannot reduce over it. It renders what
   // the host sends — which is the point, since the cards it must not see are
   // never delivered.
-  const { status, state, playerId, sendAction, sendActionWithResult, disconnectReason } =
+  const { status, state, playerId, sendAction, sendActionWithResult, disconnectReason, reconnect } =
     useGameClient<HostClientView, HostAction>({
       initialState: EMPTY_CLIENT_VIEW,
       name: playerName,
-      createTransport: createRelayTransport({ url, roomId }),
+      createTransport: createRelayTransport({ url: RELAY_URL, roomId }),
+      // A new code connects to the new room at once, with a fresh retry budget.
+      connectionKey: roomId,
     });
+
+  // After a final relay error (wrong or expired code, a busy server) the
+  // player may enter the same code again — say, once the display is up.
+  // Setting an unchanged code changes nothing, so retry it explicitly.
+  const handleJoin = (code: string): void => {
+    if (normalizeRoomCode(code) === roomId) reconnect();
+    else onRejoin(code);
+  };
 
   // A terminal relay failure (wrong or expired code, full room) is worth
   // explaining; an ordinary drop is retried and needs no screen.
@@ -150,7 +151,7 @@ function GameClient({
   // A room-level failure is terminal, so show what went wrong and let the
   // player retype the code — ConnectingScreen would spin forever.
   if (joinError) {
-    return <JoinScreen onJoin={onRejoin} error={joinError} />;
+    return <JoinScreen onJoin={handleJoin} error={joinError} />;
   }
 
   if (status !== "connected" || !playerId) {
