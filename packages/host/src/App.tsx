@@ -9,7 +9,7 @@ import type React from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { GameHostProvider, useExtractAssets, useGameHost } from "@couch-kit/host";
 import type { AssetManifest } from "@couch-kit/host";
-import { hostReducer, createHostInitialState } from "@card-engine/shared";
+import { authorizeHostAction, createHostInitialState, hostReducer } from "@card-engine/shared";
 import type { HostAction, HostGameState } from "@card-engine/shared";
 import { colors, useRulesetSync } from "@card-engine/host-core";
 import { rulesetStore } from "./storage";
@@ -77,6 +77,8 @@ function HostProvider({
       config={{
         reducer: hostReducer,
         initialState: createHostInitialState(),
+        // Phones may only play their own cards and manage the library.
+        authorizeAction: authorizeHostAction,
         staticDir,
       }}
     >
