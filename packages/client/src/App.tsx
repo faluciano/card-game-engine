@@ -128,14 +128,12 @@ function GameClient({
   // view rather than the whole game and cannot reduce over it. It renders what
   // the host sends — which is the point, since the cards it must not see are
   // never delivered.
-  const { status, state, playerId, sendAction, disconnectReason } = useGameClient<
-    HostClientView,
-    HostAction
-  >({
-    initialState: EMPTY_CLIENT_VIEW,
-    name: playerName,
-    createTransport: createRelayTransport({ url, roomId }),
-  });
+  const { status, state, playerId, sendAction, sendActionWithResult, disconnectReason } =
+    useGameClient<HostClientView, HostAction>({
+      initialState: EMPTY_CLIENT_VIEW,
+      name: playerName,
+      createTransport: createRelayTransport({ url, roomId }),
+    });
 
   // A terminal relay failure (wrong or expired code, full room) is worth
   // explaining; an ordinary drop is retried and needs no screen.
@@ -202,7 +200,7 @@ function GameClient({
           <PlayingScreen
             playerView={playerView}
             validActions={validActions}
-            sendAction={sendAction}
+            sendActionWithResult={sendActionWithResult}
             playableCardIds={playableCardIds}
           />
           <Toast

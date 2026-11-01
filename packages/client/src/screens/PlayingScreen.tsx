@@ -7,8 +7,9 @@
 import type React from "react";
 import { useState } from "react";
 import type { CSSProperties } from "react";
-import type { HostAction, PlayerView, ValidAction } from "@card-engine/shared";
+import type { PlayerView, ValidAction } from "@card-engine/shared";
 import { usePlayingScreenModel } from "../hooks/usePlayingScreenModel.js";
+import type { SendActionWithResult } from "../hooks/useGameActionSender.js";
 import { GameInfo } from "../components/GameInfo.js";
 import { HandViewer } from "../components/HandViewer.js";
 import { ActionBar } from "../components/ActionBar.js";
@@ -16,11 +17,12 @@ import { RoundResultsBanner } from "../components/RoundResultsBanner.js";
 import { OpponentInfo } from "../components/OpponentInfo.js";
 import { CompactZones } from "../components/CompactZones.js";
 import { DiscardPileModal } from "../components/DiscardPileModal.js";
+import { Toast } from "../components/Toast.js";
 
 interface PlayingScreenProps {
   readonly playerView: PlayerView;
   readonly validActions: readonly ValidAction[];
-  readonly sendAction: (action: HostAction) => void;
+  readonly sendActionWithResult: SendActionWithResult;
   readonly playableCardIds: ReadonlySet<string>;
 }
 
@@ -36,10 +38,10 @@ const containerStyle: CSSProperties = {
 export function PlayingScreen({
   playerView,
   validActions,
-  sendAction,
+  sendActionWithResult,
   playableCardIds,
 }: PlayingScreenProps): React.JSX.Element {
-  const model = usePlayingScreenModel({ playerView, validActions, sendAction });
+  const model = usePlayingScreenModel({ playerView, validActions, sendActionWithResult });
   const [discardModalOpen, setDiscardModalOpen] = useState(false);
 
   return (
@@ -69,6 +71,7 @@ export function PlayingScreen({
         playerId={playerView.myPlayerId}
         sendAction={model.handleSendAction}
         selectedCard={model.selectedCard}
+        locked={model.isActionLocked}
       />
       {model.isRoundEnd && (
         <RoundResultsBanner
@@ -76,8 +79,10 @@ export function PlayingScreen({
           playerScore={model.myScore}
           opponentScores={model.npcScores}
           onNewRound={model.handleNewRound}
+          disabled={model.isActionLocked}
         />
       )}
+      <Toast message={model.actionFailure?.message} triggerKey={model.actionFailure?.key ?? 0} />
 
       {discardModalOpen && (
         <DiscardPileModal cards={model.discardCards} onClose={() => setDiscardModalOpen(false)} />

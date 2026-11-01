@@ -12,6 +12,8 @@ interface RoundResultsBannerProps {
   readonly playerScore: number;
   readonly opponentScores: readonly { readonly label: string; readonly score: number }[];
   readonly onNewRound: () => void;
+  /** A move is in flight: the button is disabled until the table answers. */
+  readonly disabled?: boolean;
 }
 
 // ─── Styles ────────────────────────────────────────────────────────
@@ -77,6 +79,7 @@ export function RoundResultsBanner({
   playerScore,
   opponentScores,
   onNewRound,
+  disabled = false,
 }: RoundResultsBannerProps): React.JSX.Element {
   const config = getResultConfig(result);
 
@@ -99,7 +102,8 @@ export function RoundResultsBanner({
         </div>
         <button
           type="button"
-          style={buttonStyle}
+          style={disabled ? { ...buttonStyle, opacity: 0.5, cursor: "not-allowed" } : buttonStyle}
+          disabled={disabled}
           onClick={onNewRound}
           onPointerDown={(e) => {
             e.currentTarget.style.transform = "scale(0.95)";

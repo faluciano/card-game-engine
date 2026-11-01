@@ -1,7 +1,8 @@
 // ─── usePlayingScreenModel ─────────────────────────────────────────
 // All non-JSX state for the gameplay screen: card selection (reset when
 // the valid-action set changes), the turn pulse + haptic, the compact
-// pile split, round-end data and the "new round" declaration.
+// pile split, round-end data and the "new round" declaration. Moves go
+// through `useGameActionSender`, so a double tap cannot send one twice.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
@@ -20,6 +21,11 @@ import {
   visibleCards,
   type CompactZoneSplit,
 } from "../lib/playing-screen.js";
+import {
+  useGameActionSender,
+  type ActionFailureNotice,
+  type SendActionWithResult,
+} from "./useGameActionSender.js";
 
 /** How long the "your turn" pulse animation runs. */
 const TURN_PULSE_MS = 2000;
@@ -29,7 +35,7 @@ const TURN_VIBRATION_PATTERN: readonly number[] = [100, 50, 100];
 export interface PlayingScreenModelInput {
   readonly playerView: PlayerView;
   readonly validActions: readonly ValidAction[];
-  readonly sendAction: (action: HostAction) => void;
+  readonly sendActionWithResult: SendActionWithResult;
 }
 
 export interface PlayingScreenModel extends CompactZoneSplit {
@@ -39,6 +45,10 @@ export interface PlayingScreenModel extends CompactZoneSplit {
   readonly highlightPlayable: boolean;
   readonly handleCardSelect: (cardId: CardInstanceId, zoneName: string) => void;
   readonly handleSendAction: (action: HostAction) => void;
+  /** A move is in flight: disable the move buttons. */
+  readonly isActionLocked: boolean;
+  /** The last move the table did not take, for the toast. */
+  readonly actionFailure: ActionFailureNotice | null;
   readonly turnPulse: boolean;
   /** PlayerView with the compact piles removed, for HandViewer. */
   readonly handPlayerView: PlayerView;
@@ -56,9 +66,14 @@ export interface PlayingScreenModel extends CompactZoneSplit {
 export function usePlayingScreenModel({
   playerView,
   validActions,
-  sendAction,
+  sendActionWithResult,
 }: PlayingScreenModelInput): PlayingScreenModel {
   const [selectedCard, setSelectedCard] = useState<SelectedCard | null>(null);
+  const {
+    send,
+    isLocked: isActionLocked,
+    failure: actionFailure,
+  } = useGameActionSender(sendActionWithResult, playerView);
 
   // ─── Turn notification: detect false → true transition ──────────
   const prevIsMyTurnRef = useRef<boolean>(playerView.isMyTurn);
@@ -95,10 +110,11 @@ export function usePlayingScreenModel({
 
   const handleSendAction = useCallback(
     (action: HostAction) => {
-      sendAction(action);
+      if (isActionLocked) return;
+      send(action);
       setSelectedCard(null);
     },
-    [sendAction],
+    [isActionLocked, send],
   );
 
   // ─── Compact piles ──────────────────────────────────────────────
@@ -133,6 +149,8 @@ export function usePlayingScreenModel({
     highlightPlayable: hasPlayCardAction(validActions),
     handleCardSelect,
     handleSendAction,
+    isActionLocked,
+    actionFailure,
     turnPulse,
     handPlayerView,
     discardCards,
