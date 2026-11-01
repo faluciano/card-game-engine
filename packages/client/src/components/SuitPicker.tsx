@@ -14,6 +14,8 @@ interface SuitPickerProps {
   readonly validActions: readonly ValidAction[];
   readonly playerId: PlayerId;
   readonly sendAction: (action: HostAction) => void;
+  /** A move is in flight: every suit is disabled until the table answers. */
+  readonly locked?: boolean;
 }
 
 interface SuitDisplay {
@@ -96,6 +98,7 @@ export function SuitPicker({
   validActions,
   playerId,
   sendAction,
+  locked = false,
 }: SuitPickerProps): React.JSX.Element {
   const handleChoose = useCallback(
     (actionName: string) => {
@@ -117,7 +120,7 @@ export function SuitPicker({
         if (!suit) return null;
 
         const action = actionMap.get(actionName);
-        const isDisabled = !action?.enabled;
+        const isDisabled = locked || !action?.enabled;
         const style = suit.red ? redButtonStyle : blackButtonStyle;
 
         return (

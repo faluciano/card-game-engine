@@ -27,6 +27,8 @@ interface ActionBarProps {
   readonly sendAction: (action: HostAction) => void;
   /** The currently selected card, needed for play_card actions. */
   readonly selectedCard?: SelectedCard | null;
+  /** A move is in flight: every button is disabled until the table answers. */
+  readonly locked?: boolean;
 }
 
 const containerStyle: CSSProperties = {
@@ -114,6 +116,7 @@ export function ActionBar({
   playerId,
   sendAction,
   selectedCard = null,
+  locked = false,
 }: ActionBarProps): React.JSX.Element {
   const { isMyTurn } = playerView;
 
@@ -145,7 +148,12 @@ export function ActionBar({
   if (isSuitPickerPhase(validActions)) {
     return (
       <div style={containerStyle}>
-        <SuitPicker validActions={validActions} playerId={playerId} sendAction={sendAction} />
+        <SuitPicker
+          validActions={validActions}
+          playerId={playerId}
+          sendAction={sendAction}
+          locked={locked}
+        />
       </div>
     );
   }
@@ -167,6 +175,7 @@ export function ActionBar({
                       key={player.id}
                       label={player.name}
                       disabled={
+                        locked ||
                         !action.enabled ||
                         buildGameAction(action, playerId, selectedCard, index) === null
                       }
@@ -184,7 +193,11 @@ export function ActionBar({
             <ActionButton
               key={action.actionName}
               label={needsSelection ? "Select a card" : action.label}
-              disabled={!action.enabled || buildGameAction(action, playerId, selectedCard) === null}
+              disabled={
+                locked ||
+                !action.enabled ||
+                buildGameAction(action, playerId, selectedCard) === null
+              }
               onPress={() => handleAction(action)}
             />
           );
