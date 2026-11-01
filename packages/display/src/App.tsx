@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { RelayDisplayHost } from "@couch-kit/display";
+import { RelayDisplayHost, type RelayDisplayStatus } from "@couch-kit/display";
 import {
   hostReducer,
   createHostInitialState,
@@ -9,6 +9,7 @@ import {
 } from "@card-engine/shared";
 import { colors, useRulesetSync } from "@card-engine/host-core";
 import { ScreenRouter } from "./ScreenRouter.js";
+import { RoomStatusBanner } from "./components/RoomStatusBanner.js";
 import { rulesetStore } from "./storage/web-ruleset-store.js";
 
 const RELAY_URL = import.meta.env.VITE_RELAY_URL ?? "wss://couch-kit-relay.faluciano.workers.dev";
@@ -17,13 +18,24 @@ const RELAY_URL = import.meta.env.VITE_RELAY_URL ?? "wss://couch-kit-relay.faluc
 const CONTROLLER_URL = import.meta.env.VITE_CONTROLLER_URL ?? "";
 
 export function App(): React.JSX.Element {
+  // Each room gets its own RelayDisplayHost. Once the relay closes a room,
+  // starting a new one remounts DisplayRoom with a fresh host and code.
+  const [roomGeneration, setRoomGeneration] = useState(0);
+  return <DisplayRoom key={roomGeneration} onNewRoom={() => setRoomGeneration((n) => n + 1)} />;
+}
+
+// ─── Display Room ──────────────────────────────────────────────────
+
+function DisplayRoom({ onNewRoom }: { readonly onNewRoom: () => void }): React.JSX.Element {
   // The relay assigns the code — it is the only party that can tell whether a
   // code is already taken — so it arrives a round trip after connecting.
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [status, setStatus] = useState<RelayDisplayStatus>("connecting");
   const [display] = useState(() => {
     const display = new RelayDisplayHost<HostGameState, HostAction>({
       url: RELAY_URL,
       onRoomCode: setRoomId,
+      onStatusChange: setStatus,
       reducer: hostReducer,
       initialState: createHostInitialState(),
       // Each phone receives only its own hand and the moves it may make.
@@ -58,6 +70,7 @@ export function App(): React.JSX.Element {
         fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
       }}
     >
+      <RoomStatusBanner status={status} onNewRoom={onNewRoom} />
       <ScreenRouter state={state} dispatch={display.dispatch} joinUrl={joinUrl} roomId={roomId} />
     </div>
   );
